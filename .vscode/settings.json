@@ -1,0 +1,6 @@
+{
+    "python.defaultInterpreterPath": "D:/miniconda/envs/fitness_agent_trae/python.exe",
+    "terminal.integrated.env.windows": {
+        "CONDA_DEFAULT_ENV": "fitness_agent_trae"
+    }
+}
