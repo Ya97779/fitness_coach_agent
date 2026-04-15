@@ -5,10 +5,17 @@ streamlit
 langchain
 langchain-openai
 langchain-community
+langchain-chroma
 langgraph
+langgraph-checkpoint-sqlite
 chromadb
 openai
 python-dotenv
 requests
 plotly
 pandas
+pypdf
+docx2txt
+unstructured
+pytesseract
+pillow

@@ -137,7 +137,8 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
     }
     
     # 4. Run agent
-    final_state = agent.agent_app.invoke(initial_state)
+    config = {"configurable": {"thread_id": str(request.user_id)}}
+    final_state = agent.agent_app.invoke(initial_state, config=config)
     
     # 5. Extract response
     response_msg = final_state['messages'][-1]
