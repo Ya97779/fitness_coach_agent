@@ -97,14 +97,31 @@ elif app_mode == "智能教练":
 
             with st.chat_message("assistant"):
                 try:
-                    response = requests.post(f"{BACKEND_URL}/chat", json={
-                        "user_id": st.session_state.user_id,
-                        "message": prompt
-                    })
+                    # 使用流式接口
+                    response = requests.post(
+                        f"{BACKEND_URL}/chat/stream", 
+                        json={
+                            "user_id": st.session_state.user_id,
+                            "message": prompt
+                        },
+                        stream=True
+                    )
+                    
                     if response.status_code == 200:
-                        answer = response.json()["response"]
-                        st.markdown(answer)
-                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                        # 创建一个占位符用于流式显示
+                        message_placeholder = st.empty()
+                        full_response = ""
+                        
+                        # 迭代流式响应
+                        for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                            if chunk:
+                                full_response += chunk
+                                # 实时更新占位符内容
+                                message_placeholder.markdown(full_response + "▌")
+                        
+                        # 完成后显示最终内容（去掉光标）
+                        message_placeholder.markdown(full_response)
+                        st.session_state.messages.append({"role": "assistant", "content": full_response})
                     else:
                         st.error(f"对话失败: {response.text}")
                 except Exception as e:

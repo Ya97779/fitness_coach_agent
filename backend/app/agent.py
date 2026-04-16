@@ -4,12 +4,11 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMe
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.sqlite import SqliteSaver
-import sqlite3
-from . import models, database, rag_utils
-from datetime import date
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 import os
 from dotenv import load_dotenv
+from . import models, database, rag_utils
+from datetime import date
 
 load_dotenv()
 
@@ -164,8 +163,4 @@ workflow.set_entry_point("agent")
 workflow.add_conditional_edges("agent", should_continue)
 workflow.add_edge("tools", "agent")
 
-# Initialize memory with SqliteSaver
-conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
-memory = SqliteSaver(conn)
-
-agent_app = workflow.compile(checkpointer=memory)
+# Instead of compiling here, we will compile in main.py to manage the async checkpointer lifecycle

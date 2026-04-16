@@ -1,14 +1,39 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from . import models, database, agent
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
+import json
+import asyncio
 from datetime import date
 from langchain_core.messages import HumanMessage, AIMessage
+from contextlib import asynccontextmanager
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 models.Base.metadata.create_all(bind=database.engine)
 
-app = FastAPI()
+# Global agent app variable
+agent_app = None
+checkpointer_context = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global agent_app, checkpointer_context
+    # Initialize AsyncSqliteSaver
+    checkpointer_context = AsyncSqliteSaver.from_conn_string("checkpoints.db")
+    checkpointer = await checkpointer_context.__aenter__()
+    
+    # Compile the agent app with the checkpointer
+    agent_app = agent.workflow.compile(checkpointer=checkpointer)
+    
+    yield
+    
+    # Cleanup
+    if checkpointer_context:
+        await checkpointer_context.__aexit__(None, None, None)
+
+app = FastAPI(lifespan=lifespan)
 
 def get_db():
     db = database.SessionLocal()
@@ -102,12 +127,11 @@ def get_today_log(user_id: int, db: Session = Depends(get_db)):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, db: Session = Depends(get_db)):
-    # 1. Fetch user profile
+    # ... existing implementation ...
     user = db.query(models.User).filter(models.User.id == request.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # 2. Fetch daily stats
     today = date.today()
     log = db.query(models.DailyLog).filter(models.DailyLog.user_id == request.user_id, models.DailyLog.date == today).first()
     if not log:
@@ -116,7 +140,6 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(log)
     
-    # 3. Build initial state
     initial_state = {
         "messages": [HumanMessage(content=request.message)],
         "user_id": request.user_id,
@@ -136,10 +159,58 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
         }
     }
     
-    # 4. Run agent
     config = {"configurable": {"thread_id": str(request.user_id)}}
-    final_state = agent.agent_app.invoke(initial_state, config=config)
+    final_state = await agent_app.ainvoke(initial_state, config=config)
     
-    # 5. Extract response
     response_msg = final_state['messages'][-1]
     return ChatResponse(response=response_msg.content)
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == request.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    today = date.today()
+    log = db.query(models.DailyLog).filter(models.DailyLog.user_id == request.user_id, models.DailyLog.date == today).first()
+    if not log:
+        log = models.DailyLog(user_id=request.user_id, date=today)
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+    
+    initial_state = {
+        "messages": [HumanMessage(content=request.message)],
+        "user_id": request.user_id,
+        "user_profile": {
+            "height": user.height,
+            "weight": user.weight,
+            "age": user.age,
+            "gender": user.gender,
+            "bmr": user.bmr,
+            "tdee": user.tdee,
+            "allergies": user.allergies
+        },
+        "daily_stats": {
+            "intake_calories": log.intake_calories,
+            "burn_calories": log.burn_calories,
+            "net_calories": log.intake_calories - log.burn_calories
+        }
+    }
+    
+    async def event_generator():
+        config = {"configurable": {"thread_id": str(request.user_id)}}
+        # 使用 astream_events v2 来流式输出
+        # 我们主要关注 on_chat_model_stream 事件来获取最终回答的 tokens
+        async for event in agent_app.astream_events(initial_state, config=config, version="v2"):
+            kind = event["event"]
+            if kind == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    yield content
+            elif kind == "on_tool_start":
+                # 可以选择性地将工具调用信息也发给前端（例如提示：正在查询...）
+                # 这里为了简化先只流式输出最终文本
+                pass
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

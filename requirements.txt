@@ -19,3 +19,4 @@ docx2txt
 unstructured
 pytesseract
 pillow
+aiosqlite
