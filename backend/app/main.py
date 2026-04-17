@@ -77,7 +77,7 @@ class DailyLogResponse(BaseModel):
         from_attributes = True
 
 class ChatRequest(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None
     message: str
 
 class ChatResponse(BaseModel):
@@ -85,6 +85,8 @@ class ChatResponse(BaseModel):
 
 # Helper to calculate BMR and TDEE
 def calculate_metrics(height, weight, age, gender):
+    if not height or not weight or not age:
+        return 0, 0
     # Mifflin-St Jeor Equation
     if gender == "男":
         bmr = 10 * weight + 6.25 * height - 5 * age + 5
@@ -167,39 +169,53 @@ async def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == request.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    today = date.today()
-    log = db.query(models.DailyLog).filter(models.DailyLog.user_id == request.user_id, models.DailyLog.date == today).first()
-    if not log:
-        log = models.DailyLog(user_id=request.user_id, date=today)
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+    # 默认空值
+    user_profile = {
+        "height": 0, "weight": 0, "age": 0, "gender": "未知",
+        "bmr": 0, "tdee": 0, "allergies": "无"
+    }
+    daily_stats = {
+        "intake_calories": 0, "burn_calories": 0, "net_calories": 0
+    }
+    thread_id = "guest"
+
+    if request.user_id:
+        user = db.query(models.User).filter(models.User.id == request.user_id).first()
+        if user:
+            user_profile = {
+                "height": user.height,
+                "weight": user.weight,
+                "age": user.age,
+                "gender": user.gender,
+                "bmr": user.bmr,
+                "tdee": user.tdee,
+                "allergies": user.allergies
+            }
+            thread_id = str(request.user_id)
+            
+            today = date.today()
+            log = db.query(models.DailyLog).filter(models.DailyLog.user_id == request.user_id, models.DailyLog.date == today).first()
+            if not log:
+                log = models.DailyLog(user_id=request.user_id, date=today)
+                db.add(log)
+                db.commit()
+                db.refresh(log)
+            
+            daily_stats = {
+                "intake_calories": log.intake_calories,
+                "burn_calories": log.burn_calories,
+                "net_calories": log.intake_calories - log.burn_calories
+            }
     
     initial_state = {
         "messages": [HumanMessage(content=request.message)],
-        "user_id": request.user_id,
-        "user_profile": {
-            "height": user.height,
-            "weight": user.weight,
-            "age": user.age,
-            "gender": user.gender,
-            "bmr": user.bmr,
-            "tdee": user.tdee,
-            "allergies": user.allergies
-        },
-        "daily_stats": {
-            "intake_calories": log.intake_calories,
-            "burn_calories": log.burn_calories,
-            "net_calories": log.intake_calories - log.burn_calories
-        }
+        "user_id": request.user_id or 0,
+        "user_profile": user_profile,
+        "daily_stats": daily_stats
     }
     
     async def event_generator():
-        config = {"configurable": {"thread_id": str(request.user_id)}}
+        config = {"configurable": {"thread_id": thread_id}}
         # 使用 astream_events v2 来流式输出
         # 我们主要关注 on_chat_model_stream 事件来获取最终回答的 tokens
         async for event in agent_app.astream_events(initial_state, config=config, version="v2"):
