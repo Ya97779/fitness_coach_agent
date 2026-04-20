@@ -250,7 +250,7 @@ if app_mode == "chat":
         
         with col_input:
             prompt = st.text_input(
-                "",
+                "用户输入",
                 placeholder="输入您的问题，例如：'如何正确做深蹲？' 或 '记录今天吃了苹果'",
                 key="chat_input",
                 label_visibility="collapsed"

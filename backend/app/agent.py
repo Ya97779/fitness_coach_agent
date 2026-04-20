@@ -101,16 +101,16 @@ def get_daily_summary(user_id: int):
 
 @tool
 def search_food_calories(food_name: str):
-    """模拟搜索食物热量。"""
-    # 实际应用中可以调用外部API或数据库
-    mock_data = {
-        "兰州拉面": 500,
-        "可乐": 150,
-        "鸡蛋": 70,
-        "鸡胸肉": 165,
-        "米饭": 130
-    }
-    return mock_data.get(food_name, 200) # 默认返回200
+    """搜索食物热量，使用天行数据API查询。
+    
+    如果API和本地数据都查不到，返回提示让大模型直接回答用户。
+    """
+    from .food_api import search_food_nutrient
+    result = search_food_nutrient(food_name)
+    if result:
+        return f"食物: {food_name}, 热量: {result['calories']} kcal, 蛋白质: {result['protein']}g, 脂肪: {result['fat']}g, 碳水: {result['carbs']}g (来源: {result.get('source', '本地')})"
+    # 返回提示，让大模型根据自己的知识回答
+    return f"未在数据库中找到'{food_name}'的营养信息，请根据你的知识直接回答用户的问题。"
 
 @tool
 def estimate_exercise_burn(exercise_type: str, duration: int):

@@ -76,11 +76,43 @@ d:\fitness_coach/
 | `log_food_intake` | 记录食物摄入 | `user_id`, `food_name`, `calories` |
 | `log_exercise_burn` | 记录运动消耗 | `user_id`, `activity_type`, `duration`, `calories` |
 | `get_daily_summary` | 获取当日卡路里总结 | `user_id` |
-| `search_food_calories` | 查询食物热量（模拟） | `food_name` |
+| `search_food_calories` | 查询食物热量（天行数据API） | `food_name` |
 | `estimate_exercise_burn` | 估算运动消耗（模拟） | `exercise_type`, `duration` |
 | `rag_medical_search_tool` | 专业健康知识检索 | `query` |
 
-### 6. 数据库模型 (Database Schema)
+### 6. 食物热量 API (food_api.py)
+
+使用**天行数据**提供的食物营养信息 API：
+
+**API 配置**：
+- 接口地址：`https://apis.tianapi.com/nutrient/index`
+- 请求方式：POST
+- API Key：存储在 `.env` 文件中 (`TianxingFood_API_KEY`)
+
+**功能特性**：
+- 通过真实 API 查询食物热量和营养信息
+- 返回热量、蛋白质、脂肪、碳水化合物
+- 内置 fallback 机制，API 不可用时使用本地数据
+
+**使用示例**：
+```python
+from .food_api import search_food_nutrient, get_food_details
+
+# 查询食物营养信息
+result = search_food_nutrient("苹果")
+# 返回: {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14, "source": "天行数据API"}
+
+# 获取详细营养信息（格式化输出）
+details = get_food_details("油条")
+# 输出：🍽️ 油条
+# 数据来源: 天行数据API
+# 🔥 热量: 385 kcal/100g
+# 💪 蛋白质: 6 g
+# 🥑 脂肪: 17 g
+# 🍞 碳水: 51 g
+```
+
+### 7. 数据库模型 (Database Schema)
 
 **Users 表**: 用户基础信息
 - `id`, `height`, `weight`, `age`, `gender`, `target_weight`, `allergies`, `bmr`, `tdee`, `created_at`
@@ -123,7 +155,7 @@ streamlit run frontend/app.py
 ---
 
 ## 🛠️ 未来优化 (Upcoming Enhancements)
-- [ ] 集成真实的营养/食物数据库 API。
+- [✓] 集成真实的营养/食物数据库 API（已完成：天行数据API）。
 - [ ] 根据用户目标自动生成健身计划。
 - [ ] 语音输入功能，用于记录食物和运动。
 - [ ] 导出月度健康报告。
