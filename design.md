@@ -1,119 +1,159 @@
-# 项目目规划文档：智能私人营养师与健身教练 Agent
+# 产品规划文档：FitCoach AI 智能私人营养师与健身教练
 
-## 1. 项目概述
+## 1. 产品概述
 
-本项目旨在开发一款基于大语言模型（LLM）驱动的“私人营养师与健身教练” Web 应用程序。核心系统采用 Agent 架构，不仅具备多轮对话能力，更能通过记忆用户的生理状态、调用外部工具（计算卡路里、查询食物热量等）以及检索专业健康文献，为用户提供长期、个性化的饮食与运动规划闭环服务。
+FitCoach AI 是一款基于大语言模型（LLM）驱动的"私人营养师与健身教练" Web 应用程序。核心系统采用**多 Agent 架构**，通过动态路由将用户请求分发到最适合的专业 Agent，实现个性化的饮食与运动规划服务。
 
-## 2. 产品功能需求 (PRD)
+## 2. 核心功能需求
 
-### 2.1 用户状态管理
+### 2.1 多 Agent 协作系统
 
-支持输入并持久化存储用户的生理基准数据（身高、体重、年龄、性别、目标体重、运动习惯）。
+系统包含四个专用 Agent，通过智能路由协同工作：
 
-计算并维护用户的每日基础代谢率（BMR）和每日总能量消耗（TDEE）。
-- **BMR (Mifflin-St Jeor Equation)**:
-  - 男: 10 * weight(kg) + 6.25 * height(cm) - 5 * age(y) + 5
-  - 女: 10 * weight(kg) + 6.25 * height(cm) - 5 * age(y) - 161
-- **TDEE**: BMR * Activity Factor (默认 1.2 - 1.55)
+| Agent | 职责 | 处理场景 |
+|-------|------|----------|
+| **闲聊助手** | 日常对话、情感支持 | 问候、闲聊、通用问题 |
+| **营养师** | 饮食计划、热量计算、营养建议 | 食物查询、饮食记录、餐单推荐 |
+| **健身教练** | 训练计划、动作指导、运动建议 | 运动计划、动作要领、健身问题 |
+| **专家评审** | 评估输出质量，确保专业性 | 评审营养师和教练的输出 |
 
-### 2.2 日常打卡与数据追踪
+### 2.2 动态路由机制
 
-饮食录入： 用户通过自然语言描述日常饮食（如“今天中午吃了一碗兰州拉面和一瓶可乐”），系统自动解析并计算摄入热量。
+用户输入 → 路由器分析意图 → 分发到合适的 Agent：
 
-运动录入： 用户描述运动情况（如“慢跑了 40 分钟”、“卧推80kg 4x10”），系统估算并记录消耗热量。
+- 问饮食/热量/营养 → 营养师 Agent
+- 问运动/训练/健身 → 健身教练 Agent
+- 日常闲聊/问候 → 闲聊 Agent
+- 复杂问题（减肥/增肌）→ 多 Agent 协作
 
-热量缺口计算： 实时展示当日“摄入 - 消耗”的热量缺口，并给出进度反馈。
+### 2.3 用户状态管理
 
-身体数据图表： 在用户界面按日显示用户的身高、体重、BMI、每日基础代谢率、每日总能量消耗、每日热量缺口 等数据变化趋势，以可视化方式呈现用户的生理状态，让用户可以看到自己身体的变化。
+支持输入并持久化存储用户的生理基准数据：
+- 身高、体重、年龄、性别
+- 目标体重、运动习惯、过敏史
 
-### 2.3 智能教练咨询 (核心 Agent 场景)
+自动计算：
+- **BMR** (基础代谢率) - Mifflin-St Jeor Equation
+- **TDEE** (每日总能量消耗) - BMR × 活动系数
 
-动态规划： 当用户询问“我今晚还能吃顿烧烤吗？”时，系统需结合当日剩余热量配额给出建议，若超标则提供补救运动方案。用户询问“我想增肌该如何制定计划”时，系统需根据用户的目标体重和当前体重，结合用户的运动习惯，给出一个增肌的计划。
+### 2.4 日常打卡与数据追踪
 
-专业解答： 针对特定的营养学或营养学或运动损伤问题（如“硬拉时腰疼怎么回事”、“肌酸怎么吃”），系统需基于权威知识库给出专业、安全的解答。
+**饮食录入**：用户通过自然语言描述日常饮食，系统自动解析并计算摄入热量。
 
-情绪提供： 根据用户的执行情况，给予鼓励或严格的监督反馈。
+**运动录入**：用户描述运动情况，系统估算并记录消耗热量。
 
-## 3. 技术栈选型
+**热量缺口计算**：实时展示当日"摄入 - 消耗"的热量缺口。
 
-### 3.1 前端展现层 (Frontend)
+**数据可视化**：按日显示体重、BMI、热量变化趋势。
 
-框架： Streamlit
+### 2.5 智能教练咨询
 
-原因： 纯 Python 编写，极速构建交互式 Web UI。非常适合大模型应用的原型验证和展示，能够轻松处理 Markdown 渲染、会话状态保持（Session State）以及简单的数据图表展示。
+**动态规划**：
+- "今晚还能吃烧烤吗？" → 结合剩余热量配额给出建议
+- "想增肌怎么制定计划？" → 根据目标生成个性化计划
 
-### 3.2 后端服务层 (Backend)
+**专业解答**：针对营养学或运动损伤问题，基于 RAG 知识库给出专业解答。
 
-框架： FastAPI
+**情绪支持**：根据用户执行情况，给予鼓励或监督反馈。
 
-原因： 高性能异步框架，易于构建 RESTful API。用于前后端分离，处理业务逻辑并与大模型接口进行交互。
+## 3. 技术架构
 
-### 3.3 AI 与大模型中间件
+### 3.1 多 Agent 架构
 
-编排框架： LangChain + LangGraph
+```
+                        ┌──────────────┐
+                        │   用户输入   │
+                        └──────┬───────┘
+                               │
+                        ┌──────▼───────┐
+                        │   路由器     │
+                        │   (Router)   │
+                        └──────┬───────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+       ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐
+       │   闲聊      │  │   营养师    │  │   健身教练  │
+       │  Agent      │  │   Agent    │  │   Agent     │
+       └─────────────┘  └──────┬──────┘  └──────┬──────┘
+                               │                │
+                               └───────┬────────┘
+                                       │
+                               ┌───────▼───────┐
+                               │   专家评审   │
+                               │    Agent     │
+                               └──────────────┘
+```
 
-核心逻辑： 摒弃传统的无状态对话或死板的 AgentExecutor，全面采用 LangGraph 构建具备状态机（State Machine）特性的 ReAct Agent。
+### 3.2 技术栈
 
-持久化记忆： 使用 `langgraph-checkpoint-sqlite` 提供的 `SqliteSaver` 实现基于 `thread_id` 的持久化对话记忆。
+| 层级 | 技术 | 说明 |
+|------|------|------|
+| **前端** | Streamlit | 快速构建交互式 Web UI |
+| **后端** | FastAPI | 高性能异步 API 框架 |
+| **AI 编排** | LangGraph | 状态机驱动的 Agent 工作流 |
+| **向量数据库** | ChromaDB | 本地知识存储与检索 |
+| **嵌入模型** | 智谱 AI embedding-2 | 文本向量化 |
+| **大模型** | 智谱 AI GLM-4.7 | 核心对话能力 |
+| **数据库** | SQLite + SQLAlchemy | 用户数据持久化 |
 
-知识检索库 (RAG)： 使用 ChromaDB 作为本地向量数据库，通过智谱 AI 的 `embedding-2` 模型进行向量化。支持从 `./knowledge_base` 目录自动加载 PDF、Word、图片 (OCR) 等多格式文档。采用 `langchain-chroma` 库实现持久化存储与检索。
+### 3.3 工具生态
 
-### 3.4 数据持久化层
+**营养师工具**：
+- `search_food_nutrition`: 天行数据 API 查询食物营养
+- `log_food_intake`: 记录食物摄入
+- `get_daily_nutrition_summary`: 获取当日总结
+- `calculate_daily_calorie_needs`: 计算目标卡路里
 
-关系型数据库： SQLite (用于存储用户数据、每日日志、食物和运动记录)
+**健身教练工具**：
+- `estimate_exercise_calories`: MET 值估算运动消耗
+- `log_exercise`: 记录运动数据
+- `get_exercise_library`: 动作库查询
+- `search_fitness_knowledge`: RAG 健身知识检索
 
-ORM： SQLAlchemy
+## 4. 数据模型
 
-对话持久化： SQLite (单独的 `checkpoints.db` 用于存储 LangGraph 的对话状态)
+### 4.1 数据库 Schema
 
-# 4. 核心系统架构设计 (LangGraph 工作流)
+**Users 表**
+- `id`, `height`, `weight`, `age`, `gender`
+- `target_weight`, `allergies`
+- `bmr`, `tdee`, `created_at`
 
-向 Trae 强调：后端的 Agent 必须使用 LangGraph 来管理状态。
+**DailyLogs 表**
+- `id`, `user_id`, `date`
+- `intake_calories`, `burn_calories`
+- `weight_log`, `notes`
 
-### 4.1 全局状态定义 (Graph State)
+**FoodItems 表**
+- `id`, `log_id`, `name`, `calories`
 
-定义一个继承自 TypedDict 的全局状态字典，贯穿整个图的执行周期。包含以下字段：
+**ExerciseItems 表**
+- `id`, `log_id`, `type`, `duration`, `calories`, `notes`
 
-- `messages`: 历史对话列表 (List[BaseMessage])。
-- `user_id`: 当前用户 ID。
-- `user_profile`: 包含身高、体重、BMR、TDEE 的字典。
-- `daily_stats`: 当日已摄入热量、已消耗热量、步数等。
+## 5. 产品路线图
 
-### 4.2 核心节点设计 (Nodes)
+### 已完成 ✅
+- [x] 多 Agent 系统架构
+- [x] 动态路由机制
+- [x] 营养师 Agent（天行数据 API 集成）
+- [x] 健身教练 Agent（MET 值计算）
+- [x] 专家评审 Agent
+- [x] ChatGPT 风格 UI
+- [x] RAG 专业检索
 
-- `LLM Node (大模型节点)`: 负责接收当前 State 并进行推理。决定是调用工具（输出 ToolCall）还是直接回复用户（输出文本）。
-- `Tool Node (工具执行节点)`: 当 LLM 决定调用工具时，路由到此节点执行具体的 Python 函数，并将结果附加到 messages 中。
+### 进行中 🔄
+- [ ] 专家评审反馈循环优化
 
-### 4.3 提供给大模型的工具列表 (Tools)
+### 待开发 📋
+- [ ] 语音输入功能
+- [ ] 健身计划自动生成
+- [ ] 用户认证系统
+- [ ] 月度健康报告导出
+- [ ] 主题切换与个性化
+- [ ] 成就系统
 
-这些工具已使用 LangChain 的 @tool 装饰器进行封装，包含清晰的 Docstring 供模型理解。
+---
 
-- `get_user_info(user_id)`: 获取用户的生理数据。
-- `log_food_intake(user_id, food_name, calories)`: 记录摄入的食物及其估算卡路里。
-- `log_exercise_burn(user_id, activity_type, duration, calories)`: 记录运动及其估算消耗。
-- `get_daily_summary(user_id)`: 获取当日卡路里收支总结。
-- `search_food_calories(food_name)`: 模拟接口，根据食物名称返回估算的卡路里。
-- `estimate_exercise_burn(exercise_type, duration)`: 模拟接口，根据运动类型和时长返回消耗卡路里。
-- `rag_medical_search_tool(query)`: 检索增强工具，从本地知识库查询专业建议。
-
-### 4.4 数据库设计 (Schema)
-
-- **Users 表**: `id`, `height`, `weight`, `age`, `gender`, `target_weight`, `allergies`, `bmr`, `tdee`, `created_at`
-- **DailyLogs 表**: `id`, `user_id`, `date`, `intake_calories`, `burn_calories`, `weight_log`, `notes`
-- **FoodItems 表**: `id`, `log_id`, `name`, `calories` (记录每一项食物的细节)
-- **ExerciseItems 表**: `id`, `log_id`, `type`, `duration`, `calories` (记录每一项运动的细节)
-
-## 5. 当前进度与未来优化 (Update: 2026-04-15)
-
-### 已完成：
-- ✅ **阶段一**：初始化 FastAPI 结构，实现 SQLite 存储用户信息。
-- ✅ **阶段二**：构建 LangGraph Agent 核心逻辑，实现基础工具（MOCK）与 LLM 节点的循环图。
-- ✅ **阶段三**：接入 ChromaDB 实现 RAG 专业解答，完善 Streamlit 聊天界面与数据可视化。
-- ✅ **持久化升级**：将对话记忆从内存 `MemorySaver` 升级为持久化的 `SqliteSaver` (`checkpoints.db`)。
-- ✅ **RAG 增强**：支持从 `./knowledge_base` 目录自动加载 PDF、Word、图片等多种格式文档并入库。
-
-### 未来优化：
-- 🛠️ 接入真实的食物卡路里查询 API。
-- 🛠️ 完善 RAG 知识库，支持更多专业文档的自动入库，并实现增量更新。
-- 🛠️ 增加用户运动计划的自动生成与跟踪功能。
-- 🛠️ 增强 UI 体验，支持语音输入饮食/运动记录。
+*文档版本：2.0*
+*更新日期：2026-04-21*
