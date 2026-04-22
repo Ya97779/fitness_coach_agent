@@ -122,7 +122,7 @@ fitness_coach/
 ### 环境要求
 
 - Python 3.10+
-- API 密钥（智谱 AI）
+- LLM API（我用的是智谱）
 
 ### 1. 克隆项目
 
@@ -142,11 +142,11 @@ pip install -r requirements.txt
 创建 `.env` 文件：
 
 ```env
-OPENAI_API_KEY=your_zhipu_api_key
-OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/
-LLM_MODEL=glm-4
-EMBEDDING_MODEL=embedding-2
-TIANAPI_KEY=your_tianapi_key
+OPENAI_API_KEY=your_zhipu_api_key  （改为你的LLM API KEY）
+OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/（改为你使用的LLM对应的）
+LLM_MODEL=glm-4.7  （模型选择）
+EMBEDDING_MODEL=embedding-2 
+TIANAPI_KEY=your_tianapi_key （天行数据，用于查询食物热量，注册后每日100条查询免费）
 ```
 
 ### 4. 启动服务
