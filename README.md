@@ -202,7 +202,7 @@ streamlit run frontend/app.py
 | AI 编排 | LangGraph | Agent 工作流 |
 | 向量数据库 | ChromaDB | 本地知识存储 |
 | 嵌入模型 | 智谱 embedding-2 | 文本向量化 |
-| 大模型 | 智谱 GLM-4 | 对话能力 |
+| 大模型 | 智谱 GLM-4.7 | 对话能力 |
 | 数据库 | SQLite + SQLAlchemy | 数据持久化 |
 
 ## 📈 项目进度
@@ -211,14 +211,11 @@ streamlit run frontend/app.py
 |------|------|
 | 基础架构 | ✅ 完成 |
 | 多 Agent 核心 | ✅ 完成 |
-| Agent 实现 | ✅ 完成 |
 | 动态路由 | ✅ 完成 |
 | 流式输出 | ✅ 完成 |
-| ChatGPT 风格 UI | ✅ 完成 |
 | RAG 检索 | ✅ 完成 |
 | 食物营养 API | ✅ 完成 |
 | 专家评审机制 | ✅ 完成 |
-| 现代 RAG 升级 | ✅ 完成 |
 | Agentic RAG | ✅ 完成 |
 | 高级文档处理 | ✅ 完成 |
 
