@@ -1,4 +1,4 @@
-# FitCoach AI - 智能私人营养师与健身教练
+# FitCoach AI - 智能私人营养师与健身教练  （持续迭代更新中）
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
@@ -122,7 +122,8 @@ fitness_coach/
 ### 环境要求
 
 - Python 3.10+
-- LLM API（我用的是智谱）
+- API 密钥（智谱 AI）
+- 天行数据API密钥（用于食物营养查询）
 
 ### 1. 克隆项目
 
@@ -142,11 +143,11 @@ pip install -r requirements.txt
 创建 `.env` 文件：
 
 ```env
-OPENAI_API_KEY=your_zhipu_api_key  （改为你的LLM API KEY）
-OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/（改为你使用的LLM对应的）
-LLM_MODEL=glm-4.7  （模型选择）
-EMBEDDING_MODEL=embedding-2 
-TIANAPI_KEY=your_tianapi_key （天行数据，用于查询食物热量，注册后每日100条查询免费）
+OPENAI_API_KEY=your_zhipu_api_key  # 智谱 API 密钥
+OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/  # 智谱 API 基础 URL
+LLM_MODEL=glm-4.7  # 智谱 GLM-4.7 模型名称
+EMBEDDING_MODEL=embedding-2  # 智谱 embedding-2 模型名称
+TIANAPI_KEY=your_tianapi_key       # 天行数据 API 密钥
 ```
 
 ### 4. 启动服务
@@ -202,7 +203,7 @@ streamlit run frontend/app.py
 | AI 编排 | LangGraph | Agent 工作流 |
 | 向量数据库 | ChromaDB | 本地知识存储 |
 | 嵌入模型 | 智谱 embedding-2 | 文本向量化 |
-| 大模型 | 智谱 GLM-4.7 | 对话能力 |
+| 大模型 | 智谱 GLM-4 | 对话能力 |
 | 数据库 | SQLite + SQLAlchemy | 数据持久化 |
 
 ## 📈 项目进度
@@ -211,16 +212,19 @@ streamlit run frontend/app.py
 |------|------|
 | 基础架构 | ✅ 完成 |
 | 多 Agent 核心 | ✅ 完成 |
+| Agent 实现 | ✅ 完成 |
 | 动态路由 | ✅ 完成 |
 | 流式输出 | ✅ 完成 |
+| ChatGPT 风格 UI | ✅ 完成 |
 | RAG 检索 | ✅ 完成 |
 | 食物营养 API | ✅ 完成 |
 | 专家评审机制 | ✅ 完成 |
+| 现代 RAG 升级 | ✅ 完成 |
 | Agentic RAG | ✅ 完成 |
 | 高级文档处理 | ✅ 完成 |
 
 ## 🔮 未来优化方向
-
+- [ ] 前端界面优化，TypeScript + React 框架重构
 - [ ] 语音输入功能
 - [ ] 导出月度健康报告
 - [ ] 用户认证系统
