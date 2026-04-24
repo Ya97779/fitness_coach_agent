@@ -1,4 +1,4 @@
-# FitCoach AI - 智能私人营养师与健身教练
+# FitCoach AI - 智能私人营养师与健身教练 (持续迭代中)
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
@@ -183,7 +183,7 @@ pip install -r requirements.txt
 # LLM 配置
 LLM_MODEL=glm-4.7
 OPENAI_API_KEY=your_zhipu_api_key
-#对应的API Base URL
+#对应的API Base URL,
 OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4
 # 食物营养API（天行数据）（注册后每日免费100次查询）
 TianxingFood_API_KEY=your_food_api_key_here
