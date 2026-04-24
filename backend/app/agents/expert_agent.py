@@ -58,11 +58,16 @@ def review_output(nutrition_output: str, fitness_output: str) -> dict:
 评分必须是一个1-5的数字。"""
 
     system_msg = SystemMessage(content=review_prompt)
-    response = llm.invoke([system_msg])
+    try:
+        response = llm.invoke([system_msg])
+        content = response.content
+    except Exception as e:
+        error_msg = str(e)
+        if "1214" in error_msg or "messages" in error_msg.lower():
+            content = "评分: 3\n错误信息: API调用出现问题，使用默认评分。"
+        else:
+            content = f"评分: 3\n错误信息: {error_msg[:200]}"
 
-    content = response.content
-
-    # 提取评分
     score = extract_score(content)
 
     return {

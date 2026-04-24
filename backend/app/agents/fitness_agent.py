@@ -3,6 +3,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
+from typing import Dict, Any, Optional
 import os
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
@@ -133,7 +134,37 @@ fitness_tools = [
 ]
 
 
-def fitness_with_user(messages: list, user_id: int) -> str:
+def format_fitness_memory(memory_summary: Dict[str, Any]) -> str:
+    """格式化健身相关的记忆上下文
+
+    Args:
+        memory_summary: 记忆摘要
+
+    Returns:
+        str: 格式化的记忆上下文
+    """
+    if not memory_summary:
+        return ""
+
+    goal = memory_summary.get("goal", "未知")
+    today_intake = memory_summary.get("today_intake", 0)
+    today_burn = memory_summary.get("today_burn", 0)
+
+    context_parts = [f"用户目标: {goal}"]
+
+    if today_burn > 0:
+        context_parts.append(f"今日已消耗: {today_burn:.0f} kcal")
+    else:
+        context_parts.append("今日暂无运动记录")
+
+    return "\n\n【用户健身记忆】" + "\n".join(context_parts)
+
+
+def fitness_with_user(
+    messages: list,
+    user_id: int,
+    memory_summary: Optional[Dict[str, Any]] = None
+) -> str:
     """健身教练对话（支持工具调用）
 
     工作流程：
@@ -147,7 +178,12 @@ def fitness_with_user(messages: list, user_id: int) -> str:
         base_url=os.getenv("OPENAI_API_BASE")
     )
 
-    system_content = AGENT_SYSTEM_PROMPTS["fitness"] + """
+    system_content = AGENT_SYSTEM_PROMPTS["fitness"]
+
+    if memory_summary:
+        system_content += format_fitness_memory(memory_summary)
+
+    system_content += """
 
 重要：
 1. 当用户询问健身动作、训练计划等专业问题时，使用 search_fitness_knowledge 工具
@@ -160,7 +196,13 @@ def fitness_with_user(messages: list, user_id: int) -> str:
     chat_history = [system_msg] + list(messages)
 
     for _ in range(2):
-        response = llm.bind_tools(fitness_tools).invoke(chat_history)
+        try:
+            response = llm.bind_tools(fitness_tools).invoke(chat_history)
+        except Exception as e:
+            error_msg = str(e)
+            if "1214" in error_msg or "messages" in error_msg.lower():
+                return f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
+            return f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
             return response.content if hasattr(response, 'content') else str(response)

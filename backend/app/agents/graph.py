@@ -34,6 +34,7 @@ from .chat_agent import chat_with_user
 from .nutrition_agent import nutrition_tools, nutrition_with_user
 from .fitness_agent import fitness_tools, fitness_with_user
 from .expert_agent import review_output
+from ..memory import MemoryManager
 
 load_dotenv()
 
@@ -50,6 +51,7 @@ class AgentState(TypedDict):
     current_agent: str
     retry_count: int
     review_history: List[Dict]
+    memory_summary: Dict[str, Any]
 
 
 def create_llm(temperature: float = 0.7):
@@ -73,6 +75,12 @@ def router(state: AgentState) -> Dict[str, str]:
     """
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
+
+    user_message = user_message.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+    user_message = ' '.join(user_message.split())
+
+    if not user_message.strip():
+        return {"current_agent": "chat", "retry_count": 0, "review_history": []}
 
     llm = create_llm(temperature=0.1)
 
@@ -126,8 +134,9 @@ def chat(state: AgentState) -> Dict[str, Any]:
     """
     messages = state["messages"]
     user_id = state.get("user_id", 1)
+    memory_summary = state.get("memory_summary", {})
 
-    response = chat_with_user(messages, user_id)
+    response = chat_with_user(messages, user_id, memory_summary)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -146,8 +155,9 @@ def nutrition(state: AgentState) -> Dict[str, Any]:
     """
     messages = state["messages"]
     user_id = state.get("user_id", 1)
+    memory_summary = state.get("memory_summary", {})
 
-    response = nutrition_with_user(messages, user_id)
+    response = nutrition_with_user(messages, user_id, memory_summary)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -166,8 +176,9 @@ def fitness(state: AgentState) -> Dict[str, Any]:
     """
     messages = state["messages"]
     user_id = state.get("user_id", 1)
+    memory_summary = state.get("memory_summary", {})
 
-    response = fitness_with_user(messages, user_id)
+    response = fitness_with_user(messages, user_id, memory_summary)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -370,14 +381,18 @@ def process_user_message(
             }
         }
     """
+    memory_manager = MemoryManager(user_id=user_id)
+    memory_summary = memory_manager.get_memory_summary()
+
     initial_state = {
         "messages": [HumanMessage(content=user_message)],
         "user_id": user_id,
-        "user_profile": user_profile or {},
+        "user_profile": user_profile or memory_manager.load_profile(),
         "daily_stats": daily_stats or {},
         "current_agent": "chat",
         "retry_count": 0,
-        "review_history": []
+        "review_history": [],
+        "memory_summary": memory_summary
     }
 
     final_state = agent_graph.invoke(initial_state)

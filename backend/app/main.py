@@ -182,10 +182,15 @@ async def chat_stream(request: StreamChatRequest, db: Session = Depends(get_db))
                     "net_calories": log.intake_calories - log.burn_calories
                 }
 
+    user_message = request.message or ""
+    user_message = user_message.strip()
+    if not user_message:
+        user_message = "你好"
+
     async def event_generator():
         try:
             result = process_user_message(
-                user_message=request.message,
+                user_message=user_message,
                 user_id=request.user_id or 1,
                 user_profile=user_profile,
                 daily_stats=daily_stats
