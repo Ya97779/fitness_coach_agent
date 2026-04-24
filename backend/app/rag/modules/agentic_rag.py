@@ -233,7 +233,7 @@ class RouterAgent:
 
     def __init__(self, llm: Optional[ChatOpenAI] = None):
         self.llm = llm or ChatOpenAI(
-            model=os.getenv("LLM_MODEL", "glm-4"),
+            model=os.getenv("LLM_MODEL", "glm-4.7"),
             api_key=os.getenv("OPENAI_API_KEY"),
             base_url=os.getenv("OPENAI_API_BASE"),
             temperature=0.0

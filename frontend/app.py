@@ -12,7 +12,7 @@ BACKEND_URL = "http://127.0.0.1:8000"
 # --- Custom CSS for ChatGPT style ---
 st.markdown("""
 <style>
-    /* ChatGPT style theme */
+    
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;

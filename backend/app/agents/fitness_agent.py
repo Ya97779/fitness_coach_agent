@@ -6,10 +6,20 @@ from langchain_core.tools import tool
 import os
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
-from .. import models, database, rag_utils
+from .. import models, database
+from ..rag import ModernRAG
 from datetime import date
 
 load_dotenv()
+
+_rag_instance = None
+
+def get_rag():
+    """获取 RAG 实例（懒加载）"""
+    global _rag_instance
+    if _rag_instance is None:
+        _rag_instance = ModernRAG(enable_agentic=True)
+    return _rag_instance
 
 
 @tool
@@ -103,12 +113,16 @@ def search_fitness_knowledge(query: str):
     Returns:
         str: RAG 检索结果（未找到时返回提示信息）
     """
-    rag_result = rag_utils.rag_medical_search(query)
+    rag = get_rag()
+    results = rag.search(query, top_k=3, mode="hybrid")
 
-    if "未找到" in rag_result or "错误" in rag_result:
+    if not results:
         return f"【RAG检索】未在知识库中找到相关信息"
-    else:
-        return f"【RAG检索】\n{rag_result}"
+
+    content = results[0].get("content", "")
+    if content:
+        return f"【RAG检索】\n{content}"
+    return f"【RAG检索】未在知识库中找到相关信息"
 
 
 fitness_tools = [
