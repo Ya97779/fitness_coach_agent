@@ -1,11 +1,40 @@
-# FitCoach AI - 智能私人营养师与健身教练  （持续迭代更新中）
+# FitCoach AI - 智能私人营养师与健身教练
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.0+-red.svg)
+![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20Orchestration-purple.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-Frontend-red.svg)
 
-基于大语言模型（LLM）和多 Agent 架构的智能私人营养师与健身教练应用。系统通过动态路由将用户请求分发到最合适的专业 Agent，提供个性化的饮食规划、运动指导和健康管理服务。
+> 基于大语言模型（LLM）和多 Agent 架构的智能私人营养师与健身教练应用
+
+
+
+## 🎯 项目简介
+
+FitCoach AI 通过动态路由将用户请求分发到最合适的专业 Agent，提供**个性化的饮食规划**、**运动指导**和**健康管理**服务。系统采用 LangGraph 框架实现状态机驱动的多 Agent 协作，并集成现代化的 RAG 系统获取专业知识。
+
+---
+## 🆕 近期更新
+
+### v2.0 - Agent 专业化升级
+- ✨ **提示词全面优化**：为每个 Agent 设计专业化的 System Prompt，明确职责边界
+- 🔄 **Router 增强**：扩展路由判断标准，支持更精准的意图识别
+- 📝 **Expert Agent 完善**：引入评分维度和权重（专业性30%/个性化25%/实用性25%/安全性20%）
+
+### v1.5 - ModernRAG 系统
+- ✨ **混合检索**：向量 + BM25 + RRF 融合
+- ✨ **查询增强**：Query Expansion 多查询扩展
+- ✨ **HyDE**：假设性文档嵌入
+- ✨ **CoT + Self-RAG**：思维链推理与自我反思
+
+### v1.0 - 核心架构
+- ✅ 多 Agent 系统（Chat/Nutrition/Fitness/Expert）
+- ✅ LangGraph 工作流
+- ✅ 动态路由机制
+- ✅ ChatGPT 风格 UI
+
+---
 
 ## ✨ 核心特性
 
@@ -20,20 +49,25 @@
 
 ### 🔄 动态路由机制
 
-用户输入 → 意图识别 → 智能分发：
+```
+用户输入 → 意图识别 → 智能分发
+   │
+   ├─ 包含"饮食/热量/营养" ──→ 营养师 Agent ──→ 专家评审（≥3分通过）
+   │
+   ├─ 包含"运动/训练/健身" ──→ 健身教练 Agent ──→ 专家评审（≥3分通过）
+   │
+   └─ 日常闲聊/问候 ──→ 闲聊 Agent ──→ 直接回复
+```
 
-- 包含"饮食/热量/营养" → 营养师 Agent
-- 包含"运动/训练/健身" → 健身教练 Agent
-- 日常闲聊/问候 → 闲聊 Agent
-- Expert Agent 评分 ≤ 2 → 打回重试（最多 3 次）
+### 📚 Agentic RAG 系统
 
-### 📚 现代化 RAG 系统
-
-- **混合检索**：向量检索 + BM25 关键词检索（RRF 融合）
-- **高级处理**：语义分割、表格提取、代码块保留
-- **查询增强**：Query Expansion、HyDE（假设性文档嵌入）
-- **生成增强**：CoT 思维链、Self-RAG 自我反思
-- **自主决策**：Agentic RAG - 大模型自主选择检索/生成策略
+| 特性 | 说明 |
+|------|------|
+| **混合检索** | 向量检索 + BM25 关键词检索（RRF 融合） |
+| **查询增强** | Query Expansion 多查询扩展、HyDE 假设性文档嵌入 |
+| **生成增强** | CoT 思维链推理、Self-RAG 自我反思纠正 |
+| **自主决策** | Agentic RAG - LLM 自主选择检索/生成策略 |
+| **高级处理** | 语义分割、表格提取、代码块保留 |
 
 ### 👤 用户状态管理
 
@@ -41,59 +75,65 @@
 - 自动计算：BMR（基础代谢率）、TDEE（每日总消耗）
 - 热量追踪：摄入 - 消耗 = 热量缺口
 
+---
+
 ## 🏗️ 系统架构
 
 ```
-                         ┌─────────────┐
-                         │   用户输入   │
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │   FastAPI   │
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │   Graph     │
-                         │  (Router)   │
-                         └──────┬──────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-       ┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────┐
-       │    Chat     │   │  Nutrition  │   │   Fitness   │
-       │   Agent     │   │   Agent     │   │   Agent     │
-       └─────────────┘   └──────┬──────┘   └──────┬──────┘
-                                │                 │
-                                └────────┬────────┘
-                                         │
-                                  ┌──────▼──────┐
-                                  │   Expert    │
-                                  │   Agent     │
-                                  └──────┬──────┘
-                                         │
-                                  评分 ≥ 3 → 用户
-                                  评分 ≤ 2 → 重试（≤3次）
+┌─────────────────────────────────────────────────────────────────┐
+│                         FitCoach AI 架构                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   ┌──────────┐     ┌──────────┐     ┌──────────┐                │
+│   │  用户     │ ──▶ │ FastAPI  │ ──▶ │  Router  │                │
+│   │  输入     │     │  Backend │     │  Agent   │                │
+│   └──────────┘     └──────────┘     └────┬─────┘                │
+│                                           │                     │
+│              ┌────────────────────────────┼────────────────────┐│
+│              │                            │                    ││
+│              ▼                            ▼                     │
+│       ┌──────────┐              ┌──────────────┐        ┌──────────┐
+│       │   Chat   │              │   Nutrition  │        │  Fitness │
+│       │  Agent   │              │    Agent     │        │  Agent   │
+│       └────┬─────┘              └──────┬───────┘        └────┬─────┘
+│            │                            │                    │     │
+│            │                            ▼                    │     │
+│            │                     ┌──────────────┐            │     │
+│            │                     │    Expert    │◄───────────┘     │
+│            │                     │    Agent     │                  │
+│            │                     └──────┬───────┘                  │
+│            │                            │                          │
+│            ▼                     评分 ≥ 3 ──▶ 用户                  │
+│          END                      │                                │
+│                               评分 ≤ 2                              │
+│                                 │ (最多重试3次)                      │
+│                                 ▼                                  │
+│                              重新生成                               │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## 📂 项目结构
 
 ```
 fitness_coach/
-├── backend/                         # 后端服务
+├── backend/
 │   └── app/
 │       ├── main.py                  # FastAPI 主入口
 │       ├── models.py                 # SQLAlchemy 数据模型
 │       ├── database.py               # 数据库连接
 │       ├── food_api.py              # 食物营养 API
-│       ├── rag_utils.py              # RAG 向量检索
 │       ├── agents/                   # 多 Agent 系统
+│       │   ├── __init__.py          # 包入口
 │       │   ├── base.py              # Agent 基础配置
 │       │   ├── router.py            # 动态路由器
 │       │   ├── chat_agent.py        # 闲聊 Agent
 │       │   ├── nutrition_agent.py   # 营养师 Agent
-│       │   ├── fitness_agent.py     # 健身教练 Agent
+│       │   ├── fitness_agent.py      # 健身教练 Agent
 │       │   ├── expert_agent.py      # 专家评审 Agent
-│       │   └── graph.py             # 主控工作流
+│       │   └── graph.py             # LangGraph 工作流
 │       └── rag/                      # 现代化 RAG 系统
 │           ├── __init__.py          # ModernRAG 主入口
 │           └── modules/             # 核心模块
@@ -102,139 +142,144 @@ fitness_coach/
 │               ├── preprocessor.py  # 文本预处理
 │               ├── bm25.py          # BM25 检索
 │               ├── hybrid_search.py # 混合检索
-│               ├── query_expansion.py # 多查询扩展
+│               ├── query_expansion.py  # 多查询扩展
 │               ├── hyde.py          # 假设性文档嵌入
 │               ├── cot.py           # 思维链推理
 │               ├── self_rag.py      # 自我反思纠正
-│               ├── agentic_rag.py   # Agentic RAG
-│               └── doc_processor.py # 高级文档处理
+│               └── agentic_rag.py   # Agentic RAG
 ├── frontend/
 │   └── app.py                      # Streamlit 前端
-├── knowledge_base/                  # RAG 知识库文档
+├── knowledge_base/                  # RAG 知识库
 ├── chroma_db/                       # ChromaDB 向量库
 ├── .env                            # 环境变量
-├── requirements.txt                 # Python 依赖
-└── README.md                        # 本文档
+├── requirements.txt                 # 依赖
+└── README.md
 ```
+
+---
 
 ## 🚀 快速开始
 
 ### 环境要求
 
 - Python 3.10+
-- API 密钥（智谱 AI）
-- 天行数据API密钥（用于食物营养查询）
+- 智谱 AI API Key
+- 天行数据 API Key（食物营养查询）
 
-### 1. 克隆项目
+### 1. 克隆并安装
 
 ```bash
 git clone https://github.com/yourusername/fitness_coach.git
 cd fitness_coach
-```
-
-### 2. 安装依赖
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. 配置环境变量
+### 2. 配置环境变量
 
-创建 `.env` 文件：
+创建 `.env`：
 
 ```env
-OPENAI_API_KEY=your_zhipu_api_key  # 智谱 API 密钥
-OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/  # 智谱 API 基础 URL
-LLM_MODEL=glm-4.7  # 智谱 GLM-4.7 模型名称
-EMBEDDING_MODEL=embedding-2  # 智谱 embedding-2 模型名称
-TIANAPI_KEY=your_tianapi_key       # 天行数据 API 密钥
+OPENAI_API_KEY=your_zhipu_api_key
+OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4/
+LLM_MODEL=glm-4.7
+EMBEDDING_MODEL=embedding-2
+TIANAPI_KEY=your_tianapi_key
 ```
 
-### 4. 启动服务
-
-**终端 1 - 启动后端：**
+### 3. 启动服务
 
 ```bash
+# 终端 1 - 后端
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+uvicorn app.main:app --reload --port 8000
 
-**终端 2 - 启动前端：**
-
-```bash
+# 终端 2 - 前端
 streamlit run frontend/app.py
 ```
 
-### 5. 访问应用
+### 4. 访问
 
 - 前端：http://localhost:8501
-- 后端 API：http://localhost:8000/docs
+- API 文档：http://localhost:8000/docs
 
-## 📖 使用指南
+---
 
-### 创建用户
+## 📖 使用示例
 
-首次使用时，系统会根据您的生理数据自动计算 BMR 和 TDEE。
+### 营养师 Agent
 
-### 营养师功能
+```
+用户: 100g 鸡胸肉的热量是多少？
+AI:  【API查询】→ 133 kcal, 蛋白质 31g, 脂肪 3.6g
+     → 优化回答，提供营养建议
+```
 
-- 查询食物热量：`"100g 鸡胸肉的热量是多少？"`
-- 记录饮食：`"我中午吃了 200g 米饭和一份番茄炒蛋"`
-- 获取建议：`"我想减肥，今天还能吃什么？"`
+### 健身教练 Agent
 
-### 健身教练功能
-
-- 动作指导：`"上斜卧推怎么做？"`
-- 训练计划：`"帮我制定一个增肌计划"`
-- 运动记录：`"我今天跑了 30 分钟"`
+```
+用户: 上斜卧推怎么做？
+AI:  【RAG检索】→ 动作详解、发力技巧、常见错误
+     → 结合专业知识生成回答
+```
 
 ### 专家评审
 
-营养师和健身教练的回答都会经过专家 Agent 评审：
-- 评分 1-2 分：打回重试
-- 评分 3-5 分：通过，返回给用户
+| 评分 | 含义 | 动作 |
+|------|------|------|
+| 5 | 卓越 | 直接通过 |
+| 4 | 优秀 | 直接通过 |
+| 3 | 合格 | 直接通过 |
+| 2 | 不足 | 重试（最多3次） |
+| 1 | 很差 | 重试（最多3次） |
+
+---
 
 ## 🛠️ 技术栈
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 前端 | Streamlit | 交互式 Web UI |
-| 后端 | FastAPI | 异步 API 框架 |
-| AI 编排 | LangGraph | Agent 工作流 |
-| 向量数据库 | ChromaDB | 本地知识存储 |
-| 嵌入模型 | 智谱 embedding-2 | 文本向量化 |
-| 大模型 | 智谱 GLM-4 | 对话能力 |
-| 数据库 | SQLite + SQLAlchemy | 数据持久化 |
+| **前端** | Streamlit | 交互式 Web UI |
+| **后端** | FastAPI | 异步 API 框架 |
+| **AI 编排** | LangGraph | Agent 工作流 |
+| **向量数据库** | ChromaDB | 本地知识存储 |
+| **嵌入模型** | 智谱 embedding-2 | 文本向量化 |
+| **大模型** | 智谱 GLM-4 | 对话能力 |
+| **数据库** | SQLite + SQLAlchemy | 数据持久化 |
+
+---
 
 ## 📈 项目进度
 
-| 阶段 | 状态 |
-|------|------|
-| 基础架构 | ✅ 完成 |
-| 多 Agent 核心 | ✅ 完成 |
-| Agent 实现 | ✅ 完成 |
-| 动态路由 | ✅ 完成 |
-| 流式输出 | ✅ 完成 |
-| ChatGPT 风格 UI | ✅ 完成 |
-| RAG 检索 | ✅ 完成 |
-| 食物营养 API | ✅ 完成 |
-| 专家评审机制 | ✅ 完成 |
-| 现代 RAG 升级 | ✅ 完成 |
-| Agentic RAG | ✅ 完成 |
-| 高级文档处理 | ✅ 完成 |
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 基础架构 | ✅ | FastAPI + Streamlit |
+| 多 Agent 系统 | ✅ | Chat/Nutrition/Fitness/Expert |
+| LangGraph 工作流 | ✅ | 状态机驱动 |
+| 动态路由 | ✅ | LLM 意图识别 |
+| 专家评审 | ✅ | 1-5分评分 + 重试机制 |
+| 食物营养 API | ✅ | 天行数据 API |
+| RAG 基础 | ✅ | ChromaDB 向量检索 |
+| 现代 RAG | ✅ | 混合检索/查询扩展/HyDE |
+| Agentic RAG | ✅ | LLM 自主决策 |
+| 高级文档处理 | ✅ | 语义分割/表格提取 |
+| 优化提示词 | ✅ | 各 Agent 专业化 |
 
-## 🔮 未来优化方向
-- [ ] 前端界面优化，TypeScript + React 框架重构
+---
+
+
+## 🔮 未来规划
+
+- [ ] 记忆模块：用户画像加载、对话历史摘要
+- [ ] 上下文工程优化：分级上下文注入策略
+- [ ] 前端重构：TypeScript + React
 - [ ] 语音输入功能
-- [ ] 导出月度健康报告
 - [ ] 用户认证系统
-- [ ] 健身计划自动生成
-- [ ] 多语言支持
-- [ ] 知识库可视化编辑
+
+---
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+MIT License - 详见 [LICENSE](LICENSE)
 
 ## 🙏 致谢
 
