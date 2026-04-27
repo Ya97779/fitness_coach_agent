@@ -147,13 +147,25 @@ def format_nutrition_memory(memory_summary: Dict[str, Any]) -> str:
     if week_avg > 0:
         context_parts.append(f"本周日均摄入: {week_avg:.0f} kcal")
 
+    conversation_history = memory_summary.get("conversation_history", [])
+    nutrition_history = [msg for msg in conversation_history if msg.get("agent_type") == "nutrition"]
+    if nutrition_history:
+        history_parts = ["【近期营养咨询】"]
+        for msg in nutrition_history[-2:]:
+            content = msg.get("content", "")
+            if len(content) > 80:
+                content = content[:80] + "..."
+            history_parts.append(f"- {content}")
+        context_parts.append("\n".join(history_parts))
+
     return "\n\n【用户营养记忆】" + "\n".join(context_parts)
 
 
 def nutrition_with_user(
     messages: list,
     user_id: int,
-    memory_summary: Optional[Dict[str, Any]] = None
+    memory_summary: Optional[Dict[str, Any]] = None,
+    enhanced_prompt: str = None
 ) -> str:
     """营养师对话（支持工具调用）
 
@@ -168,10 +180,12 @@ def nutrition_with_user(
         base_url=os.getenv("OPENAI_API_BASE")
     )
 
-    system_content = AGENT_SYSTEM_PROMPTS["nutrition"]
-
-    if memory_summary:
-        system_content += format_nutrition_memory(memory_summary)
+    if enhanced_prompt:
+        system_content = enhanced_prompt
+    else:
+        system_content = AGENT_SYSTEM_PROMPTS["nutrition"]
+        if memory_summary:
+            system_content += format_nutrition_memory(memory_summary)
 
     system_content += """
 

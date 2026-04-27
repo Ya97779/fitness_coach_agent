@@ -52,6 +52,7 @@ class AgentState(TypedDict):
     retry_count: int
     review_history: List[Dict]
     memory_summary: Dict[str, Any]
+    enhanced_prompts: Dict[str, str]
 
 
 def create_llm(temperature: float = 0.7):
@@ -135,8 +136,9 @@ def chat(state: AgentState) -> Dict[str, Any]:
     messages = state["messages"]
     user_id = state.get("user_id", 1)
     memory_summary = state.get("memory_summary", {})
+    enhanced_prompt = state.get("enhanced_prompts", {}).get("chat")
 
-    response = chat_with_user(messages, user_id, memory_summary)
+    response = chat_with_user(messages, user_id, memory_summary, enhanced_prompt)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -156,8 +158,9 @@ def nutrition(state: AgentState) -> Dict[str, Any]:
     messages = state["messages"]
     user_id = state.get("user_id", 1)
     memory_summary = state.get("memory_summary", {})
+    enhanced_prompt = state.get("enhanced_prompts", {}).get("nutrition")
 
-    response = nutrition_with_user(messages, user_id, memory_summary)
+    response = nutrition_with_user(messages, user_id, memory_summary, enhanced_prompt)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -177,8 +180,9 @@ def fitness(state: AgentState) -> Dict[str, Any]:
     messages = state["messages"]
     user_id = state.get("user_id", 1)
     memory_summary = state.get("memory_summary", {})
+    enhanced_prompt = state.get("enhanced_prompts", {}).get("fitness")
 
-    response = fitness_with_user(messages, user_id, memory_summary)
+    response = fitness_with_user(messages, user_id, memory_summary, enhanced_prompt)
 
     return {
         "messages": [AIMessage(content=response)],
@@ -356,7 +360,8 @@ def process_user_message(
     user_message: str,
     user_id: int = 1,
     user_profile: dict = None,
-    daily_stats: dict = None
+    daily_stats: dict = None,
+    session_id: str = None
 ) -> dict:
     """处理用户消息的入口函数
 
@@ -367,6 +372,7 @@ def process_user_message(
         user_id: 用户ID，默认1
         user_profile: 用户信息字典（可选）
         daily_stats: 当日统计数据（可选）
+        session_id: 会话 ID（可选）
 
     Returns:
         dict: {
@@ -384,6 +390,22 @@ def process_user_message(
     memory_manager = MemoryManager(user_id=user_id)
     memory_summary = memory_manager.get_memory_summary()
 
+    conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
+    memory_summary["conversation_history"] = conversation_history
+
+    messages_for_prompt = [HumanMessage(content=user_message)]
+    enhanced_prompts = {
+        "chat": memory_manager.enhance_system_prompt(
+            AGENT_SYSTEM_PROMPTS["chat"], "chat", messages_for_prompt
+        ),
+        "nutrition": memory_manager.enhance_system_prompt(
+            AGENT_SYSTEM_PROMPTS["nutrition"], "nutrition", messages_for_prompt
+        ),
+        "fitness": memory_manager.enhance_system_prompt(
+            AGENT_SYSTEM_PROMPTS["fitness"], "fitness", messages_for_prompt
+        )
+    }
+
     initial_state = {
         "messages": [HumanMessage(content=user_message)],
         "user_id": user_id,
@@ -392,7 +414,8 @@ def process_user_message(
         "current_agent": "chat",
         "retry_count": 0,
         "review_history": [],
-        "memory_summary": memory_summary
+        "memory_summary": memory_summary,
+        "enhanced_prompts": enhanced_prompts
     }
 
     final_state = agent_graph.invoke(initial_state)
@@ -405,6 +428,13 @@ def process_user_message(
     retry_count = final_state.get("retry_count", 0)
 
     last_review = review_history[-1] if review_history else {}
+
+    memory_manager.save_conversation(
+        user_message=user_message,
+        agent_response=response,
+        agent_type=current_agent,
+        session_id=session_id
+    )
 
     return {
         "response": response,

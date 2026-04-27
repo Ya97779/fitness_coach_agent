@@ -1,10 +1,12 @@
 """记忆管理器 - 整合用户画像、对话历史、统计数据的管理"""
 
 from typing import Dict, Any, Optional, List
-from langchain_core.messages import BaseMessage
+from datetime import datetime, timedelta
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from .user_profile import UserProfileLoader
 from .conversation_summary import ConversationSummarizer
 from .stats_summary import StatsSummarizer
+from .. import models, database
 
 
 class MemoryManager:
@@ -209,3 +211,154 @@ class MemoryManager:
             "today_burn": self.stats_summarizer.get_today_stats(self.user_id).get("burn_calories", 0),
             "week_avg_intake": self.stats_summarizer.get_week_stats(self.user_id).get("avg_intake", 0)
         }
+
+    def save_conversation(
+        self,
+        user_message: str,
+        agent_response: str,
+        agent_type: str,
+        session_id: Optional[str] = None
+    ) -> bool:
+        """保存单轮对话到数据库
+
+        Args:
+            user_message: 用户消息
+            agent_response: Agent 回复
+            agent_type: Agent 类型
+            session_id: 会话 ID（可选）
+
+        Returns:
+            bool: 是否保存成功
+        """
+        db = database.SessionLocal()
+        try:
+            log = models.ConversationLog(
+                user_id=self.user_id,
+                session_id=session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                agent_type=agent_type,
+                user_message=user_message,
+                agent_response=agent_response,
+                created_at=datetime.now()
+            )
+            db.add(log)
+            db.commit()
+            return True
+        except Exception as e:
+            db.rollback()
+            print(f"保存对话失败: {e}")
+            return False
+        finally:
+            db.close()
+
+    def load_conversation_history(
+        self,
+        days: int = 7,
+        limit: int = 50,
+        session_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """加载历史对话记录
+
+        Args:
+            days: 加载最近 N 天的对话
+            limit: 最多加载 N 条记录
+            session_id: 指定会话 ID（可选）
+
+        Returns:
+            List[Dict]: 对话历史列表
+        """
+        db = database.SessionLocal()
+        try:
+            start_date = datetime.now() - timedelta(days=days)
+
+            query = db.query(models.ConversationLog).filter(
+                models.ConversationLog.user_id == self.user_id,
+                models.ConversationLog.created_at >= start_date
+            )
+
+            if session_id:
+                query = query.filter(models.ConversationLog.session_id == session_id)
+
+            logs = query.order_by(
+                models.ConversationLog.created_at.desc()
+            ).limit(limit).all()
+
+            result = []
+            for log in reversed(logs):
+                result.append({
+                    "role": "user",
+                    "content": log.user_message,
+                    "agent_type": log.agent_type,
+                    "created_at": log.created_at.isoformat() if log.created_at else None
+                })
+                result.append({
+                    "role": "assistant",
+                    "content": log.agent_response,
+                    "agent_type": log.agent_type,
+                    "created_at": log.created_at.isoformat() if log.created_at else None
+                })
+
+            return result
+        finally:
+            db.close()
+
+    def format_conversation_history_for_agent(
+        self,
+        days: int = 7,
+        limit: int = 10
+    ) -> str:
+        """格式化对话历史为 Agent 可读格式
+
+        Args:
+            days: 加载最近 N 天的对话
+            limit: 最多加载 N 轮对话
+
+        Returns:
+            str: 格式化的对话历史
+        """
+        history = self.load_conversation_history(days=days, limit=limit)
+
+        if not history:
+            return "（无历史对话）"
+
+        parts = ["【近期对话历史】"]
+        for i, msg in enumerate(history):
+            role = "用户" if msg["role"] == "user" else "AI"
+            agent = msg.get("agent_type", "")
+            content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
+            time = msg.get("created_at", "")[:16] if msg.get("created_at") else ""
+
+            if i % 2 == 0:
+                parts.append(f"\n[{time}] {role}: {content}")
+            else:
+                parts.append(f"→ {agent}回复: {content}")
+
+        return "\n".join(parts)
+
+    def get_conversation_summary_for_agent(self, days: int = 7) -> str:
+        """获取对话摘要（简化版，用于 System Prompt）
+
+        Args:
+            days: 加载最近 N 天的对话
+
+        Returns:
+            str: 对话摘要
+        """
+        history = self.load_conversation_history(days=days, limit=20)
+
+        if not history:
+            return ""
+
+        topics = set()
+        for msg in history:
+            if msg["role"] == "user":
+                content = msg["content"]
+                if len(content) > 50:
+                    topics.add(content[:50] + "...")
+                else:
+                    topics.add(content)
+
+        if not topics:
+            return ""
+
+        topic_list = list(topics)[:5]
+        return f"\n\n【用户近期咨询话题】\n" + "\n".join([f"- {t}" for t in topic_list])

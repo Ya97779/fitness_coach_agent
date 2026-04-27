@@ -29,9 +29,16 @@
     # 启用 HyDE 模式
     rag = ModernRAG(enable_hyde=True)
     results = rag.search("腿部训练计划")
+
+增量索引：
+    # 启动时自动检测新文档并增量索引
+    rag = ModernRAG()
+    rag.check_and_update_index()  # 或在 main.py 启动时自动调用
 """
 
 import os
+import json
+import hashlib
 import shutil
 from typing import List, Optional, Dict, Any, Callable
 from langchain_core.documents import Document
@@ -288,6 +295,226 @@ class ModernRAG:
                 self.vectorstore,
                 self.embeddings
             )
+
+    def _get_file_hash(self, file_path: str) -> str:
+        """计算文件内容的 MD5 hash
+
+        Args:
+            file_path: 文件路径
+
+        Returns:
+            文件内容的 MD5 hash
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                return hashlib.md5(f.read()).hexdigest()
+        except Exception:
+            return ""
+
+    def _get_indexed_files_path(self) -> str:
+        """获取已索引文件记录路径"""
+        return os.path.join(self.chroma_dir, "indexed_files.json")
+
+    def _load_indexed_files(self) -> Dict[str, str]:
+        """加载已索引文件记录
+
+        Returns:
+            {file_path: hash} 字典
+        """
+        indexed_path = self._get_indexed_files_path()
+        if os.path.exists(indexed_path):
+            try:
+                with open(indexed_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    def _save_indexed_files(self, indexed_files: Dict[str, str]):
+        """保存已索引文件记录
+
+        Args:
+            indexed_files: {file_path: hash} 字典
+        """
+        indexed_path = self._get_indexed_files_path()
+        try:
+            with open(indexed_path, 'w', encoding='utf-8') as f:
+                json.dump(indexed_files, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存索引文件记录失败: {e}")
+
+    def _scan_knowledge_base(self) -> Dict[str, str]:
+        """扫描知识库目录，返回所有文件及其 hash
+
+        Returns:
+            {file_path: hash} 字典
+        """
+        current_files = {}
+        if os.path.exists(self.knowledge_base_dir):
+            for root, _, files in os.walk(self.knowledge_base_dir):
+                for filename in files:
+                    ext = os.path.splitext(filename)[1].lower()
+                    if ext in DocumentLoader.LOADER_MAP:
+                        file_path = os.path.join(root, filename)
+                        current_files[file_path] = self._get_file_hash(file_path)
+        return current_files
+
+    def check_and_update_index(self) -> Dict[str, Any]:
+        """检查并增量更新索引
+
+        在后端启动时调用，检测知识库中的新文档并增量添加到索引中。
+
+        Returns:
+            {
+                "new_files": int,      # 新增文件数
+                "updated_files": int,  # 更新的文件数
+                "total_indexed": int,  # 总索引文件数
+                "new_chunks": int      # 新增的文档块数
+            }
+        """
+        current_files = self._scan_knowledge_base()
+        indexed_files = self._load_indexed_files()
+
+        new_files = []
+        updated_files = []
+
+        for file_path, file_hash in current_files.items():
+            if file_path not in indexed_files:
+                new_files.append(file_path)
+            elif indexed_files[file_path] != file_hash:
+                updated_files.append(file_path)
+
+        if not new_files and not updated_files:
+            print("知识库没有新文档，无需更新索引")
+            return {
+                "new_files": 0,
+                "updated_files": 0,
+                "total_indexed": len(indexed_files),
+                "new_chunks": 0
+            }
+
+        total_new_chunks = 0
+
+        if new_files:
+            print(f"发现 {len(new_files)} 个新文档，正在增量索引...")
+            for file_path in new_files:
+                chunks = self._index_single_file(file_path)
+                total_new_chunks += len(chunks)
+                indexed_files[file_path] = current_files[file_path]
+                print(f"  + {os.path.basename(file_path)}: {len(chunks)} chunks")
+
+        if updated_files:
+            print(f"发现 {len(updated_files)} 个更新的文档，需要完全重建索引")
+            self._rebuild_with_updated_files(updated_files, current_files)
+            for file_path in updated_files:
+                indexed_files[file_path] = current_files[file_path]
+
+        self._save_indexed_files(indexed_files)
+
+        print(f"增量索引完成: {len(new_files)} 新增, {len(updated_files)} 更新, 共 {len(indexed_files)} 文件, {total_new_chunks} 新 chunks")
+
+        return {
+            "new_files": len(new_files),
+            "updated_files": len(updated_files),
+            "total_indexed": len(indexed_files),
+            "new_chunks": total_new_chunks
+        }
+
+    def _index_single_file(self, file_path: str) -> List[Document]:
+        """为单个文件创建索引块
+
+        Args:
+            file_path: 文件路径
+
+        Returns:
+            文档块列表
+        """
+        try:
+            docs = self.loader.load_single_file(file_path)
+            if not docs:
+                return []
+
+            processor = AdvancedDocumentProcessor(
+                embeddings=self.embeddings,
+                use_semantic_chunking=True,
+                detect_tables=True,
+                detect_code=True,
+                analyze_structure=True
+            )
+            processed_docs = processor.process_documents(docs)
+
+            chunks = self.splitter.split_documents(processed_docs)
+            chunks = self.preprocessor.preprocess_documents(chunks)
+
+            if chunks:
+                self.vectorstore.add_documents(chunks)
+                self.documents.extend(chunks)
+
+                if self.hybrid_search:
+                    self.hybrid_search.documents = self.documents
+                    self.hybrid_search.bm25.index(
+                        [doc.page_content for doc in self.documents]
+                    )
+
+            return chunks
+        except Exception as e:
+            print(f"索引文件失败 {file_path}: {e}")
+            return []
+
+    def _rebuild_with_updated_files(self, updated_files: List[str], current_files: Dict[str, str]):
+        """当有文件更新时，完全重建索引
+
+        Args:
+            updated_files: 更新的文件列表
+            current_files: 当前所有文件及其 hash
+        """
+        indexed_files = self._load_indexed_files()
+
+        all_files = list(set(list(indexed_files.keys()) + updated_files))
+
+        remaining_files = [f for f in all_files if f in current_files]
+
+        if not remaining_files:
+            return
+
+        print(f"正在重建索引，共 {len(remaining_files)} 个文件...")
+
+        shutil.rmtree(self.chroma_dir)
+        os.makedirs(self.chroma_dir, exist_ok=True)
+
+        self.documents = []
+        all_chunks = []
+
+        for file_path in remaining_files:
+            try:
+                docs = self.loader.load_single_file(file_path)
+                if not docs:
+                    continue
+
+                processor = AdvancedDocumentProcessor(
+                    embeddings=self.embeddings,
+                    use_semantic_chunking=True,
+                    detect_tables=True,
+                    detect_code=True,
+                    analyze_structure=True
+                )
+                processed_docs = processor.process_documents(docs)
+                chunks = self.splitter.split_documents(processed_docs)
+                chunks = self.preprocessor.preprocess_documents(chunks)
+
+                all_chunks.extend(chunks)
+                print(f"  + {os.path.basename(file_path)}: {len(chunks)} chunks")
+            except Exception as e:
+                print(f"处理文件失败 {file_path}: {e}")
+
+        if all_chunks:
+            self.documents = all_chunks
+            self.vectorstore = Chroma.from_documents(
+                documents=all_chunks,
+                embedding=self.embeddings,
+                persist_directory=self.chroma_dir
+            )
+            self._setup_hybrid_search()
 
     def _setup_self_rag(self):
         """设置 Self-RAG"""

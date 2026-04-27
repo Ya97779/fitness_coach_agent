@@ -50,7 +50,20 @@ class ExerciseItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     log_id = Column(Integer, ForeignKey("daily_logs.id"))
     type = Column(String, nullable=False)
-    duration = Column(Integer, nullable=False) # in minutes
+    duration = Column(Integer, nullable=False)
     calories = Column(Float, nullable=False)
 
     log = relationship("DailyLog", back_populates="exercise_items")
+
+class ConversationLog(Base):
+    __tablename__ = "conversation_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    session_id = Column(String, nullable=True)
+    agent_type = Column(String, nullable=False)
+    user_message = Column(String, nullable=False)
+    agent_response = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")

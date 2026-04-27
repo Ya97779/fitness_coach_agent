@@ -13,6 +13,25 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
+rag_initialized = False
+
+@app.on_event("startup")
+async def startup_event():
+    """后端启动时初始化 RAG 增量索引"""
+    global rag_initialized
+    if rag_initialized:
+        return
+
+    try:
+        from .rag import get_rag_instance
+        rag = get_rag_instance()
+        result = rag.check_and_update_index()
+        print(f"[RAG 启动] 增量索引结果: 新增 {result['new_files']} 文件, 更新 {result['updated_files']} 文件, 共索引 {result['total_indexed']} 文件")
+        rag_initialized = True
+    except Exception as e:
+        print(f"[RAG 启动] 增量索引初始化失败: {e}")
+        rag_initialized = True
+
 def get_db():
     db = database.SessionLocal()
     try:

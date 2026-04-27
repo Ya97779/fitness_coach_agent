@@ -157,13 +157,25 @@ def format_fitness_memory(memory_summary: Dict[str, Any]) -> str:
     else:
         context_parts.append("今日暂无运动记录")
 
+    conversation_history = memory_summary.get("conversation_history", [])
+    fitness_history = [msg for msg in conversation_history if msg.get("agent_type") == "fitness"]
+    if fitness_history:
+        history_parts = ["【近期健身咨询】"]
+        for msg in fitness_history[-2:]:
+            content = msg.get("content", "")
+            if len(content) > 80:
+                content = content[:80] + "..."
+            history_parts.append(f"- {content}")
+        context_parts.append("\n".join(history_parts))
+
     return "\n\n【用户健身记忆】" + "\n".join(context_parts)
 
 
 def fitness_with_user(
     messages: list,
     user_id: int,
-    memory_summary: Optional[Dict[str, Any]] = None
+    memory_summary: Optional[Dict[str, Any]] = None,
+    enhanced_prompt: str = None
 ) -> str:
     """健身教练对话（支持工具调用）
 
@@ -178,10 +190,12 @@ def fitness_with_user(
         base_url=os.getenv("OPENAI_API_BASE")
     )
 
-    system_content = AGENT_SYSTEM_PROMPTS["fitness"]
-
-    if memory_summary:
-        system_content += format_fitness_memory(memory_summary)
+    if enhanced_prompt:
+        system_content = enhanced_prompt
+    else:
+        system_content = AGENT_SYSTEM_PROMPTS["fitness"]
+        if memory_summary:
+            system_content += format_fitness_memory(memory_summary)
 
     system_content += """
 

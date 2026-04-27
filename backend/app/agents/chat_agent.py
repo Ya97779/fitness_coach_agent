@@ -23,34 +23,46 @@ def format_memory_context(memory_summary: Dict[str, Any], agent_type: str = "cha
     if not memory_summary:
         return ""
 
+    parts = []
+
     goal = memory_summary.get("goal", "未知")
     today_intake = memory_summary.get("today_intake", 0)
     today_burn = memory_summary.get("today_burn", 0)
     week_avg = memory_summary.get("week_avg_intake", 0)
 
-    context_parts = []
-
     if goal:
-        context_parts.append(f"用户目标: {goal}")
+        parts.append(f"用户目标: {goal}")
 
     if today_intake > 0 or today_burn > 0:
-        context_parts.append(f"今日: 摄入{today_intake:.0f}kcal, 消耗{today_burn:.0f}kcal")
+        parts.append(f"今日: 摄入{today_intake:.0f}kcal, 消耗{today_burn:.0f}kcal")
 
     if week_avg > 0:
-        context_parts.append(f"本周日均摄入: {week_avg:.0f}kcal")
+        parts.append(f"本周日均摄入: {week_avg:.0f}kcal")
 
-    if context_parts:
-        return "\n\n【用户记忆】" + "\n".join(context_parts)
+    conversation_history = memory_summary.get("conversation_history", [])
+    if conversation_history:
+        history_parts = ["【近期对话】"]
+        for i, msg in enumerate(conversation_history[-6:]):
+            role = "用户" if msg.get("role") == "user" else "AI"
+            content = msg.get("content", "")
+            if len(content) > 100:
+                content = content[:100] + "..."
+            history_parts.append(f"{role}: {content}")
+        parts.append("\n".join(history_parts))
+
+    if parts:
+        return "\n\n【用户记忆】" + "\n".join(parts)
     return ""
 
 
-def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] = None) -> str:
+def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] = None, enhanced_prompt: str = None) -> str:
     """直接与用户对话（不需要工具调用）
 
     Args:
         messages: 消息列表
         user_id: 用户ID
-        memory_summary: 记忆摘要（可选）
+        memory_summary: 记忆摘要（可选，用于向后兼容）
+        enhanced_prompt: 增强后的 system prompt（可选）
 
     Returns:
         str: LLM 生成的回复
@@ -61,13 +73,17 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
         base_url=os.getenv("OPENAI_API_BASE")
     )
 
-    base_prompt = AGENT_SYSTEM_PROMPTS["chat"]
-    if memory_summary:
-        memory_context = format_memory_context(memory_summary, "chat")
-        if memory_context:
-            base_prompt += memory_context
+    if enhanced_prompt:
+        system_content = enhanced_prompt
+    else:
+        base_prompt = AGENT_SYSTEM_PROMPTS["chat"]
+        if memory_summary:
+            memory_context = format_memory_context(memory_summary, "chat")
+            if memory_context:
+                base_prompt += memory_context
+        system_content = base_prompt
 
-    system_msg = SystemMessage(content=base_prompt)
+    system_msg = SystemMessage(content=system_content)
     try:
         response = llm.invoke([system_msg] + messages)
         return response.content
