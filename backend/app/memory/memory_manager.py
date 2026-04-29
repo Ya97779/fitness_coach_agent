@@ -43,9 +43,11 @@ class MemoryManager:
 
         self._profile: Optional[Dict[str, Any]] = None
         self._goal: Optional[str] = None
+        self._today_stats: Optional[Dict[str, Any]] = None
+        self._week_stats: Optional[Dict[str, Any]] = None
 
     def load_profile(self) -> Dict[str, Any]:
-        """加载用户画像
+        """加载用户画像（带缓存）
 
         Returns:
             Dict: 用户画像
@@ -55,7 +57,7 @@ class MemoryManager:
         return self._profile
 
     def get_goal(self) -> str:
-        """获取用户目标
+        """获取用户目标（带缓存）
 
         Returns:
             str: 用户目标（增肌/减脂/维持）
@@ -64,22 +66,37 @@ class MemoryManager:
             self._goal = self.profile_loader.get_user_goal(self.user_id)
         return self._goal
 
+    def get_today_stats(self) -> Dict[str, Any]:
+        """获取当日统计（带缓存）
+
+        Returns:
+            Dict: 当日统计数据
+        """
+        if self._today_stats is None:
+            self._today_stats = self.stats_summarizer.get_today_stats(self.user_id)
+        return self._today_stats
+
+    def get_week_stats(self) -> Dict[str, Any]:
+        """获取本周统计（带缓存）
+
+        Returns:
+            Dict: 本周统计数据
+        """
+        if self._week_stats is None:
+            self._week_stats = self.stats_summarizer.get_week_stats(self.user_id)
+        return self._week_stats
+
     def get_full_context(self) -> Dict[str, Any]:
         """获取完整上下文
 
         Returns:
             Dict: 包含用户画像、目标、当日统计、本周统计
         """
-        profile = self.load_profile()
-        goal = self.get_goal()
-        today_stats = self.stats_summarizer.get_today_stats(self.user_id)
-        week_stats = self.stats_summarizer.get_week_stats(self.user_id)
-
         return {
-            "profile": profile,
-            "goal": goal,
-            "today_stats": today_stats,
-            "week_stats": week_stats
+            "profile": self.load_profile(),
+            "goal": self.get_goal(),
+            "today_stats": self.get_today_stats(),
+            "week_stats": self.get_week_stats()
         }
 
     def format_profile_for_agent(self) -> str:
@@ -98,8 +115,7 @@ class MemoryManager:
         Returns:
             str: 格式化的当日统计
         """
-        stats = self.stats_summarizer.get_today_stats(self.user_id)
-        return self.stats_summarizer.format_today_for_agent(stats)
+        return self.stats_summarizer.format_today_for_agent(self.get_today_stats())
 
     def format_week_stats_for_agent(self) -> str:
         """格式化本周统计为 Agent 可读格式
@@ -107,8 +123,7 @@ class MemoryManager:
         Returns:
             str: 格式化的本周统计
         """
-        stats = self.stats_summarizer.get_week_stats(self.user_id)
-        return self.stats_summarizer.format_week_for_agent(stats)
+        return self.stats_summarizer.format_week_for_agent(self.get_week_stats())
 
     def enhance_system_prompt(
         self,
@@ -160,8 +175,7 @@ class MemoryManager:
         Returns:
             str: 营养上下文
         """
-        today_stats = self.stats_summarizer.get_today_stats(self.user_id)
-        return self.stats_summarizer.get_context_for_nutrition(today_stats)
+        return self.stats_summarizer.get_context_for_nutrition(self.get_today_stats())
 
     def get_fitness_context(self) -> str:
         """获取运动相关的上下文
@@ -169,8 +183,7 @@ class MemoryManager:
         Returns:
             str: 运动上下文
         """
-        today_stats = self.stats_summarizer.get_today_stats(self.user_id)
-        return self.stats_summarizer.get_context_for_fitness(today_stats)
+        return self.stats_summarizer.get_context_for_fitness(self.get_today_stats())
 
     def summarize_conversation(
         self,
@@ -207,9 +220,9 @@ class MemoryManager:
         return {
             "user_id": self.user_id,
             "goal": self.get_goal(),
-            "today_intake": self.stats_summarizer.get_today_stats(self.user_id).get("intake_calories", 0),
-            "today_burn": self.stats_summarizer.get_today_stats(self.user_id).get("burn_calories", 0),
-            "week_avg_intake": self.stats_summarizer.get_week_stats(self.user_id).get("avg_intake", 0)
+            "today_intake": self.get_today_stats().get("intake_calories", 0),
+            "today_burn": self.get_today_stats().get("burn_calories", 0),
+            "week_avg_intake": self.get_week_stats().get("avg_intake", 0)
         }
 
     def save_conversation(

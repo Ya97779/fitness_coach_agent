@@ -136,12 +136,8 @@ class ConversationSummarizer:
 3. 用户的特殊需求或限制（如有）："""
 
         try:
-            llm = ChatOpenAI(
-                model=self.model,
-                api_key=self.api_key,
-                base_url=self.api_base,
-                temperature=0.3
-            )
+            from ..llm_manager import LLMManager
+            llm = LLMManager.get_llm(temperature=0.3)
             response = llm.invoke([HumanMessage(content=prompt)])
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:

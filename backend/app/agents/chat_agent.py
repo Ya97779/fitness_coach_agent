@@ -2,7 +2,7 @@
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from typing import Dict, Any
+from typing import Dict, Any, Iterator
 import os
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
@@ -55,7 +55,7 @@ def format_memory_context(memory_summary: Dict[str, Any], agent_type: str = "cha
     return ""
 
 
-def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] = None, enhanced_prompt: str = None) -> str:
+def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] = None, enhanced_prompt: str = None, stream: bool = False):
     """直接与用户对话（不需要工具调用）
 
     Args:
@@ -63,15 +63,13 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
         user_id: 用户ID
         memory_summary: 记忆摘要（可选，用于向后兼容）
         enhanced_prompt: 增强后的 system prompt（可选）
+        stream: 是否使用流式输出
 
     Returns:
-        str: LLM 生成的回复
+        str | Iterator[str]: LLM 生成的回复，或回复片段的迭代器
     """
-    llm = ChatOpenAI(
-        model=os.getenv("LLM_MODEL", "glm-4.7"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_API_BASE")
-    )
+    from ..llm_manager import LLMManager
+    llm = LLMManager.get_llm(temperature=0.7)
 
     if enhanced_prompt:
         system_content = enhanced_prompt
@@ -84,11 +82,21 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
         system_content = base_prompt
 
     system_msg = SystemMessage(content=system_content)
-    try:
-        response = llm.invoke([system_msg] + messages)
-        return response.content
-    except Exception as e:
-        error_msg = str(e)
-        if "1214" in error_msg or "messages" in error_msg.lower():
-            return f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
-        return f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+
+    def generate_response():
+        try:
+            if stream:
+                for chunk in llm.stream([system_msg] + messages):
+                    if chunk.content:
+                        yield chunk.content
+            else:
+                response = llm.invoke([system_msg] + messages)
+                yield response.content
+        except Exception as e:
+            error_msg = str(e)
+            if "1214" in error_msg or "messages" in error_msg.lower():
+                yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
+            else:
+                yield f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+
+    return generate_response()

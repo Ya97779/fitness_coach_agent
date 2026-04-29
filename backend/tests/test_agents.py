@@ -102,11 +102,11 @@ class TestAgentSystemPrompts(unittest.TestCase):
 class TestRouter(unittest.TestCase):
     """Router 单元测试"""
 
-    @patch('app.agents.router.ChatOpenAI')
-    def test_route_with_context_nutrition(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_route_with_context_nutrition(self, mock_get_llm):
         """测试路由到 nutrition"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="2")
 
         result = route_with_context("我想减肥，应该吃什么")
@@ -114,11 +114,11 @@ class TestRouter(unittest.TestCase):
         self.assertEqual(result["agent"], "nutrition")
         self.assertIn("饮食", result["reason"])
 
-    @patch('app.agents.router.ChatOpenAI')
-    def test_route_with_context_fitness(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_route_with_context_fitness(self, mock_get_llm):
         """测试路由到 fitness"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="3")
 
         result = route_with_context("今天想跑步训练")
@@ -126,11 +126,11 @@ class TestRouter(unittest.TestCase):
         self.assertEqual(result["agent"], "fitness")
         self.assertIn("运动", result["reason"])
 
-    @patch('app.agents.router.ChatOpenAI')
-    def test_route_with_context_chat(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_route_with_context_chat(self, mock_get_llm):
         """测试路由到 chat"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="1")
 
         result = route_with_context("今天天气不错")
@@ -138,11 +138,11 @@ class TestRouter(unittest.TestCase):
         self.assertEqual(result["agent"], "chat")
         self.assertIn("闲聊", result["reason"])
 
-    @patch('app.agents.router.ChatOpenAI')
-    def test_route_with_context_exception(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_route_with_context_exception(self, mock_get_llm):
         """测试路由异常处理"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.side_effect = Exception("API Error")
 
         result = route_with_context("测试消息")
@@ -192,30 +192,36 @@ class TestFormatMemoryContext(unittest.TestCase):
 class TestChatAgent(unittest.TestCase):
     """Chat Agent 单元测试"""
 
-    @patch('app.agents.chat_agent.ChatOpenAI')
-    def test_chat_with_user_returns_str(self, mock_llm_class):
-        """测试 chat_with_user 返回字符串"""
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_chat_with_user_returns_str(self, mock_get_llm):
+        """测试 chat_with_user 返回字符串（非流式）"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="你好！有什么可以帮你的？")
 
         messages = [HumanMessage(content="你好")]
         result = chat_with_user(messages, user_id=1)
 
-        self.assertIsInstance(result, str)
+        result_chunks = list(result)
+        full_response = "".join(result_chunks)
+        self.assertIsInstance(full_response, str)
+        self.assertEqual(full_response, "你好！有什么可以帮你的？")
 
-    @patch('app.agents.chat_agent.ChatOpenAI')
-    def test_chat_with_user_with_enhanced_prompt(self, mock_llm_class):
-        """测试使用增强 prompt 的 chat_with_user"""
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_chat_with_user_with_enhanced_prompt(self, mock_get_llm):
+        """测试使用增强 prompt 的 chat_with_user（非流式）"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="回答")
 
         messages = [HumanMessage(content="你好")]
         enhanced_prompt = "你是一个助手，用户目标是减脂"
         result = chat_with_user(messages, user_id=1, enhanced_prompt=enhanced_prompt)
 
-        self.assertIsInstance(result, str)
+        result_chunks = list(result)
+        full_response = "".join(result_chunks)
+        self.assertIsInstance(full_response, str)
+        self.assertEqual(full_response, "回答")
         mock_llm.invoke.assert_called_once()
 
 
@@ -303,6 +309,7 @@ class TestNutritionTools(unittest.TestCase):
         self.assertIn("log_food_intake", tool_names)
         self.assertIn("get_daily_nutrition_summary", tool_names)
         self.assertIn("search_food_nutrition", tool_names)
+        self.assertIn("search_nutrition_knowledge", tool_names)
 
 
 class TestFormatNutritionMemory(unittest.TestCase):
@@ -452,11 +459,11 @@ class TestFormatFitnessMemory(unittest.TestCase):
 class TestExpertAgent(unittest.TestCase):
     """Expert Agent 单元测试"""
 
-    @patch('app.agents.expert_agent.ChatOpenAI')
-    def test_review_output_returns_dict(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_review_output_returns_dict(self, mock_get_llm):
         """测试 review_output 返回字典"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="评分: 4\n内容良好")
 
         result = review_output("营养师输出", "健身教练输出")
@@ -467,11 +474,11 @@ class TestExpertAgent(unittest.TestCase):
         self.assertIn("feedback", result)
         self.assertIn("needs_revision", result)
 
-    @patch('app.agents.expert_agent.ChatOpenAI')
-    def test_review_output_high_score_approved(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_review_output_high_score_approved(self, mock_get_llm):
         """测试高分通过评审"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="评分: 4\n内容良好")
 
         result = review_output("营养师输出", "健身教练输出")
@@ -479,11 +486,11 @@ class TestExpertAgent(unittest.TestCase):
         self.assertTrue(result["approved"])
         self.assertFalse(result["needs_revision"])
 
-    @patch('app.agents.expert_agent.ChatOpenAI')
-    def test_review_output_low_score_needs_revision(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_review_output_low_score_needs_revision(self, mock_get_llm):
         """测试低分需要修改"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.return_value = MagicMock(content="评分: 2\n内容需要改进")
 
         result = review_output("营养师输出", "健身教练输出")
@@ -491,11 +498,11 @@ class TestExpertAgent(unittest.TestCase):
         self.assertFalse(result["approved"])
         self.assertTrue(result["needs_revision"])
 
-    @patch('app.agents.expert_agent.ChatOpenAI')
-    def test_review_output_exception_handling(self, mock_llm_class):
+    @patch('app.llm_manager.LLMManager.get_llm')
+    def test_review_output_exception_handling(self, mock_get_llm):
         """测试异常处理"""
         mock_llm = MagicMock()
-        mock_llm_class.return_value = mock_llm
+        mock_get_llm.return_value = mock_llm
         mock_llm.invoke.side_effect = Exception("API Error")
 
         result = review_output("营养师输出", "健身教练输出")

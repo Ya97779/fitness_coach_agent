@@ -2,12 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from . import models, database
-from .agents.graph import process_user_message
+from .agents.graph import process_user_message, stream_user_message
 from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
+import os
 from datetime import date
 from langchain_core.messages import HumanMessage
+from dotenv import load_dotenv
+
+load_dotenv()
 
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -20,6 +24,12 @@ async def startup_event():
     """后端启动时初始化 RAG 增量索引"""
     global rag_initialized
     if rag_initialized:
+        return
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("[RAG 启动] 未配置 OPENAI_API_KEY，跳过增量索引。请在项目根目录创建 .env 文件并配置 API Key。")
+        rag_initialized = True
         return
 
     try:
@@ -208,21 +218,33 @@ async def chat_stream(request: StreamChatRequest, db: Session = Depends(get_db))
 
     async def event_generator():
         try:
-            result = process_user_message(
-                user_message=user_message,
-                user_id=request.user_id or 1,
-                user_profile=user_profile,
-                daily_stats=daily_stats
+            loop = asyncio.get_event_loop()
+            response_generator = await loop.run_in_executor(
+                None,
+                stream_user_message,
+                user_message,
+                request.user_id or 1,
+                user_profile,
+                daily_stats
             )
 
-            response_text = result["response"]
-            for char in response_text:
-                yield char
-                await asyncio.sleep(0.01)
-        except Exception as e:
-            yield f"Error: {str(e)}"
+            for chunk in response_generator:
+                yield f"data: {chunk}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: Error: {str(e)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @app.get("/agents")
 async def list_agents():

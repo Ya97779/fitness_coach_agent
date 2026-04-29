@@ -31,11 +31,8 @@ def review_output(nutrition_output: str, fitness_output: str) -> dict:
             "needs_revision": bool    # 是否需要修改（score <= 2）
         }
     """
-    llm = ChatOpenAI(
-        model=os.getenv("LLM_MODEL", "glm-4.7"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_API_BASE")
-    )
+    from ..llm_manager import LLMManager
+    llm = LLMManager.get_llm(temperature=0.7)
 
     review_prompt = f"""{AGENT_SYSTEM_PROMPTS["expert"]}
 

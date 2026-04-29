@@ -3,24 +3,19 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Iterator
 import os
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
 from .. import models, database
-from ..rag import ModernRAG
+from ..rag import get_rag_instance
 from datetime import date
 
 load_dotenv()
 
-_rag_instance = None
-
 def get_rag():
-    """获取 RAG 实例（懒加载）"""
-    global _rag_instance
-    if _rag_instance is None:
-        _rag_instance = ModernRAG(enable_agentic=True)
-    return _rag_instance
+    """获取 RAG 实例（使用全局单例）"""
+    return get_rag_instance(enable_agentic=True)
 
 
 @tool
@@ -117,6 +112,8 @@ def search_fitness_knowledge(query: str):
     rag = get_rag()
     results = rag.search(query, top_k=3, mode="hybrid")
 
+    print(f"[RAG] 健身知识检索: query='{query}', results={len(results)}")
+
     if not results:
         return f"【RAG检索】未在知识库中找到相关信息"
 
@@ -175,20 +172,28 @@ def fitness_with_user(
     messages: list,
     user_id: int,
     memory_summary: Optional[Dict[str, Any]] = None,
-    enhanced_prompt: str = None
-) -> str:
+    enhanced_prompt: str = None,
+    stream: bool = False
+) -> str | Iterator[str]:
     """健身教练对话（支持工具调用）
 
     工作流程：
     1. LLM 判断是否需要调用工具
     2. 执行工具获取检索结果
     3. 将检索结果作为上下文，让 LLM 生成优化后的回答
+
+    Args:
+        messages: 消息列表
+        user_id: 用户ID
+        memory_summary: 记忆摘要（可选）
+        enhanced_prompt: 增强后的 system prompt（可选）
+        stream: 是否使用流式输出
+
+    Returns:
+        str | Iterator[str]: LLM 生成的回复，或回复片段的迭代器
     """
-    llm = ChatOpenAI(
-        model=os.getenv("LLM_MODEL", "glm-4.7"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_API_BASE")
-    )
+    from ..llm_manager import LLMManager
+    llm = LLMManager.get_llm(temperature=0.7)
 
     if enhanced_prompt:
         system_content = enhanced_prompt
@@ -206,20 +211,28 @@ def fitness_with_user(
 4. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
 """
     system_msg = SystemMessage(content=system_content)
-
     chat_history = [system_msg] + list(messages)
 
-    for _ in range(2):
+    def generate_response():
         try:
             response = llm.bind_tools(fitness_tools).invoke(chat_history)
         except Exception as e:
             error_msg = str(e)
             if "1214" in error_msg or "messages" in error_msg.lower():
-                return f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
-            return f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+                yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
+                return
+            yield f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+            return
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
-            return response.content if hasattr(response, 'content') else str(response)
+            if stream:
+                if hasattr(response, 'content') and response.content:
+                    for chunk in llm.stream(chat_history + [response]):
+                        if chunk.content:
+                            yield chunk.content
+            else:
+                yield response.content if hasattr(response, 'content') else str(response)
+            return
 
         tool_messages = []
         for tool_call in response.tool_calls:
@@ -246,4 +259,19 @@ def fitness_with_user(
         chat_history.append(response)
         chat_history.extend(tool_messages)
 
-    return response.content if hasattr(response, 'content') else str(response)
+        try:
+            if stream:
+                for chunk in llm.stream(chat_history):
+                    if chunk.content:
+                        yield chunk.content
+            else:
+                final_response = llm.invoke(chat_history)
+                yield final_response.content if hasattr(final_response, 'content') else str(final_response)
+        except Exception as e:
+            error_msg = str(e)
+            if "1214" in error_msg or "messages" in error_msg.lower():
+                yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
+            else:
+                yield f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+
+    return generate_response()

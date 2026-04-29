@@ -291,11 +291,24 @@ if app_mode == "chat":
                     if response.status_code == 200:
                         message_placeholder = st.empty()
                         full_response = ""
-                        for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                            if chunk:
-                                full_response += chunk
-                                message_placeholder.markdown(full_response + "▌")
-                        
+                        for line in response.iter_lines(decode_unicode=True):
+                            if not line:
+                                continue
+                            # 解析 SSE 协议：剥离 "data: " 前缀
+                            if line.startswith("data: "):
+                                chunk = line[6:]
+                            elif line.startswith("data:"):
+                                chunk = line[5:]
+                            else:
+                                continue
+
+                            # 检查结束标记
+                            if chunk.strip() == "[DONE]":
+                                break
+
+                            full_response += chunk
+                            message_placeholder.markdown(full_response + "▌")
+
                         message_placeholder.markdown(full_response)
                         st.session_state.messages.append({"role": "assistant", "content": full_response})
                     else:

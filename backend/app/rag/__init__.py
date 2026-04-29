@@ -40,6 +40,7 @@ import os
 import json
 import hashlib
 import shutil
+import time
 from typing import List, Optional, Dict, Any, Callable
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
@@ -152,12 +153,8 @@ class ModernRAG:
             base_url=api_base
         )
 
-        self.llm = ChatOpenAI(
-            model=llm_model or os.getenv("LLM_MODEL", "glm-4"),
-            api_key=api_key,
-            base_url=api_base,
-            temperature=0.7
-        )
+        from ..llm_manager import LLMManager
+        self.llm = LLMManager.get_llm(temperature=0.7)
 
         self.loader = DocumentLoader(knowledge_base_dir)
         self.splitter = IntelligentSplitter(
@@ -199,6 +196,11 @@ class ModernRAG:
             self._setup_agentic_rag()
         else:
             self.agentic_rag = None
+
+        # 查询缓存（LRU，5分钟过期）
+        self._query_cache: Dict[str, Any] = {}
+        self._cache_max_size = 128
+        self._cache_ttl = 300  # 秒
 
     def _setup_agentic_rag(self):
         """设置 Agentic RAG"""
@@ -562,6 +564,27 @@ class ModernRAG:
             print(f"检索错误: {e}")
             return []
 
+    def _get_cache_key(self, query: str, top_k: int, mode: str) -> str:
+        """生成缓存键"""
+        return f"{query.strip().lower()}|{top_k}|{mode}"
+
+    def _get_from_cache(self, key: str) -> Optional[List[Dict[str, Any]]]:
+        """从缓存获取结果，过期返回 None"""
+        if key in self._query_cache:
+            entry = self._query_cache[key]
+            if time.time() - entry["time"] < self._cache_ttl:
+                return entry["results"]
+            else:
+                del self._query_cache[key]
+        return None
+
+    def _put_to_cache(self, key: str, results: List[Dict[str, Any]]):
+        """写入缓存，超限时淘汰最旧条目"""
+        if len(self._query_cache) >= self._cache_max_size:
+            oldest_key = min(self._query_cache, key=lambda k: self._query_cache[k]["time"])
+            del self._query_cache[oldest_key]
+        self._query_cache[key] = {"results": results, "time": time.time()}
+
     def _query_expansion_retrieve(
         self,
         query: str,
@@ -692,20 +715,23 @@ class ModernRAG:
         if not query or not query.strip():
             return [{"content": "请提供有效的查询内容。", "metadata": {}, "score": 0}]
 
+        cache_key = self._get_cache_key(query, top_k, mode)
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             if mode == "query_expansion" or self.enable_query_expansion:
-                return self._query_expansion_retrieve(query, top_k)
-
-            if mode == "hyde" or self.enable_hyde:
+                results = self._query_expansion_retrieve(query, top_k)
+            elif mode == "hyde" or self.enable_hyde:
                 hyde_result = self._hyde_retrieve(query, top_k)
-                return hyde_result["results"]
-
-            if mode == "bm25":
+                results = hyde_result["results"]
+            elif mode == "bm25":
                 from .modules import BM25Search
                 bm25 = BM25Search()
                 bm25.index([doc.page_content for doc in self.documents])
                 raw_results = bm25.search(query, top_k)
-                return [
+                results = [
                     {
                         "content": r["content"],
                         "metadata": self.documents[r["index"]].metadata,
@@ -714,15 +740,17 @@ class ModernRAG:
                     }
                     for r in raw_results
                 ]
-
-            if mode == "vector":
+            elif mode == "vector":
                 docs = self.vectorstore.similarity_search_with_score(query, k=top_k)
-                return [
+                results = [
                     {"content": doc.page_content, "metadata": doc.metadata, "score": score, "source": "vector"}
                     for doc, score in docs
                 ]
+            else:
+                results = self._basic_retrieve(query, top_k)
 
-            return self._basic_retrieve(query, top_k)
+            self._put_to_cache(cache_key, results)
+            return results
 
         except Exception as e:
             print(f"检索错误: {e}")

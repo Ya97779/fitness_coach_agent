@@ -1,6 +1,6 @@
 # FitCoach AI 智能私教系统 - 开发文档
 
-## 📅 最后更新日期：2026-04-27
+## 📅 最后更新日期：2026-04-29（性能优化）
 
 ---
 
@@ -13,11 +13,12 @@ d:\fitness_coach/
 │       ├── main.py                  # FastAPI 主入口，API 路由定义
 │       ├── models.py                 # SQLAlchemy 数据库模型
 │       ├── database.py               # 数据库连接配置
+│       ├── llm_manager.py           # LLM 实例管理器（单例复用）🆕
 │       ├── food_api.py              # 天行数据食物营养 API
 │       ├── agents/                   # 多 Agent 系统核心
 │       │   ├── __init__.py          # 模块导出
 │       │   ├── base.py              # Agent 基础配置（System Prompt）
-│       │   ├── router.py            # 动态路由器（LLM 意图识别）
+│       │   ├── router.py            # 动态路由器（关键词预筛选 + LLM 二次确认）
 │       │   ├── chat_agent.py        # 闲聊 Agent
 │       │   ├── nutrition_agent.py   # 营养师 Agent
 │       │   ├── fitness_agent.py      # 健身教练 Agent
@@ -114,6 +115,7 @@ d:\fitness_coach/
 | **主入口** | `main.py` | FastAPI 应用、API 路由、BMR/TDEE 计算 |
 | **数据模型** | `models.py` | User, DailyLog, FoodItem, ExerciseItem, **ConversationLog** |
 | **数据库** | `database.py` | SQLAlchemy engine 和 SessionLocal |
+| **LLM管理器** | `llm_manager.py` | LLM 实例单例管理，按 temperature 缓存复用 🆕 |
 | **食物API** | `food_api.py` | 天行数据食物营养查询 |
 | **Agent基座** | `base.py` | System Prompt、AgentState 类型 |
 | **路由器** | `router.py` | 意图识别（LLM 分析） |
@@ -134,14 +136,30 @@ d:\fitness_coach/
 |-------|------|----------|
 | **Router** | 分析意图，路由分发 | 无 |
 | **Chat** | 闲聊、情感支持 | 无 |
-| **Nutrition** | 饮食计划、热量计算 | `search_food_nutrition`, `log_food_intake`, `get_daily_nutrition_summary`, `get_user_nutrition_info` |
-| **Fitness** | 训练计划、动作指导 | `search_fitness_knowledge`, `estimate_exercise_calories`, `log_exercise`, `get_user_fitness_info` |
+| **Nutrition** | 饮食计划、热量计算、营养知识 | `search_food_nutrition`, `search_nutrition_knowledge`, `log_food_intake`, `get_daily_nutrition_summary`, `get_user_nutrition_info` |
+| **Fitness** | 训练计划、动作指导、健身知识 | `search_fitness_knowledge`, `estimate_exercise_calories`, `log_exercise`, `get_user_fitness_info` |
 | **Expert** | 评审质量（1-5分） | 无 |
 
 ### Router 路由规则
 
+**混合路由策略**：关键词预筛选 + LLM 二次确认
+
 ```python
-# LLM 分析用户输入，返回 1/2/3
+# 1. 关键词预筛选（快速路径，无 LLM 调用）
+NUTRITION_KEYWORDS = ["吃", "食物", "热量", "蛋白质", "饮食计划", ...]
+FITNESS_KEYWORDS = ["运动", "训练", "卧推", "深蹲", "肌肉", ...]
+
+# 匹配规则：
+# - nutrition ≥ 2 → nutrition（直接路由）
+# - fitness ≥ 2 → fitness（直接路由）
+# - nutrition ≥ 1 且 fitness ≥ 1 → chat（混合话题）
+# - 其他 → LLM 二次确认
+
+# 2. LLM 二次确认（模糊场景）
+# 使用精确正则匹配：\b([123])\b 避免误匹配
+# 例如："这是一个2号类型的请求" 不会匹配到 "2"
+# 解析失败时语义兜底：检查"营养/饮食"或"健身/运动"关键词
+
 类型 1 - 闲聊助手：
   - 日常问候、情感交流
   - 通用知识问答
@@ -169,6 +187,11 @@ d:\fitness_coach/
 | 1 | 很差 | 内容错误、存在安全隐患 | 重试 |
 
 **防死循环**：`MAX_RETRIES = 3`，超过最大次数返回最后结果
+
+**快速通道优化** ✅：
+- `QUICK_PATTERNS` 正则匹配：热量查询、营养成分查询、简单健身问题等 7 种模式
+- 回复长度 < 150 字符的简单查询直接跳过评审
+- 减少不必要 LLM 调用，提升响应速度
 
 ---
 
@@ -374,6 +397,87 @@ knowledge_base/  ──(加载文档)──▶  ChromaDB向量库  ──(混合
 
 ---
 
+## ⚡ 性能优化
+
+### LLM 实例复用 🆕
+
+**问题**：每次请求都创建新的 `ChatOpenAI` 实例，单次对话可能创建 16+ 个实例。
+
+**方案**：`LLMManager` 单例管理器，按 temperature 值缓存 LLM 实例。
+
+```python
+# backend/app/llm_manager.py
+class LLMManager:
+    _instances: Dict[float, ChatOpenAI] = {}
+
+    @classmethod
+    def get_llm(cls, temperature: float = 0.7) -> ChatOpenAI:
+        if temperature not in cls._instances:
+            cls._instances[temperature] = ChatOpenAI(
+                model=os.getenv("LLM_MODEL", "glm-4.7"),
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url=os.getenv("OPENAI_API_BASE"),
+                temperature=temperature
+            )
+        return cls._instances[temperature]
+```
+
+**影响范围**：7 个文件统一使用 `LLMManager.get_llm()`：
+- `agents/graph.py` → `create_llm()`
+- `agents/router.py` → `_llm_route()`
+- `agents/chat_agent.py` → `chat_with_user()`
+- `agents/nutrition_agent.py` → `nutrition_with_user()`
+- `agents/fitness_agent.py` → `fitness_with_user()`
+- `agents/expert_agent.py` → `review_output()`
+- `memory/conversation_summary.py` → `_generate_summary()`
+- `rag/__init__.py` → `ModernRAG.__init__()`
+
+### 数据库查询缓存 🆕
+
+**问题**：`MemoryManager` 多个方法重复查询同一天/周的统计数据。
+
+**方案**：`get_today_stats()` 和 `get_week_stats()` 加入实例级缓存，首次查询后缓存结果。
+
+```python
+# memory_manager.py
+def get_today_stats(self) -> Dict[str, Any]:
+    if self._today_stats is None:
+        self._today_stats = self.stats_summarizer.get_today_stats(self.user_id)
+    return self._today_stats
+```
+
+**受益方法**：`get_memory_summary()`, `format_today_stats_for_agent()`, `format_week_stats_for_agent()`, `get_nutrition_context()`, `get_fitness_context()`
+
+### RAG 检索缓存 🆕
+
+**问题**：相同查询重复执行向量检索和 BM25 检索。
+
+**方案**：`ModernRAG.search()` 加入 LRU 缓存（128 条，5 分钟过期）。
+
+```python
+# rag/__init__.py
+self._query_cache: Dict[str, Any] = {}
+self._cache_max_size = 128
+self._cache_ttl = 300  # 秒
+
+def search(self, query, top_k=5, mode="hybrid"):
+    cache_key = self._get_cache_key(query, top_k, mode)
+    cached = self._get_from_cache(cache_key)
+    if cached is not None:
+        return cached
+    # ... 执行检索 ...
+    self._put_to_cache(cache_key, results)
+    return results
+```
+
+### RAG 单例统一 🆕
+
+**问题**：`fitness_agent.py` 维护独立的 `_rag_instance`，与全局 `get_rag_instance()` 重复。
+
+**方案**：`fitness_agent.py` 改用全局 `get_rag_instance()` 单例。
+
+---
+
 ## 🔌 API 接口
 
 | 方法 | 路径 | 功能 | 请求体/参数 |
@@ -542,8 +646,10 @@ backend/tests/
 | 基础架构 | ✅ 完成 | FastAPI + SQLite |
 | 多 Agent 系统 | ✅ 完成 | Chat/Nutrition/Fitness/Expert |
 | LangGraph 工作流 | ✅ 完成 | 状态机驱动 |
-| 动态路由 | ✅ 完成 | LLM 意图识别 |
+| 动态路由 | ✅ 完成 | 混合路由策略：关键词预筛选 + LLM 二次确认 |
+| 路由 LLM 解析优化 | ✅ 完成 | 精确正则 `\b([123])\b` + 语义兜底 |
 | 专家评审 | ✅ 完成 | 1-5分评分 + 重试机制 |
+| 专家评审快速通道 | ✅ 完成 | QUICK_PATTERNS + 长度阈值跳过评审 |
 | 食物营养 API | ✅ 完成 | 天行数据 API |
 | RAG 基础 | ✅ 完成 | ChromaDB 向量检索 |
 | 现代 RAG | ✅ 完成 | 混合检索/查询扩展/HyDE |
@@ -553,6 +659,12 @@ backend/tests/
 | 跨会话对话持久化 | ✅ 完成 | ConversationLog 持久化 🆕 |
 | 上下文工程 | ✅ 完成 | enhance_system_prompt() 完整上下文注入 Agent |
 | 增量文档索引 | ✅ 完成 | 启动时自动检测新文档并增量添加到知识库 |
+| 流式响应 | ✅ 完成 | 真正的 SSE 流式输出，LLM chunk 级联输出 🆕 |
+| 流式对话持久化 | ✅ 完成 | 流式结束后自动保存对话历史 🆕 |
+| LLM 实例复用 | ✅ 完成 | LLMManager 单例管理，按 temperature 缓存 🆕 |
+| 数据库查询缓存 | ✅ 完成 | MemoryManager 统计数据实例级缓存 🆕 |
+| RAG 检索缓存 | ✅ 完成 | LRU 缓存（128条/5分钟过期）🆕 |
+| 营养师 RAG 检索 | ✅ 完成 | Nutrition Agent 新增 search_nutrition_knowledge 工具 🆕 |
 | Memory 模块单元测试 | ✅ 完成 | 32 tests ✅ |
 | Agents 模块单元测试 | ✅ 完成 | 61 tests ✅ |
 | RAG 模块单元测试 | ✅ 完成 | 57 tests ✅ |
@@ -566,6 +678,13 @@ backend/tests/
 - [x] Memory 模块单元测试 - ✅ 32 tests
 - [x] Agents 模块单元测试 - ✅ 61 tests
 - [x] RAG 模块单元测试 - ✅ 57 tests
+- [x] Agent 路由可靠性不足 - ✅ 已通过混合路由策略（关键词+LLM）改进，精确正则解析
+- [x] 专家评审优化 - ✅ 快速通道：简单查询跳过评审减少 LLM 调用
+- [x] 增量文档索引 - ✅ 启动时自动检测新文档并增量添加到知识库
+- [x] 流式响应 - ✅ 真正的 SSE 流式输出，使用 LLM stream 方法，流式对话自动持久化
+- [x] LLM 实例复用 - ✅ LLMManager 单例管理，避免重复创建实例
+- [x] 数据库查询缓存 - ✅ MemoryManager 统计数据实例级缓存
+- [x] RAG 检索缓存 - ✅ LRU 缓存（128条/5分钟过期）
 - [ ] 对话要点提取与持久化存储
 - [ ] 用户偏好持久化
 - [ ] 前端重构：TypeScript + React
