@@ -7,10 +7,17 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    height = Column(Float, nullable=False)
-    weight = Column(Float, nullable=False)
-    age = Column(Integer, nullable=False)
-    gender = Column(String, nullable=False)
+    # 微信登录字段
+    openid = Column(String, unique=True, index=True, nullable=True)
+    unionid = Column(String, index=True, nullable=True)
+    session_key = Column(String, nullable=True)
+    nickname = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    # 身体数据
+    height = Column(Float, nullable=False, default=0)
+    weight = Column(Float, nullable=False, default=0)
+    age = Column(Integer, nullable=False, default=0)
+    gender = Column(String, nullable=False, default="未知")
     target_weight = Column(Float, nullable=True)
     allergies = Column(String, nullable=True)
     bmr = Column(Float, nullable=True)

@@ -1,13 +1,19 @@
+import os
 import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
 from datetime import date
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Set page config
 st.set_page_config(page_title="FitCoach AI", layout="wide")
 
-BACKEND_URL = "http://127.0.0.1:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+SSL_VERIFY = os.getenv("SSL_VERIFY", "true").lower() == "true"
+API_V1 = f"{BACKEND_URL}/api/v1"
 
 # --- Custom CSS for ChatGPT style ---
 st.markdown("""
@@ -152,8 +158,18 @@ if "messages" not in st.session_state:
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
 
+if "token" not in st.session_state:
+    st.session_state.token = None
+
 if "sidebar_collapsed" not in st.session_state:
     st.session_state.sidebar_collapsed = False
+
+
+def api_headers():
+    headers = {}
+    if st.session_state.token:
+        headers["Authorization"] = f"Bearer {st.session_state.token}"
+    return headers
 
 # --- Sidebar ---
 with st.sidebar:
@@ -279,13 +295,13 @@ if app_mode == "chat":
             with st.chat_message("assistant", avatar="🤖"):
                 try:
                     chat_data = {"message": prompt}
-                    if st.session_state.user_id:
-                        chat_data["user_id"] = st.session_state.user_id
-                    
+
                     response = requests.post(
-                        f"{BACKEND_URL}/chat/stream",
+                        f"{API_V1}/chat/stream",
                         json=chat_data,
-                        stream=True
+                        headers=api_headers(),
+                        stream=True,
+                        verify=SSL_VERIFY,
                     )
                     
                     if response.status_code == 200:
@@ -311,6 +327,8 @@ if app_mode == "chat":
 
                         message_placeholder.markdown(full_response)
                         st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    elif response.status_code == 401:
+                        st.error("请先在个人档案中登录")
                     else:
                         st.error(f"对话失败: {response.text}")
                 except Exception as e:
@@ -327,10 +345,10 @@ elif app_mode == "profile":
     profile_container = st.container()
     
     with profile_container:
-        if st.session_state.user_id:
+        if st.session_state.token:
             # Fetch and display user info
             try:
-                response = requests.get(f"{BACKEND_URL}/user/{st.session_state.user_id}")
+                response = requests.get(f"{API_V1}/user/me", headers=api_headers(), verify=SSL_VERIFY)
                 if response.status_code == 200:
                     user = response.json()
                     
@@ -367,68 +385,104 @@ elif app_mode == "profile":
                     with col_btn2:
                         if st.button("🚪 退出登录", use_container_width=True):
                             st.session_state.user_id = None
+                            st.session_state.token = None
                             st.session_state.messages = []
                             st.rerun()
                 
                 else:
                     st.error("无法获取用户信息")
                     st.session_state.user_id = None
+                    st.session_state.token = None
             except Exception as e:
                 st.error(f"连接后端失败: {e}")
         
-        # Show form if not logged in or update requested
-        if not st.session_state.user_id:
+        # Show login/profile form if not logged in
+        if not st.session_state.token:
+            st.subheader("登录")
+            st.caption("输入微信小程序 wx.login() 获取的 code 进行登录")
+
+            login_code = st.text_input("微信登录 code", placeholder="从 wx.login() 获取的 code")
+            if st.button("登录", type="primary", use_container_width=True, disabled=not login_code):
+                try:
+                    resp = requests.post(
+                        f"{API_V1}/auth/wx-login",
+                        json={"code": login_code},
+                        verify=SSL_VERIFY,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        st.session_state.token = data["token"]
+                        st.session_state.user_id = data["user"]["id"]
+                        st.success("登录成功！")
+                        st.rerun()
+                    else:
+                        st.error(f"登录失败: {resp.text}")
+                except Exception as e:
+                    st.error(f"连接后端失败: {e}")
+
+            st.divider()
+
             with st.form("user_info_form", border=False):
-                st.subheader("创建个人档案")
-                st.caption("填写以下信息以获得个性化建议")
-                
+                st.subheader("填写个人档案")
+                st.caption("登录后填写以下信息以获得个性化建议")
+
                 col_f1, col_f2 = st.columns(2)
-                
+
                 with col_f1:
                     height = st.number_input('身高 (cm)', min_value=100.0, max_value=250.0, value=170.0)
                     weight = st.number_input('体重 (kg)', min_value=30.0, max_value=200.0, value=70.0)
                     age = st.number_input('年龄', min_value=1, max_value=120, value=25)
-                
+
                 with col_f2:
                     gender = st.selectbox('性别', ['男', '女'])
                     target_weight = st.number_input('目标体重 (kg)', min_value=30.0, max_value=200.0, value=70.0)
                     allergies = st.text_input('过敏史 (可选)', placeholder='例如: 花生、海鲜')
-                
+
                 submitted = st.form_submit_button("保存信息", use_container_width=True, type="primary")
-                
+
                 if submitted:
-                    user_data = {
-                        "height": height,
-                        "weight": weight,
-                        "age": age,
-                        "gender": gender,
-                        "target_weight": target_weight,
-                        "allergies": allergies
-                    }
-                    try:
-                        response = requests.post(f"{BACKEND_URL}/user/", json=user_data)
-                        if response.status_code == 200:
-                            user = response.json()
-                            st.session_state.user_id = user["id"]
-                            st.success(f"✅ 用户创建成功！您的ID: {user['id']}")
-                            st.rerun()
-                        else:
-                            st.error(f"保存失败: {response.text}")
-                    except Exception as e:
-                        st.error(f"连接后端失败: {e}")
+                    if not st.session_state.token:
+                        st.error("请先登录")
+                    else:
+                        user_data = {
+                            "height": height,
+                            "weight": weight,
+                            "age": age,
+                            "gender": gender,
+                            "target_weight": target_weight,
+                            "allergies": allergies,
+                        }
+                        try:
+                            response = requests.post(
+                                f"{API_V1}/user/",
+                                json=user_data,
+                                headers=api_headers(),
+                                verify=SSL_VERIFY,
+                            )
+                            if response.status_code == 200:
+                                user = response.json()
+                                st.session_state.user_id = user["id"]
+                                st.success("档案保存成功！")
+                                st.rerun()
+                            else:
+                                st.error(f"保存失败: {response.text}")
+                        except Exception as e:
+                            st.error(f"连接后端失败: {e}")
 
 # --- Stats Mode ---
 elif app_mode == "stats":
     st.title("📊 数据统计")
     st.caption("追踪您的健康数据变化")
     
-    if not st.session_state.user_id:
-        st.warning("⚠️ 请先在个人档案中创建账号以查看数据统计")
+    if not st.session_state.token:
+        st.warning("⚠️ 请先在个人档案中登录以查看数据统计")
         st.info("您可以直接使用智能教练进行咨询，无需登录")
     else:
         try:
             # Today's summary
-            summary_resp = requests.get(f"{BACKEND_URL}/user/{st.session_state.user_id}/today")
+            summary_resp = requests.get(
+                f"{API_V1}/user/me/today", headers=api_headers(), verify=SSL_VERIFY
+            )
             
             if summary_resp.status_code == 200:
                 summary = summary_resp.json()
@@ -456,7 +510,9 @@ elif app_mode == "stats":
                 
                 # Historical trends
                 st.subheader("历史趋势")
-                logs_resp = requests.get(f"{BACKEND_URL}/user/{st.session_state.user_id}/logs")
+                logs_resp = requests.get(
+                    f"{API_V1}/user/me/logs", headers=api_headers(), verify=SSL_VERIFY
+                )
                 
                 if logs_resp.status_code == 200:
                     logs = logs_resp.json()

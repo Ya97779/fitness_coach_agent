@@ -20,3 +20,5 @@ unstructured
 pytesseract
 pillow
 aiosqlite
+PyJWT
+httpx
