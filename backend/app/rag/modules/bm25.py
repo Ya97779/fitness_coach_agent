@@ -4,6 +4,7 @@ import math
 from typing import List, Tuple, Optional
 from collections import Counter
 import re
+import jieba
 
 
 class BM25:
@@ -40,7 +41,7 @@ class BM25:
         self.corpus = []
 
     def _tokenize(self, text: str) -> List[str]:
-        """简单分词（按空格/中英文标点）
+        """使用 jieba 分词
 
         Args:
             text: 文本
@@ -49,8 +50,8 @@ class BM25:
             词项列表
         """
         text = text.lower()
-        tokens = re.findall(r'[\w\u4e00-\u9fff]+', text)
-        return tokens
+        tokens = jieba.lcut(text)
+        return [t for t in tokens if t.strip()]
 
     def _calculate_idf(self) -> dict:
         """计算 IDF（逆文档频率）

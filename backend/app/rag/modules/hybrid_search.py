@@ -43,6 +43,7 @@ class HybridSearch:
         self.vectorstore: Optional[Chroma] = None
         self.embeddings: Optional[Embeddings] = None
         self.documents: List[Document] = []
+        self._content_to_index: dict = {}
 
     def _rrf_fusion(
         self,
@@ -88,6 +89,10 @@ class HybridSearch:
         self.vectorstore = vectorstore
         self.embeddings = embeddings
 
+        self._content_to_index = {}
+        for i, doc in enumerate(documents):
+            self._content_to_index.setdefault(doc.page_content, i)
+
         texts = [doc.page_content for doc in documents]
         self.bm25.index(texts)
 
@@ -115,9 +120,6 @@ class HybridSearch:
 
         if self.vectorstore:
             try:
-                vector_docs = self.vectorstore.similarity_search_with_score(query, k=top_k * 2)
-                vector_results = [(i, score) for i, doc in enumerate(vector_docs) if hasattr(doc, 'page_content') for i, doc in enumerate(self.vectorstore.get()["documents"])]
-
                 seen = set()
                 vector_results = []
                 for doc, score in self.vectorstore.similarity_search_with_score(query, k=top_k * 2):
@@ -129,7 +131,8 @@ class HybridSearch:
                 print(f"向量检索失败: {e}")
                 vector_results = []
 
-        bm25_results = self.bm25.search(query, top_k=top_k * 2)
+        bm25_raw = self.bm25.search(query, top_k=top_k * 2)
+        bm25_results = [(r["index"], r["score"], r["content"]) for r in bm25_raw]
 
         if not vector_results and not bm25_results:
             return []
@@ -150,11 +153,8 @@ class HybridSearch:
         return results
 
     def _find_doc_index(self, content: str) -> int:
-        """查找文档索引"""
-        for i, doc in enumerate(self.documents):
-            if doc.page_content == content:
-                return i
-        return -1
+        """查找文档索引（O(1) 字典查找）"""
+        return self._content_to_index.get(content, -1)
 
 
 def create_hybrid_retriever(

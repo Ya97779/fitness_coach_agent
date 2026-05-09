@@ -22,3 +22,6 @@ pillow
 aiosqlite
 PyJWT
 httpx
+jieba
+ragas
+datasets
