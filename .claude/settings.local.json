@@ -6,7 +6,24 @@
       "Bash(python -m unittest tests.test_memory -v)",
       "Bash(python -m unittest tests.test_rag -v)",
       "Bash(python -m pytest backend/tests/ -v --tb=short)",
-      "Bash(python -m unittest discover -s backend/tests -v)"
+      "Bash(python -m unittest discover -s backend/tests -v)",
+      "Bash(python -m unittest tests.test_auth -v)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(git count-objects *)",
+      "Bash(git rev-list *)",
+      "Bash(git cat-file *)",
+      "Bash(sort -k3 -n -r)",
+      "Bash(python3 *)",
+      "Bash(pip show *)",
+      "WebSearch",
+      "Bash(pip list *)",
+      "Bash(git reset *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git push *)"
     ]
   }
 }
