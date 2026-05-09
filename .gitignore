@@ -32,6 +32,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.zip
+*.tar.gz
+*.tar
 
 # =========================
 # 虚拟环境 (以防你在项目内创建了局部环境)
