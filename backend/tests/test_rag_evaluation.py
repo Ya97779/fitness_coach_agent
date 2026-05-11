@@ -61,8 +61,11 @@ class RAGEvaluator:
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE")
             )
+            # RAGAS 评估用非推理模型，避免 reasoning_tokens 耗尽 token 预算
+            eval_model = os.getenv("RAGAS_EVAL_MODEL", "glm-4-flash")
+            print(f"RAGAS 评估模型: {eval_model}")
             self.llm = llm_factory(
-                model=os.getenv("LLM_MODEL", "glm-4.7"),
+                model=eval_model,
                 client=client,
                 max_tokens=4096
             )
@@ -209,18 +212,23 @@ class RAGEvaluator:
     ) -> Dict[str, Any]:
         """格式化评估报告"""
         # 获取各指标分数
+        scores_dict = getattr(eval_result, '_scores_dict', {})
         scores = {}
         for metric_name in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
-            if metric_name in eval_result:
-                scores[metric_name] = eval_result[metric_name]
+            if metric_name in scores_dict:
+                values = scores_dict[metric_name]
+                valid = [v for v in values if v is not None and v == v]  # filter NaN
+                scores[metric_name] = sum(valid) / len(valid) if valid else 0
 
-        overall = eval_result.get("score", 0)
+        # 综合分数：各指标平均值
+        valid_scores = [v for v in scores.values() if v > 0]
+        overall = sum(valid_scores) / len(valid_scores) if valid_scores else 0
 
         report = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "total_queries": len(test_cases),
             "elapsed_seconds": round(elapsed, 1),
-            "overall_score": round(overall, 4) if isinstance(overall, float) else overall,
+            "overall_score": round(overall, 4),
             "metric_scores": {
                 k: round(v, 4) if isinstance(v, float) else v
                 for k, v in scores.items()
@@ -229,16 +237,18 @@ class RAGEvaluator:
         }
 
         # 逐条结果
+        df = eval_result.to_pandas() if hasattr(eval_result, 'to_pandas') else None
         for i, case in enumerate(test_cases):
             row = {
                 "id": case["id"],
                 "question": case["question"],
             }
-            for metric_name in scores:
-                if hasattr(eval_result, 'to_pandas'):
-                    df = eval_result.to_pandas()
+            if df is not None:
+                for metric_name in scores:
                     if metric_name in df.columns and i < len(df):
-                        row[metric_name] = round(float(df[metric_name].iloc[i]), 4)
+                        val = df[metric_name].iloc[i]
+                        if val is not None and val == val:  # not NaN
+                            row[metric_name] = round(float(val), 4)
             report["per_query_scores"].append(row)
 
         return report
@@ -254,7 +264,8 @@ class RAGEvaluator:
         print(f"\n综合分数: {report['overall_score']}")
         print("\n各指标分数:")
         for name, score in report["metric_scores"].items():
-            bar = "█" * int(score * 20) + "░" * (20 - int(score * 20))
+            filled = int(score * 20)
+            bar = "#" * filled + "-" * (20 - filled)
             print(f"  {name:<25} {bar} {score:.4f}")
 
         print("\n逐题详情:")
@@ -303,12 +314,14 @@ class RAGEvaluator:
         elapsed = time.time() - start_time
 
         report = self.format_report(eval_result, test_cases, elapsed)
-        self.print_report(report)
 
+        # 先保存 JSON，再打印（避免打印崩溃导致报告丢失）
         if output_path:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, ensure_ascii=False, indent=2)
             print(f"\n报告已保存到: {output_path}")
+
+        self.print_report(report)
 
         return report
 

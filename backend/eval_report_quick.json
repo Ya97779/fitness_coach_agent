@@ -1,0 +1,42 @@
+{
+  "timestamp": "2026-05-11 13:51:28",
+  "total_queries": 5,
+  "elapsed_seconds": 4774.2,
+  "overall_score": 0.5305,
+  "metric_scores": {
+    "faithfulness": 0.4749,
+    "answer_relevancy": 0.5861
+  },
+  "per_query_scores": [
+    {
+      "id": 1,
+      "question": "蛋白质的每日推荐摄入量是多少？",
+      "faithfulness": 0.1667,
+      "answer_relevancy": 0.8671
+    },
+    {
+      "id": 2,
+      "question": "上斜卧推的正确姿势是什么？",
+      "faithfulness": 0.0417,
+      "answer_relevancy": 0.5272
+    },
+    {
+      "id": 3,
+      "question": "减脂期间应该如何控制饮食？",
+      "faithfulness": 0.6154,
+      "answer_relevancy": 0.4254
+    },
+    {
+      "id": 4,
+      "question": "深蹲的常见错误有哪些？",
+      "faithfulness": 0.8235,
+      "answer_relevancy": 0.4813
+    },
+    {
+      "id": 5,
+      "question": "肌酸的作用和使用方法是什么？",
+      "faithfulness": 0.7273,
+      "answer_relevancy": 0.6293
+    }
+  ]
+}
