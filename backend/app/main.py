@@ -5,8 +5,10 @@ from fastapi.routing import APIRouter
 from sqlalchemy.orm import Session
 from . import models, database, auth
 from .agents.graph import process_user_message, stream_user_message
+from .agents.fitness_agent import estimate_exercise_calories
+from .food_api import search_food_nutrient
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 import asyncio
 import os
 from datetime import date
@@ -128,6 +130,33 @@ class ErrorResponse(BaseModel):
     code: int
     message: str
 
+class FoodLogCreate(BaseModel):
+    name: str
+    calories: Optional[float] = None
+    meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
+
+class FoodLogResponse(BaseModel):
+    id: int
+    name: str
+    calories: float
+    meal_type: Optional[str] = None
+    log_id: int
+    class Config:
+        from_attributes = True
+
+class ExerciseLogCreate(BaseModel):
+    type: str
+    duration: int  # 分钟
+
+class ExerciseLogResponse(BaseModel):
+    id: int
+    type: str
+    duration: int
+    calories: float
+    log_id: int
+    class Config:
+        from_attributes = True
+
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
     if not height or not weight or not age:
@@ -223,6 +252,79 @@ def get_current_user_today(
         db.commit()
         db.refresh(log)
     return log
+
+# ----- 快捷记录 -----
+@router.post("/food-log", response_model=FoodLogResponse)
+def create_food_log(
+    data: FoodLogCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    today = date.today()
+    log = db.query(models.DailyLog).filter(
+        models.DailyLog.user_id == current_user.id,
+        models.DailyLog.date == today,
+    ).first()
+    if not log:
+        log = models.DailyLog(user_id=current_user.id, date=today)
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+
+    calories = data.calories
+    if calories is None:
+        result = search_food_nutrient(data.name)
+        calories = result["calories"] if result else 0
+
+    item = models.FoodItem(
+        log_id=log.id,
+        name=data.name,
+        calories=calories,
+        meal_type=data.meal_type,
+    )
+    db.add(item)
+    log.intake_calories = (log.intake_calories or 0) + calories
+    db.commit()
+    db.refresh(item)
+    return FoodLogResponse(
+        id=item.id, name=item.name, calories=item.calories,
+        meal_type=item.meal_type, log_id=item.log_id,
+    )
+
+@router.post("/exercise-log", response_model=ExerciseLogResponse)
+def create_exercise_log(
+    data: ExerciseLogCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    today = date.today()
+    log = db.query(models.DailyLog).filter(
+        models.DailyLog.user_id == current_user.id,
+        models.DailyLog.date == today,
+    ).first()
+    if not log:
+        log = models.DailyLog(user_id=current_user.id, date=today)
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+
+    weight = current_user.weight or 60
+    calories = estimate_exercise_calories(data.type, data.duration, "medium", weight)
+
+    item = models.ExerciseItem(
+        log_id=log.id,
+        type=data.type,
+        duration=data.duration,
+        calories=calories,
+    )
+    db.add(item)
+    log.burn_calories = (log.burn_calories or 0) + calories
+    db.commit()
+    db.refresh(item)
+    return ExerciseLogResponse(
+        id=item.id, type=item.type, duration=item.duration,
+        calories=item.calories, log_id=item.log_id,
+    )
 
 # ----- 对话 -----
 def _build_user_context(user: models.User, db: Session):

@@ -1,0 +1,84 @@
+<view class="page">
+  <!-- 顶部渐变头部 -->
+  <view class="hero">
+    <view class="hero-greeting">{{greeting}}</view>
+    <view class="hero-date">{{todayStr}}</view>
+  </view>
+
+  <!-- 卡路里环形进度 -->
+  <view class="ring-card card">
+    <view class="ring-container">
+      <canvas canvas-id="calorieRing" id="calorieRing" class="ring-canvas" />
+      <view class="ring-center">
+        <view class="ring-value">{{remaining}}</view>
+        <view class="ring-label">剩余卡路里</view>
+      </view>
+    </view>
+    <view class="ring-stats">
+      <view class="ring-stat">
+        <view class="ring-stat-dot dot-intake"></view>
+        <view class="ring-stat-info">
+          <view class="ring-stat-val">{{intake}}</view>
+          <view class="ring-stat-label">摄入 kcal</view>
+        </view>
+      </view>
+      <view class="ring-stat">
+        <view class="ring-stat-dot dot-burn"></view>
+        <view class="ring-stat-info">
+          <view class="ring-stat-val">{{burn}}</view>
+          <view class="ring-stat-label">消耗 kcal</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 快捷入口 -->
+  <view class="shortcuts">
+    <view class="shortcut-item" bindtap="goLog">
+      <view class="shortcut-icon icon-food"></view>
+      <text class="shortcut-text">记录饮食</text>
+    </view>
+    <view class="shortcut-item" bindtap="goTimer">
+      <view class="shortcut-icon icon-timer"></view>
+      <text class="shortcut-text">开始训练</text>
+    </view>
+    <view class="shortcut-item" bindtap="goStats">
+      <view class="shortcut-icon icon-stats"></view>
+      <text class="shortcut-text">历史趋势</text>
+    </view>
+  </view>
+
+  <!-- 今日记录 -->
+  <view class="section-header">
+    <text class="section-title">今日记录</text>
+  </view>
+
+  <view class="card" wx:if="{{foodItems.length > 0}}">
+    <view class="record-section-title">饮食</view>
+    <view class="record-item" wx:for="{{foodItems}}" wx:key="id">
+      <view class="record-dot dot-food"></view>
+      <view class="record-info">
+        <text class="record-name">{{item.name}}</text>
+        <text class="record-meta">{{item.meal_type_text}}</text>
+      </view>
+      <text class="record-value">{{item.calories}} kcal</text>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{exerciseItems.length > 0}}">
+    <view class="record-section-title">运动</view>
+    <view class="record-item" wx:for="{{exerciseItems}}" wx:key="id">
+      <view class="record-dot dot-exercise"></view>
+      <view class="record-info">
+        <text class="record-name">{{item.type}}</text>
+        <text class="record-meta">{{item.duration}} 分钟</text>
+      </view>
+      <text class="record-value">-{{item.calories}} kcal</text>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:if="{{!loading && foodItems.length === 0 && exerciseItems.length === 0}}">
+    <text class="empty-text">今天还没有记录哦</text>
+    <text class="empty-hint">去聊天或记录页面开始吧</text>
+  </view>
+</view>

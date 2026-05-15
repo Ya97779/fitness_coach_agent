@@ -1,0 +1,62 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/chat/chat",
+    "pages/timer/timer-setup/timer-setup",
+    "pages/log/log",
+    "pages/profile/profile",
+    "pages/stats/stats",
+    "pages/timer/timer-training/timer-training",
+    "pages/timer/timer-summary/timer-summary",
+    "pages/exercise-guide/exercise-guide/exercise-guide",
+    "pages/exercise-guide/exercise-list/exercise-list",
+    "pages/exercise-guide/exercise-detail/exercise-detail"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#4CAF50",
+    "navigationBarTitleText": "FitCoach AI",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F5F7FA"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#4CAF50",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页",
+        "iconPath": "images/tab-home.png",
+        "selectedIconPath": "images/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "聊天",
+        "iconPath": "images/tab-chat.png",
+        "selectedIconPath": "images/tab-chat-active.png"
+      },
+      {
+        "pagePath": "pages/timer/timer-setup/timer-setup",
+        "text": "计时器",
+        "iconPath": "images/tab-timer.png",
+        "selectedIconPath": "images/tab-timer-active.png"
+      },
+      {
+        "pagePath": "pages/exercise-guide/exercise-guide/exercise-guide",
+        "text": "动作指导",
+        "iconPath": "images/tab-guide.png",
+        "selectedIconPath": "images/tab-guide-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "images/tab-profile.png",
+        "selectedIconPath": "images/tab-profile-active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

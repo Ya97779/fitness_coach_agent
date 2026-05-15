@@ -1,0 +1,8 @@
+<view class="food-card" bindtap="onTap">
+  <view class="food-dot"></view>
+  <view class="food-info">
+    <text class="food-name">{{item.name}}</text>
+    <text class="food-meta">{{mealTypeText}}</text>
+  </view>
+  <text class="food-cal">{{item.calories}} kcal</text>
+</view>

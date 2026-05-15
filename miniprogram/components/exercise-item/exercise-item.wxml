@@ -1,0 +1,8 @@
+<view class="ex-card" bindtap="onTap">
+  <view class="ex-dot"></view>
+  <view class="ex-info">
+    <text class="ex-name">{{item.type}}</text>
+    <text class="ex-meta">{{item.duration}} 分钟</text>
+  </view>
+  <text class="ex-cal">-{{item.calories}} kcal</text>
+</view>

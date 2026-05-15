@@ -1,0 +1,57 @@
+<view class="page">
+  <!-- Tab 切换 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === 'food' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="food">饮食</view>
+    <view class="tab {{activeTab === 'exercise' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="exercise">运动</view>
+  </view>
+
+  <!-- 饮食录入 -->
+  <view class="tab-content" wx:if="{{activeTab === 'food'}}">
+    <view class="card">
+      <view class="form-group">
+        <text class="form-label">食物名称</text>
+        <input class="form-input" placeholder="如：鸡蛋、苹果" value="{{foodName}}" bindinput="onFoodNameInput" />
+      </view>
+      <view class="form-group">
+        <text class="form-label">卡路里（选填，留空自动查询）</text>
+        <input class="form-input" type="digit" placeholder="kcal" value="{{foodCalories}}" bindinput="onFoodCaloriesInput" />
+      </view>
+      <view class="form-group">
+        <text class="form-label">餐次</text>
+        <view class="meal-types">
+          <view class="meal-btn {{mealType === 'breakfast' ? 'meal-active' : ''}}" bindtap="selectMeal" data-meal="breakfast">早餐</view>
+          <view class="meal-btn {{mealType === 'lunch' ? 'meal-active' : ''}}" bindtap="selectMeal" data-meal="lunch">午餐</view>
+          <view class="meal-btn {{mealType === 'dinner' ? 'meal-active' : ''}}" bindtap="selectMeal" data-meal="dinner">晚餐</view>
+          <view class="meal-btn {{mealType === 'snack' ? 'meal-active' : ''}}" bindtap="selectMeal" data-meal="snack">加餐</view>
+        </view>
+      </view>
+      <button class="btn-primary submit-btn" bindtap="submitFood" disabled="{{!foodName || !mealType}}">
+        记录饮食
+      </button>
+    </view>
+  </view>
+
+  <!-- 运动录入 -->
+  <view class="tab-content" wx:if="{{activeTab === 'exercise'}}">
+    <view class="card">
+      <view class="form-group">
+        <text class="form-label">运动类型</text>
+        <view class="quick-types">
+          <view class="quick-btn {{exerciseType === item ? 'quick-active' : ''}}"
+                wx:for="{{exercisePresets}}" wx:key="*this"
+                bindtap="selectExercise" data-type="{{item}}">
+            {{item}}
+          </view>
+        </view>
+        <input class="form-input" placeholder="或自定义运动名称" value="{{exerciseType}}" bindinput="onExerciseTypeInput" />
+      </view>
+      <view class="form-group">
+        <text class="form-label">时长（分钟）</text>
+        <input class="form-input" type="number" placeholder="如：30" value="{{exerciseDuration}}" bindinput="onDurationInput" />
+      </view>
+      <button class="btn-primary submit-btn" bindtap="submitExercise" disabled="{{!exerciseType || !exerciseDuration}}">
+        记录运动
+      </button>
+    </view>
+  </view>
+</view>

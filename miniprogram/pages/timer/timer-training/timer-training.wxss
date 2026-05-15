@@ -1,0 +1,268 @@
+.page {
+  background: #111113;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 顶部进度 */
+.top-bar {
+  padding: 32rpx 28rpx 24rpx;
+  flex-shrink: 0;
+}
+
+.progress-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8rpx;
+  margin-bottom: 14rpx;
+}
+
+.progress-label {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 3rpx;
+  font-weight: 600;
+}
+
+.progress-num {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #f0f0f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 4rpx;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #f0f0f0;
+  transition: width 0.3s;
+}
+
+/* 主区域 */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx 28rpx;
+}
+
+/* 训练中 */
+.ex-name {
+  font-size: 48rpx;
+  font-weight: 800;
+  color: #f0f0f0;
+  display: block;
+  text-align: center;
+  margin-bottom: 40rpx;
+  letter-spacing: -1rpx;
+}
+
+.set-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+}
+
+.set-num {
+  font-size: 80rpx;
+  font-weight: 200;
+  color: #f0f0f0;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.set-sep {
+  font-size: 36rpx;
+  color: rgba(255,255,255,0.2);
+  font-weight: 200;
+}
+
+.set-total {
+  font-size: 36rpx;
+  color: rgba(255,255,255,0.3);
+  font-weight: 200;
+}
+
+.set-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10rpx;
+  margin-bottom: 28rpx;
+}
+
+.dot {
+  width: 16rpx;
+  height: 16rpx;
+  border: 1rpx solid rgba(255,255,255,0.15);
+  border-radius: 2rpx;
+  transition: all 0.2s;
+}
+
+.dot-done {
+  background: #f0f0f0;
+  border-color: #f0f0f0;
+}
+
+.dot-active {
+  background: #f0f0f0;
+  border-color: #f0f0f0;
+}
+
+.status-label {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 6rpx;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* 休息倒计时 */
+.rest-wrap {
+  position: relative;
+  width: 320rpx;
+  height: 320rpx;
+  margin-bottom: 36rpx;
+}
+
+.rest-canvas {
+  width: 320rpx;
+  height: 320rpx;
+}
+
+.rest-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.rest-sec {
+  font-size: 88rpx;
+  font-weight: 200;
+  color: #f0f0f0;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.rest-unit-label {
+  font-size: 18rpx;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 4rpx;
+  font-weight: 600;
+}
+
+.rest-next {
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.rest-next-label {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 2rpx;
+  display: block;
+  margin-bottom: 6rpx;
+}
+
+.rest-next-info {
+  font-size: 28rpx;
+  color: rgba(255,255,255,0.5);
+  display: block;
+}
+
+.skip-btn {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.35);
+  padding: 14rpx 40rpx;
+  border: 1rpx solid rgba(255,255,255,0.12);
+  border-radius: 4rpx;
+  letter-spacing: 2rpx;
+  font-weight: 600;
+}
+
+/* 控制区 */
+.controls {
+  padding: 20rpx 28rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+}
+
+.finish-btn {
+  background: #f0f0f0;
+  border-radius: 4rpx;
+  padding: 28rpx;
+  text-align: center;
+  margin-bottom: 20rpx;
+}
+
+.finish-text {
+  font-size: 32rpx;
+  font-weight: 800;
+  color: #111113;
+  letter-spacing: 3rpx;
+}
+
+.ctrl-row {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.ctrl-btn {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  border-radius: 4rpx;
+}
+
+.ctrl-text {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 1rpx;
+}
+
+.end-link {
+  text-align: center;
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.2);
+  padding: 12rpx;
+  letter-spacing: 2rpx;
+}
+
+/* 下一个动作预览 */
+.next-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  padding: 16rpx 28rpx;
+  flex-shrink: 0;
+}
+
+.next-tag {
+  font-size: 16rpx;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 3rpx;
+  font-weight: 700;
+}
+
+.next-info {
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.3);
+}

@@ -48,6 +48,7 @@ class FoodItem(Base):
     log_id = Column(Integer, ForeignKey("daily_logs.id"))
     name = Column(String, nullable=False)
     calories = Column(Float, nullable=False)
+    meal_type = Column(String, nullable=True)  # breakfast/lunch/dinner/snack
 
     log = relationship("DailyLog", back_populates="food_items")
 

@@ -1,0 +1,108 @@
+/* CSS 变量 */
+page {
+  --color-primary: #4CAF50;
+  --color-primary-light: #81C784;
+  --color-accent: #2196F3;
+  --color-danger: #F44336;
+  --color-warning: #FF9800;
+  --color-bg: #F5F7FA;
+  --color-card: #FFFFFF;
+  --color-text: #333333;
+  --color-text-secondary: #666666;
+  --color-text-hint: #999999;
+  --color-border: #E8E8E8;
+  --radius-card: 16rpx;
+  --radius-button: 12rpx;
+  --spacing-page: 32rpx;
+  --spacing-card: 24rpx;
+  --font-title: 32rpx;
+  --font-body: 28rpx;
+  --font-caption: 24rpx;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--font-body);
+}
+
+/* 通用卡片 */
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-card);
+  margin-bottom: var(--spacing-card);
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+/* 通用按钮 */
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-button);
+  padding: 20rpx 40rpx;
+  font-size: var(--font-body);
+  text-align: center;
+}
+
+.btn-primary::after {
+  border: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 2rpx solid var(--color-primary);
+  border-radius: var(--radius-button);
+  padding: 18rpx 40rpx;
+  font-size: var(--font-body);
+  text-align: center;
+}
+
+/* 页面容器 */
+.page-container {
+  padding: var(--spacing-page);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 通用 flex */
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 标签 */
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+}
+
+.tag-primary {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--color-primary);
+}
+
+.tag-accent {
+  background: rgba(33, 150, 243, 0.1);
+  color: var(--color-accent);
+}
+
+.tag-warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--color-warning);
+}

@@ -1,0 +1,305 @@
+.page {
+  background: #111113;
+  min-height: 100vh;
+  padding: 0 28rpx 220rpx;
+}
+
+/* 顶部 */
+.header {
+  padding: 40rpx 4rpx 32rpx;
+  border-bottom: 1rpx solid rgba(255,255,255,0.08);
+  margin-bottom: 28rpx;
+}
+
+.header-title {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #f0f0f0;
+  display: block;
+  letter-spacing: -1rpx;
+}
+
+.header-sub {
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.3);
+  display: block;
+  margin-top: 4rpx;
+  letter-spacing: 2rpx;
+  text-transform: uppercase;
+}
+
+/* 分区 */
+.section {
+  margin-bottom: 36rpx;
+}
+
+.section-label {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 3rpx;
+  text-transform: uppercase;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 14rpx;
+  padding-left: 4rpx;
+}
+
+/* 模板卡片 */
+.template-scroll {
+  white-space: nowrap;
+}
+
+.template-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx 28rpx;
+  margin-right: 12rpx;
+  background: rgba(255,255,255,0.04);
+  border: 2rpx solid rgba(255,255,255,0.06);
+  border-radius: 6rpx;
+  transition: all 0.15s;
+}
+
+.template-active {
+  border-color: #e8e8e8;
+  background: rgba(255,255,255,0.1);
+}
+
+.template-icon {
+  font-size: 36rpx;
+  margin-bottom: 6rpx;
+}
+
+.template-name {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+  letter-spacing: 1rpx;
+}
+
+.template-active .template-name {
+  color: #f0f0f0;
+}
+
+/* 休息时长 */
+.rest-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32rpx;
+}
+
+.rest-btn {
+  width: 56rpx;
+  height: 56rpx;
+  border: 2rpx solid rgba(255,255,255,0.15);
+  border-radius: 4rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rest-btn-text {
+  font-size: 32rpx;
+  color: rgba(255,255,255,0.6);
+  font-weight: 300;
+  line-height: 1;
+}
+
+.rest-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+}
+
+.rest-num {
+  font-size: 72rpx;
+  font-weight: 200;
+  color: #f0f0f0;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.rest-unit {
+  font-size: 18rpx;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 2rpx;
+  font-weight: 600;
+}
+
+/* 动作列表 */
+.ex-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.ex-row {
+  display: flex;
+  align-items: flex-start;
+  background: rgba(255,255,255,0.03);
+  border: 1rpx solid rgba(255,255,255,0.06);
+  border-radius: 4rpx;
+  padding: 16rpx;
+  gap: 12rpx;
+}
+
+.ex-num {
+  width: 36rpx;
+  height: 36rpx;
+  border: 1rpx solid rgba(255,255,255,0.15);
+  border-radius: 3rpx;
+  color: rgba(255,255,255,0.5);
+  font-size: 20rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4rpx;
+}
+
+.ex-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ex-name-input {
+  font-size: 28rpx;
+  color: #f0f0f0;
+  padding: 4rpx 0;
+  width: 100%;
+}
+
+.ex-placeholder {
+  color: rgba(255,255,255,0.2);
+}
+
+.ex-meta {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 10rpx;
+}
+
+.ex-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.ex-meta-label {
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.3);
+  font-weight: 600;
+  letter-spacing: 1rpx;
+}
+
+.ex-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1rpx solid rgba(255,255,255,0.1);
+  border-radius: 3rpx;
+}
+
+.stepper-btn {
+  width: 40rpx;
+  height: 36rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.5);
+}
+
+.stepper-val {
+  width: 48rpx;
+  text-align: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #f0f0f0;
+  font-variant-numeric: tabular-nums;
+  border-left: 1rpx solid rgba(255,255,255,0.1);
+  border-right: 1rpx solid rgba(255,255,255,0.1);
+  padding: 6rpx 0;
+}
+
+.ex-rest-input {
+  width: 64rpx;
+  font-size: 26rpx;
+  color: #f0f0f0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1rpx solid rgba(255,255,255,0.1);
+  padding: 4rpx 0;
+}
+
+.ex-del {
+  font-size: 28rpx;
+  color: rgba(255,255,255,0.2);
+  padding: 8rpx;
+  flex-shrink: 0;
+}
+
+/* 添加按钮 */
+.add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20rpx;
+  margin-top: 8rpx;
+  border: 1rpx dashed rgba(255,255,255,0.12);
+  border-radius: 4rpx;
+  gap: 8rpx;
+}
+
+.add-sign {
+  font-size: 28rpx;
+  color: rgba(255,255,255,0.4);
+  font-weight: 300;
+}
+
+.add-label {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 1rpx;
+}
+
+/* 底部 */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 28rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent 0%, #111113 30%);
+}
+
+.start-btn {
+  background: #f0f0f0;
+  border-radius: 4rpx;
+  padding: 24rpx;
+  text-align: center;
+}
+
+.start-btn.disabled {
+  opacity: 0.15;
+}
+
+.start-main {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #111113;
+  display: block;
+  letter-spacing: 2rpx;
+}
+
+.start-sub {
+  font-size: 20rpx;
+  color: rgba(17,17,19,0.5);
+  margin-top: 2rpx;
+  display: block;
+  letter-spacing: 1rpx;
+}

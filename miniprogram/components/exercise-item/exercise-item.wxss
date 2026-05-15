@@ -1,0 +1,39 @@
+.ex-card {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.ex-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #2196F3;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.ex-info {
+  flex: 1;
+}
+
+.ex-name {
+  font-size: 28rpx;
+  color: #333;
+  display: block;
+}
+
+.ex-meta {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 4rpx;
+  display: block;
+}
+
+.ex-cal {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #2196F3;
+  flex-shrink: 0;
+}

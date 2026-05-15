@@ -1,0 +1,45 @@
+<view class="page">
+  <!-- 顶部 -->
+  <view class="header">
+    <text class="header-title">训练完成</text>
+    <text class="header-sub">SUMMARY</text>
+  </view>
+
+  <!-- 统计 -->
+  <view class="stats-row">
+    <view class="stat-block">
+      <text class="stat-val">{{duration}}</text>
+      <text class="stat-label">分钟</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-block">
+      <text class="stat-val">{{completedSets}}/{{totalSets}}</text>
+      <text class="stat-label">组</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-block">
+      <text class="stat-val">{{estimatedCalories}}</text>
+      <text class="stat-label">kcal</text>
+    </view>
+  </view>
+
+  <!-- 完成列表 -->
+  <view class="done-section">
+    <text class="done-title">完成动作</text>
+    <view class="done-row" wx:for="{{exercises}}" wx:key="name">
+      <text class="done-name">{{item.name}}</text>
+      <text class="done-sets">{{item.sets}} 组</text>
+    </view>
+  </view>
+
+  <!-- 按钮 -->
+  <view class="bottom-bar">
+    <view class="save-btn {{saved ? 'saved' : ''}}" bindtap="saveRecord">
+      <text class="save-text">{{saved ? '已保存' : '保存记录'}}</text>
+    </view>
+    <view class="action-row">
+      <view class="action-link" bindtap="trainAgain">再来一次</view>
+      <view class="action-link" bindtap="goHome">返回首页</view>
+    </view>
+  </view>
+</view>

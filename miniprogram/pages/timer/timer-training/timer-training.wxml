@@ -1,0 +1,64 @@
+<view class="page">
+  <!-- 顶部进度 -->
+  <view class="top-bar">
+    <view class="progress-info">
+      <text class="progress-label">动作</text>
+      <text class="progress-num">{{currentExIndex + 1}}/{{exercises.length}}</text>
+    </view>
+    <view class="progress-track">
+      <view class="progress-fill" style="width: {{overallProgress}}%"></view>
+    </view>
+  </view>
+
+  <!-- 训练中 -->
+  <view class="main-area" wx:if="{{!isResting}}">
+    <text class="ex-name">{{currentEx.name}}</text>
+    <view class="set-row">
+      <text class="set-num">{{currentSet}}</text>
+      <text class="set-sep">/</text>
+      <text class="set-total">{{currentEx.sets}}</text>
+    </view>
+    <view class="set-dots">
+      <view class="dot {{i < currentSet ? 'dot-done' : (i === currentSet - 1 ? 'dot-active' : '')}}" wx:for="{{currentEx.sets}}" wx:key="*this" wx:for-index="i"></view>
+    </view>
+    <text class="status-label">进行中</text>
+  </view>
+
+  <!-- 休息倒计时 -->
+  <view class="main-area" wx:else>
+    <view class="rest-wrap">
+      <canvas canvas-id="restRing" id="restRing" class="rest-canvas" />
+      <view class="rest-center">
+        <text class="rest-sec">{{restRemaining}}</text>
+        <text class="rest-unit-label">SEC</text>
+      </view>
+    </view>
+    <view class="rest-next">
+      <text class="rest-next-label">下一组</text>
+      <text class="rest-next-info">{{currentEx.name}} · {{currentSet + 1}}/{{currentEx.sets}}</text>
+    </view>
+    <view class="skip-btn" bindtap="skipRest">跳过</view>
+  </view>
+
+  <!-- 控制区 -->
+  <view class="controls">
+    <view class="finish-btn" bindtap="finishSet" wx:if="{{!isResting}}">
+      <text class="finish-text">完成本组</text>
+    </view>
+    <view class="ctrl-row">
+      <view class="ctrl-btn" bindtap="prevExercise" wx:if="{{!isResting}}">
+        <text class="ctrl-text">上一个</text>
+      </view>
+      <view class="ctrl-btn" bindtap="nextExercise" wx:if="{{!isResting}}">
+        <text class="ctrl-text">下一个</text>
+      </view>
+    </view>
+    <view class="end-link" bindtap="endTraining">结束训练</view>
+  </view>
+
+  <!-- 下一个动作预览 -->
+  <view class="next-bar" wx:if="{{nextEx && !isResting}}">
+    <text class="next-tag">NEXT</text>
+    <text class="next-info">{{nextEx.name}} · {{nextEx.sets}} 组</text>
+  </view>
+</view>

@@ -1,0 +1,321 @@
+.page {
+  padding-bottom: 140rpx;
+}
+
+/* 视频 */
+.video-wrap {
+  width: 100%;
+  background: #000;
+}
+
+.video-player {
+  width: 100%;
+  height: 420rpx;
+}
+
+.gif-wrap {
+  width: 100%;
+  background: #F5F5F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gif-image {
+  width: 100%;
+  height: 400rpx;
+}
+
+.video-placeholder {
+  width: 100%;
+  height: 300rpx;
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-text {
+  font-size: 28rpx;
+  color: #558B2F;
+}
+
+/* 信息卡片 */
+.info-card {
+  padding: 28rpx 32rpx;
+  background: #fff;
+}
+
+.ex-name {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #333;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.tag {
+  font-size: 22rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.tag-difficulty {
+  font-weight: 500;
+}
+
+.equip-row {
+  display: flex;
+  align-items: center;
+}
+
+.equip-label {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.equip-value {
+  font-size: 24rpx;
+  color: #666;
+}
+
+/* Tab 切换 */
+.detail-tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 1rpx solid #F0F0F0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.detail-tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  font-size: 26rpx;
+  color: #666;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.tab-on {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.tab-on::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 30%;
+  right: 30%;
+  height: 4rpx;
+  background: #4CAF50;
+  border-radius: 2rpx;
+}
+
+/* 内容区 */
+.tab-content {
+  padding: 24rpx 32rpx;
+}
+
+/* 步骤 */
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.step-num {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  background: #4CAF50;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4rpx;
+}
+
+.step-text {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* 细节 */
+.tip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.tip-icon {
+  font-size: 28rpx;
+  color: #4CAF50;
+  font-weight: 700;
+  margin-top: 4rpx;
+  flex-shrink: 0;
+}
+
+.tip-text {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* 错误 */
+.mistake-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.mistake-item {
+  background: #FAFAFA;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.mistake-wrong,
+.mistake-fix {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  margin-bottom: 10rpx;
+}
+
+.mistake-wrong:last-child,
+.mistake-fix:last-child {
+  margin-bottom: 0;
+}
+
+.mistake-icon {
+  font-size: 24rpx;
+  font-weight: 700;
+  margin-top: 4rpx;
+  flex-shrink: 0;
+}
+
+.mistake-icon.bad {
+  color: #F44336;
+}
+
+.mistake-icon.good {
+  color: #4CAF50;
+}
+
+.mistake-text {
+  font-size: 26rpx;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* 变体 */
+.var-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.var-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #FAFAFA;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.var-info {
+  flex: 1;
+}
+
+.var-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+  display: block;
+}
+
+.var-desc {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
+  display: block;
+}
+
+.var-arrow {
+  font-size: 28rpx;
+  color: #ccc;
+}
+
+/* 空数据 */
+.no-data {
+  text-align: center;
+  padding: 60rpx 0;
+}
+
+.no-data-text {
+  font-size: 26rpx;
+  color: #ccc;
+}
+
+/* 底部按钮 */
+.bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 16rpx;
+  padding: 20rpx 32rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1rpx solid #F0F0F0;
+  z-index: 20;
+}
+
+.action-btn {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.primary-btn {
+  background: #4CAF50;
+  color: #fff;
+}
+
+.secondary-btn {
+  background: #F5F7FA;
+  color: #4CAF50;
+  border: 1rpx solid #4CAF50;
+}

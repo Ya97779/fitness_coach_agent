@@ -1,0 +1,29 @@
+<view class="page">
+  <!-- 搜索框 -->
+  <view class="search-bar">
+    <input class="search-input" placeholder="搜索动作名称..." value="{{searchText}}" bindinput="onSearch" />
+  </view>
+
+  <!-- 搜索结果 -->
+  <view class="search-results" wx:if="{{searchText && searchResults.length > 0}}">
+    <view class="search-item" wx:for="{{searchResults}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}" data-group="{{item.groupId}}">
+      <text class="search-name">{{item.name}}</text>
+      <text class="search-group">{{item.groupName}}</text>
+    </view>
+  </view>
+
+  <!-- 肌群分类卡片 -->
+  <view class="group-list" wx:if="{{!searchText}}">
+    <view class="group-card" wx:for="{{groups}}" wx:key="id" bindtap="goList" data-id="{{item.id}}">
+      <view class="group-icon-wrap">
+        <text class="group-icon">{{item.emoji}}</text>
+      </view>
+      <view class="group-info">
+        <text class="group-name">{{item.name}}</text>
+        <text class="group-func">{{item.functions}}</text>
+        <text class="group-count">{{item.exercises.length}} 个动作</text>
+      </view>
+      <text class="group-arrow">></text>
+    </view>
+  </view>
+</view>

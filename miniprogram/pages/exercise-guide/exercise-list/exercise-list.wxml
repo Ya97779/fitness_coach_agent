@@ -1,0 +1,36 @@
+<view class="page">
+  <!-- 肌群信息头部 -->
+  <view class="group-header">
+    <text class="group-name">{{group.name}}</text>
+    <text class="group-functions">主要功能：{{group.functions}}</text>
+  </view>
+
+  <!-- 分栏布局：左侧导航 + 右侧内容 -->
+  <view class="split-layout">
+    <!-- 左侧子区域导航 -->
+    <scroll-view class="sidebar" scroll-y enhanced show-scrollbar="{{false}}">
+      <view class="sidebar-item {{activeSub === item.id ? 'sidebar-active' : ''}}"
+            wx:for="{{subRegions}}" wx:key="id"
+            bindtap="switchSub" data-id="{{item.id}}">
+        <text class="sidebar-text">{{item.name}}</text>
+        <view class="sidebar-indicator" wx:if="{{activeSub === item.id}}"></view>
+      </view>
+    </scroll-view>
+
+    <!-- 右侧动作列表 -->
+    <scroll-view class="content" scroll-y enhanced show-scrollbar="{{false}}">
+      <view class="ex-card" wx:for="{{filteredExercises}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+        <image class="ex-gif" src="{{item.gif}}" mode="aspectFill" wx:if="{{item.gif}}" />
+        <view class="ex-gif-placeholder" wx:else>
+          <text class="placeholder-char">{{item.name[0]}}</text>
+        </view>
+        <text class="ex-name">{{item.name}}</text>
+        <view class="diff-dot" style="background: {{item.diffColor}};"></view>
+      </view>
+
+      <view class="empty-sub" wx:if="{{filteredExercises.length === 0}}">
+        <text class="empty-text">暂无动作</text>
+      </view>
+    </scroll-view>
+  </view>
+</view>

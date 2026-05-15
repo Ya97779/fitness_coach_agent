@@ -1,0 +1,34 @@
+<view class="page">
+  <!-- 快捷入口 -->
+  <scroll-view class="shortcuts-bar" scroll-x enable-flex>
+    <view class="shortcut-chip" wx:for="{{shortcuts}}" wx:key="text" bindtap="useShortcut" data-text="{{item.text}}">
+      <text class="chip-icon">{{item.icon}}</text>
+      <text class="chip-text">{{item.text}}</text>
+    </view>
+  </scroll-view>
+
+  <!-- 消息列表 -->
+  <scroll-view class="msg-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation enhanced show-scrollbar="{{false}}">
+    <view class="msg-item {{msg.role}}" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
+      <!-- AI 头像 -->
+      <view class="msg-avatar avatar-ai" wx:if="{{item.role === 'ai'}}">AI</view>
+      <view class="msg-bubble bubble-{{item.role}}">
+        <text class="msg-text" user-select>{{item.content}}</text>
+        <view class="msg-loading" wx:if="{{item.loading}}">
+          <view class="loading-dot"></view>
+          <view class="loading-dot"></view>
+          <view class="loading-dot"></view>
+        </view>
+      </view>
+    </view>
+    <view id="msg-bottom" style="height: 20rpx;"></view>
+  </scroll-view>
+
+  <!-- 输入区 -->
+  <view class="input-bar">
+    <input class="input-field" placeholder="问我任何健身或营养问题..." value="{{inputValue}}" bindinput="onInput" bindconfirm="sendMessage" confirm-type="send" />
+    <view class="send-btn {{inputValue ? 'send-active' : ''}}" bindtap="sendMessage">
+      <text class="send-text">发送</text>
+    </view>
+  </view>
+</view>

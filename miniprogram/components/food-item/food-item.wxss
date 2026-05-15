@@ -1,0 +1,39 @@
+.food-card {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.food-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background: #4CAF50;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.food-info {
+  flex: 1;
+}
+
+.food-name {
+  font-size: 28rpx;
+  color: #333;
+  display: block;
+}
+
+.food-meta {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 4rpx;
+  display: block;
+}
+
+.food-cal {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+  flex-shrink: 0;
+}

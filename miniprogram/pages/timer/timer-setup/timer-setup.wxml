@@ -1,0 +1,78 @@
+<view class="page">
+  <!-- 顶部标题栏 -->
+  <view class="header">
+    <text class="header-title">训练计划</text>
+    <text class="header-sub">配置你的训练</text>
+  </view>
+
+  <!-- 预设模板 -->
+  <view class="section">
+    <text class="section-label">快速选择</text>
+    <scroll-view class="template-scroll" scroll-x enable-flex>
+      <view class="template-card {{activeTemplate === item.id ? 'template-active' : ''}}"
+            wx:for="{{templates}}" wx:key="id"
+            bindtap="useTemplate" data-id="{{item.id}}">
+        <text class="template-icon">{{item.icon}}</text>
+        <text class="template-name">{{item.name}}</text>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 全局休息时长 -->
+  <view class="section">
+    <text class="section-label">默认休息</text>
+    <view class="rest-row">
+      <view class="rest-btn" bindtap="adjustDefaultRest" data-delta="-15">
+        <text class="rest-btn-text">-</text>
+      </view>
+      <view class="rest-display">
+        <text class="rest-num">{{defaultRest}}</text>
+        <text class="rest-unit">SEC</text>
+      </view>
+      <view class="rest-btn" bindtap="adjustDefaultRest" data-delta="15">
+        <text class="rest-btn-text">+</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 动作列表 -->
+  <view class="section">
+    <text class="section-label">动作清单</text>
+    <view class="ex-list">
+      <view class="ex-row" wx:for="{{exercises}}" wx:key="index">
+        <view class="ex-num">{{index + 1}}</view>
+        <view class="ex-body">
+          <input class="ex-name-input" placeholder="动作名称" placeholder-class="ex-placeholder" value="{{item.name}}" bindinput="onExInput" data-index="{{index}}" data-field="name" />
+          <view class="ex-meta">
+            <view class="ex-meta-item">
+              <text class="ex-meta-label">组</text>
+              <view class="ex-stepper">
+                <text class="stepper-btn" bindtap="adjustSets" data-index="{{index}}" data-delta="-1">-</text>
+                <text class="stepper-val">{{item.sets}}</text>
+                <text class="stepper-btn" bindtap="adjustSets" data-index="{{index}}" data-delta="1">+</text>
+              </view>
+            </view>
+            <view class="ex-meta-item">
+              <text class="ex-meta-label">休</text>
+              <input class="ex-rest-input" type="number" value="{{item.rest}}" bindinput="onExInput" data-index="{{index}}" data-field="rest" />
+              <text class="ex-meta-label">s</text>
+            </view>
+          </view>
+        </view>
+        <text class="ex-del" bindtap="deleteExercise" data-index="{{index}}">×</text>
+      </view>
+    </view>
+    <view class="add-row" bindtap="addExercise">
+      <text class="add-sign">+</text>
+      <text class="add-label">添加动作</text>
+    </view>
+  </view>
+
+  <!-- 底部按钮 -->
+  <view class="bottom-bar">
+    <view class="start-btn {{exercises.length === 0 ? 'disabled' : ''}}" bindtap="startTraining">
+      <text class="start-main">开始训练</text>
+      <text class="start-sub">{{exercises.length}} 动作 / {{totalSets}} 组</text>
+    </view>
+  </view>
+</view>

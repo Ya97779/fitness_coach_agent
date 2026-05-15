@@ -1,0 +1,23 @@
+<view class="page">
+  <!-- 日期范围选择 -->
+  <view class="range-tabs">
+    <view class="range-tab {{range === 7 ? 'range-active' : ''}}" bindtap="setRange" data-range="7">近 7 天</view>
+    <view class="range-tab {{range === 30 ? 'range-active' : ''}}" bindtap="setRange" data-range="30">近 30 天</view>
+  </view>
+
+  <!-- 摄入 vs 消耗折线图 -->
+  <view class="card">
+    <view class="chart-title">摄入 vs 消耗</view>
+    <canvas canvas-id="lineChart" id="lineChart" class="chart-canvas" />
+  </view>
+
+  <!-- 净热量柱状图 -->
+  <view class="card">
+    <view class="chart-title">每日净热量</view>
+    <canvas canvas-id="barChart" id="barChart" class="chart-canvas" />
+  </view>
+
+  <view class="empty-state" wx:if="{{!loading && logs.length === 0}}">
+    <text class="empty-text">暂无历史数据</text>
+  </view>
+</view>

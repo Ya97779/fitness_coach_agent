@@ -1,0 +1,115 @@
+.page {
+  padding: 24rpx 32rpx;
+}
+
+/* 搜索框 */
+.search-bar {
+  margin-bottom: 24rpx;
+}
+
+.search-input {
+  background: #F5F7FA;
+  border-radius: 12rpx;
+  padding: 20rpx 28rpx;
+  font-size: 28rpx;
+  color: #333;
+}
+
+/* 搜索结果 */
+.search-results {
+  background: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.search-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-name {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.search-group {
+  font-size: 22rpx;
+  color: #999;
+  background: #F5F7FA;
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+}
+
+/* 肌群卡片 */
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.group-card {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+
+.group-icon-wrap {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+
+.group-icon {
+  font-size: 40rpx;
+}
+
+.group-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.group-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.group-func {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 6rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-count {
+  font-size: 22rpx;
+  color: #4CAF50;
+  margin-top: 4rpx;
+}
+
+.group-arrow {
+  font-size: 28rpx;
+  color: #ccc;
+  margin-left: 16rpx;
+}
