@@ -14,6 +14,21 @@
   margin-bottom: 28rpx;
 }
 
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.header-today-tag {
+  font-size: 20rpx;
+  color: var(--text-primary);
+  background: var(--accent-dim);
+  padding: 4rpx 14rpx;
+  border-radius: 4rpx;
+  font-weight: 500;
+}
+
 .header-plan-btn {
   padding: 12rpx 28rpx;
   border: 1rpx solid var(--border);

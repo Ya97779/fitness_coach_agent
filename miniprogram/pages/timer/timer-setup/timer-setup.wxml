@@ -2,8 +2,11 @@
   <!-- 顶部标题栏 -->
   <view class="header">
     <view class="header-left">
-      <text class="header-title">训练计划</text>
-      <text class="header-sub">配置你的训练</text>
+      <view class="header-title-row">
+        <text class="header-title">训练计划</text>
+        <text class="header-today-tag">{{todayLabel}}</text>
+      </view>
+      <text class="header-sub">{{isRestDay ? '今日休息日，可手动配置训练' : '配置你的训练'}}</text>
     </view>
     <view class="header-plan-btn" bindtap="goPlan">
       <text class="header-plan-text">周计划</text>
