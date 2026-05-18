@@ -53,25 +53,22 @@ Page({
       const burn = today.burn_calories || 0
       const remaining = Math.round(tdee - intake + burn)
 
+      const foodItems = (today.food_items || []).map(item => ({
+        ...item,
+        meal_type_text: MEAL_TYPE_MAP[item.meal_type] || item.meal_type
+      }))
+      const exerciseItems = today.exercise_items || []
+
       this.setData({
         tdee, intake: Math.round(intake), burn: Math.round(burn),
         remaining: remaining > 0 ? remaining : 0,
+        foodItems, exerciseItems,
         loading: false
       })
       this.drawRing(intake, burn, tdee)
-
-      // 加载今日详细记录
-      this.loadTodayItems(today.id)
     }).catch(() => {
       this.setData({ loading: false })
     })
-  },
-
-  loadTodayItems(logId) {
-    // 通过 today 接口的 food_items / exercise_items 获取
-    // 后端 DailyLog 需要返回关联数据，这里先用空数组
-    // 实际项目中需后端在 today 接口返回 items 列表
-    this.setData({ foodItems: [], exerciseItems: [] })
   },
 
   drawRing(intake, burn, tdee) {

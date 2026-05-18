@@ -98,12 +98,32 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FoodLogResponse(BaseModel):
+    id: int
+    name: str
+    calories: float
+    meal_type: Optional[str] = None
+    log_id: int
+    class Config:
+        from_attributes = True
+
+class ExerciseLogResponse(BaseModel):
+    id: int
+    type: str
+    duration: int
+    calories: float
+    log_id: int
+    class Config:
+        from_attributes = True
+
 class DailyLogResponse(BaseModel):
     id: int
     date: date
     intake_calories: float
     burn_calories: float
     weight_log: Optional[float] = None
+    food_items: list[FoodLogResponse] = []
+    exercise_items: list[ExerciseLogResponse] = []
     class Config:
         from_attributes = True
 
@@ -135,27 +155,9 @@ class FoodLogCreate(BaseModel):
     calories: Optional[float] = None
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
 
-class FoodLogResponse(BaseModel):
-    id: int
-    name: str
-    calories: float
-    meal_type: Optional[str] = None
-    log_id: int
-    class Config:
-        from_attributes = True
-
 class ExerciseLogCreate(BaseModel):
     type: str
     duration: int  # 分钟
-
-class ExerciseLogResponse(BaseModel):
-    id: int
-    type: str
-    duration: int
-    calories: float
-    log_id: int
-    class Config:
-        from_attributes = True
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -241,8 +243,12 @@ def get_current_user_today(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
+    from sqlalchemy.orm import joinedload
     today = date.today()
-    log = db.query(models.DailyLog).filter(
+    log = db.query(models.DailyLog).options(
+        joinedload(models.DailyLog.food_items),
+        joinedload(models.DailyLog.exercise_items),
+    ).filter(
         models.DailyLog.user_id == current_user.id,
         models.DailyLog.date == today,
     ).first()
