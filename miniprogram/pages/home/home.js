@@ -88,7 +88,7 @@ Page({
 
       // 背景环
       ctx.setLineWidth(lineWidth)
-      ctx.setStrokeStyle('rgba(255,255,255,0.06)')
+      ctx.setStrokeStyle('#e8e8e8')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
       ctx.stroke()
@@ -97,7 +97,7 @@ Page({
       const intakeAngle = Math.min(intake / tdee, 1) * 2 * Math.PI
       if (intakeAngle > 0) {
         ctx.setLineWidth(lineWidth)
-        ctx.setStrokeStyle('#a8b5a0')
+        ctx.setStrokeStyle('#1a1a1a')
         ctx.setLineCap('butt')
         ctx.beginPath()
         ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + intakeAngle)
@@ -109,7 +109,7 @@ Page({
       if (burnAngle > 0) {
         const outerRadius = radius + lineWidth + 4
         ctx.setLineWidth(6)
-        ctx.setStrokeStyle('rgba(168,181,160,0.4)')
+        ctx.setStrokeStyle('#999')
         ctx.setLineCap('butt')
         ctx.beginPath()
         ctx.arc(cx, cy, outerRadius, -Math.PI / 2, -Math.PI / 2 + burnAngle)

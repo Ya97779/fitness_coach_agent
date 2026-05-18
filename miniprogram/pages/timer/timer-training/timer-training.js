@@ -154,7 +154,7 @@ Page({
 
       // 背景环
       ctx.setLineWidth(lineWidth)
-      ctx.setStrokeStyle('rgba(255,255,255,0.08)')
+      ctx.setStrokeStyle('#e8e8e8')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
       ctx.stroke()
@@ -162,7 +162,7 @@ Page({
       // 进度环
       const progress = remaining / total
       ctx.setLineWidth(lineWidth)
-      ctx.setStrokeStyle('rgba(255,255,255,0.6)')
+      ctx.setStrokeStyle('#1a1a1a')
       ctx.setLineCap('butt')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI)

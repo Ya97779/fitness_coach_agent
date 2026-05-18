@@ -2,14 +2,14 @@
   display: flex;
   align-items: center;
   padding: 16rpx 0;
-  border-bottom: 1rpx solid rgba(255,255,255,0.05);
+  border-bottom: 1rpx solid var(--border-light);
 }
 
 .ex-dot {
   width: 10rpx;
   height: 10rpx;
   border-radius: 2rpx;
-  background: rgba(168,181,160,0.5);
+  background: var(--text-secondary);
   margin-right: 16rpx;
   flex-shrink: 0;
 }
@@ -20,13 +20,13 @@
 
 .ex-name {
   font-size: 28rpx;
-  color: #f0ece4;
+  color: var(--text-primary);
   display: block;
 }
 
 .ex-meta {
   font-size: 20rpx;
-  color: rgba(255,255,255,0.25);
+  color: var(--text-hint);
   margin-top: 2rpx;
   display: block;
 }
@@ -34,7 +34,7 @@
 .ex-cal {
   font-size: 28rpx;
   font-weight: 600;
-  color: rgba(168,181,160,0.7);
+  color: var(--text-secondary);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }

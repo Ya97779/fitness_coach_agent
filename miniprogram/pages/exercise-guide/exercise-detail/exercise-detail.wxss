@@ -21,7 +21,7 @@
 .media-empty {
   width: 100%;
   height: 300rpx;
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-input);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,7 +302,7 @@
 
 .bottom-btn.primary {
   background: var(--text-primary);
-  color: var(--bg-base);
+  color: #ffffff;
 }
 
 .bottom-btn.secondary {

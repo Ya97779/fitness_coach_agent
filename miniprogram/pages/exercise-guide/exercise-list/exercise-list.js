@@ -1,8 +1,8 @@
 const { exerciseData } = require('../../../data/exercises')
 
 const DIFF_COLOR = {
-  beginner: '#a8b5a0',
-  intermediate: '#c4a882',
+  beginner: '#666',
+  intermediate: '#999',
   advanced: '#c47a6c'
 }
 

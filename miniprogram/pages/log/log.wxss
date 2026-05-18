@@ -24,7 +24,7 @@
 }
 
 .tab-on {
-  background: rgba(255,255,255,0.08);
+  background: var(--bg-card);
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -116,6 +116,6 @@
 .submit-text {
   font-size: 28rpx;
   font-weight: 700;
-  color: var(--bg-base);
+  color: #ffffff;
   letter-spacing: 2rpx;
 }

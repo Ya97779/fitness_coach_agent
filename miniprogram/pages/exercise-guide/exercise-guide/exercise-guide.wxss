@@ -72,7 +72,7 @@
   width: 72rpx;
   height: 72rpx;
   border-radius: var(--radius-sm);
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-input);
   border: 1rpx solid var(--border);
   display: flex;
   align-items: center;
