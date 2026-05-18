@@ -1,0 +1,94 @@
+<view class="page">
+  <!-- 7 天卡片 -->
+  <view class="day-card {{todayKey === item.key ? 'day-today' : ''}} {{expandedDay === item.key ? 'day-expanded' : ''}}"
+        wx:for="{{days}}" wx:key="key">
+
+    <!-- 卡片头部：始终显示 -->
+    <view class="day-header" bindtap="toggleExpand" data-key="{{item.key}}">
+      <view class="day-left">
+        <text class="day-label {{todayKey === item.key ? 'day-label-today' : ''}}">{{item.label}}</text>
+        <text class="day-tag" wx:if="{{todayKey === item.key}}">今天</text>
+      </view>
+      <view class="day-right">
+        <text class="day-summary {{plan[item.key].isRest ? 'day-rest-text' : ''}}">
+          {{plan[item.key].isRest ? '休息日' : (plan[item.key].exercises.length > 0 ? plan[item.key].exercises.length + ' 个动作' : '未安排')}}
+        </text>
+        <text class="day-arrow {{expandedDay === item.key ? 'day-arrow-up' : ''}}">›</text>
+      </view>
+    </view>
+
+    <!-- 展开编辑区 -->
+    <view class="day-body" wx:if="{{expandedDay === item.key}}">
+      <!-- 操作按钮行 -->
+      <view class="day-actions">
+        <view class="action-btn" bindtap="openTemplatePicker">
+          <text class="action-text">应用模板</text>
+        </view>
+        <view class="action-btn {{plan[item.key].isRest ? 'action-active' : ''}}" bindtap="toggleRest" data-key="{{item.key}}">
+          <text class="action-text">{{plan[item.key].isRest ? '取消休息' : '标记休息'}}</text>
+        </view>
+        <picker mode="selector" range="{{days}}" range-key="label" value="{{0}}" bindchange="copyFromDay">
+          <view class="action-btn">
+            <text class="action-text">复制自...</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- 动作列表 -->
+      <view class="day-exercises" wx:if="{{!plan[item.key].isRest}}">
+        <view class="day-ex-row" wx:for="{{plan[item.key].exercises}}" wx:for-item="ex" wx:for-index="exIdx" wx:key="exIdx">
+          <view class="day-ex-num">{{exIdx + 1}}</view>
+          <view class="day-ex-body">
+            <input class="day-ex-name" placeholder="动作名称" placeholder-class="day-placeholder"
+                   value="{{ex.name}}" bindinput="onExInput" bindblur="onExBlur"
+                   data-daykey="{{item.key}}" data-index="{{exIdx}}" data-field="name" />
+            <view class="day-ex-meta">
+              <view class="day-stepper">
+                <text class="stepper-btn" bindtap="adjustSets" data-daykey="{{item.key}}" data-index="{{exIdx}}" data-delta="-1">-</text>
+                <text class="stepper-val">{{ex.sets}}</text>
+                <text class="stepper-btn" bindtap="adjustSets" data-daykey="{{item.key}}" data-index="{{exIdx}}" data-delta="1">+</text>
+              </view>
+              <text class="day-ex-sets-label">组</text>
+            </view>
+          </view>
+          <text class="day-ex-del" bindtap="deleteExercise" data-daykey="{{item.key}}" data-index="{{exIdx}}">×</text>
+        </view>
+
+        <view class="day-add-row" bindtap="addExerciseToDay">
+          <text class="day-add-sign">+</text>
+          <text class="day-add-label">添加动作</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部按钮 -->
+  <view class="bottom-bar">
+    <view class="start-btn {{plan[todayKey].isRest || plan[todayKey].exercises.length === 0 ? 'disabled' : ''}}" bindtap="startTodayTraining">
+      <text class="start-main">今日开始训练</text>
+      <text class="start-sub" wx:if="{{!plan[todayKey].isRest && plan[todayKey].exercises.length > 0}}">
+        {{plan[todayKey].exercises.length}} 动作 / {{plan[todayKey].exercises[0].name || '...'}}
+      </text>
+      <text class="start-sub" wx:elif="{{plan[todayKey].isRest}}">今天是休息日</text>
+      <text class="start-sub" wx:else>未安排训练</text>
+    </view>
+  </view>
+
+  <!-- 模板选择弹窗 -->
+  <view class="mask {{showTemplatePicker ? 'mask-show' : ''}}" bindtap="closeTemplatePicker"></view>
+  <view class="picker-sheet {{showTemplatePicker ? 'sheet-show' : ''}}">
+    <view class="sheet-header">
+      <text class="sheet-title">选择模板</text>
+      <text class="sheet-close" bindtap="closeTemplatePicker">✕</text>
+    </view>
+    <scroll-view class="sheet-body" scroll-y>
+      <view class="tpl-row" wx:for="{{templates}}" wx:key="id" bindtap="applyTemplate" data-id="{{item.id}}">
+        <text class="tpl-icon">{{item.icon}}</text>
+        <view class="tpl-info">
+          <text class="tpl-name">{{item.name}}</text>
+          <text class="tpl-desc">{{item.exercises.length}} 个动作</text>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+</view>

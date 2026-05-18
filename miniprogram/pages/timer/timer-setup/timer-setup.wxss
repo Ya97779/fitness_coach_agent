@@ -6,9 +6,25 @@
 
 /* 顶部 */
 .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 40rpx 4rpx 32rpx;
   border-bottom: 1rpx solid var(--border);
   margin-bottom: 28rpx;
+}
+
+.header-plan-btn {
+  padding: 12rpx 28rpx;
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.header-plan-text {
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .header-title {

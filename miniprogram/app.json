@@ -8,6 +8,7 @@
     "pages/stats/stats",
     "pages/timer/timer-training/timer-training",
     "pages/timer/timer-summary/timer-summary",
+    "pages/timer/training-plan/training-plan",
     "pages/exercise-guide/exercise-guide/exercise-guide",
     "pages/exercise-guide/exercise-list/exercise-list",
     "pages/exercise-guide/exercise-detail/exercise-detail"
