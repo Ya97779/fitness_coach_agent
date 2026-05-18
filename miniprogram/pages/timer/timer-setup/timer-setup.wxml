@@ -78,6 +78,9 @@
 
   <!-- 底部按钮 -->
   <view class="bottom-bar">
+    <view class="save-btn" bindtap="saveToWeeklyPlan">
+      <text class="save-text">保存至{{todayLabel}}计划</text>
+    </view>
     <view class="start-btn {{exercises.length === 0 ? 'disabled' : ''}}" bindtap="startTraining">
       <text class="start-main">开始训练</text>
       <text class="start-sub">{{exercises.length}} 动作 / {{totalSets}} 组</text>

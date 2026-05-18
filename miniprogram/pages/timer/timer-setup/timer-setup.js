@@ -129,6 +129,11 @@ Page({
     wx.setStorageSync('weekly_plan', weeklyPlan)
   },
 
+  saveToWeeklyPlan() {
+    this.syncToWeeklyPlan()
+    wx.showToast({ title: '已保存至' + this.data.todayLabel + '计划', icon: 'none' })
+  },
+
   goPlan() {
     wx.navigateTo({ url: '/pages/timer/training-plan/training-plan' })
   },
