@@ -1,19 +1,19 @@
 <view class="page">
-  <!-- 肌群信息头部 -->
+  <!-- 肌群头部 -->
   <view class="group-header">
-    <text class="group-name">{{group.name}}</text>
-    <text class="group-functions">主要功能：{{group.functions}}</text>
+    <text class="header-name">{{group.name}}</text>
+    <text class="header-func">{{group.functions}}</text>
   </view>
 
-  <!-- 分栏布局：左侧导航 + 右侧内容 -->
+  <!-- 分栏布局 -->
   <view class="split-layout">
     <!-- 左侧子区域导航 -->
     <scroll-view class="sidebar" scroll-y enhanced show-scrollbar="{{false}}">
-      <view class="sidebar-item {{activeSub === item.id ? 'sidebar-active' : ''}}"
+      <view class="sidebar-item {{activeSub === item.id ? 'sidebar-on' : ''}}"
             wx:for="{{subRegions}}" wx:key="id"
             bindtap="switchSub" data-id="{{item.id}}">
         <text class="sidebar-text">{{item.name}}</text>
-        <view class="sidebar-indicator" wx:if="{{activeSub === item.id}}"></view>
+        <view class="sidebar-bar" wx:if="{{activeSub === item.id}}"></view>
       </view>
     </scroll-view>
 
@@ -21,8 +21,8 @@
     <scroll-view class="content" scroll-y enhanced show-scrollbar="{{false}}">
       <view class="ex-card" wx:for="{{filteredExercises}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
         <image class="ex-gif" src="{{item.gif}}" mode="aspectFill" wx:if="{{item.gif}}" />
-        <view class="ex-gif-placeholder" wx:else>
-          <text class="placeholder-char">{{item.name[0]}}</text>
+        <view class="ex-gif-empty" wx:else>
+          <text class="ex-gif-char">{{item.name[0]}}</text>
         </view>
         <text class="ex-name">{{item.name}}</text>
         <view class="diff-dot" style="background: {{item.diffColor}};"></view>

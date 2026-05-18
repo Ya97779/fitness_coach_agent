@@ -2,68 +2,64 @@
   <!-- 用户头部 -->
   <view class="profile-header">
     <image class="avatar" src="{{userInfo.avatar_url || '/images/default-avatar.png'}}" mode="aspectFill" />
-    <view class="user-name">{{userInfo.nickname || '未设置昵称'}}</view>
+    <view class="user-info">
+      <text class="user-name">{{userInfo.nickname || '未设置昵称'}}</text>
+    </view>
   </view>
 
-  <!-- 身体数据卡片 -->
+  <!-- 身体数据 -->
   <view class="card">
-    <view class="card-title">身体数据</view>
+    <text class="card-label">身体数据</text>
     <view class="data-grid">
       <view class="data-item">
-        <text class="data-value">{{userInfo.height || '--'}}</text>
+        <text class="data-val">{{userInfo.height || '--'}}</text>
         <text class="data-unit">cm</text>
-        <text class="data-label">身高</text>
       </view>
       <view class="data-item">
-        <text class="data-value">{{userInfo.weight || '--'}}</text>
+        <text class="data-val">{{userInfo.weight || '--'}}</text>
         <text class="data-unit">kg</text>
-        <text class="data-label">体重</text>
       </view>
       <view class="data-item">
-        <text class="data-value">{{userInfo.age || '--'}}</text>
+        <text class="data-val">{{userInfo.age || '--'}}</text>
         <text class="data-unit">岁</text>
-        <text class="data-label">年龄</text>
       </view>
       <view class="data-item">
-        <text class="data-value">{{userInfo.gender || '--'}}</text>
+        <text class="data-val">{{userInfo.gender || '--'}}</text>
         <text class="data-unit"></text>
-        <text class="data-label">性别</text>
       </view>
     </view>
   </view>
 
-  <!-- 代谢数据卡片 -->
+  <!-- 代谢数据 -->
   <view class="card">
-    <view class="card-title">代谢指标</view>
+    <text class="card-label">代谢指标</text>
     <view class="data-grid">
       <view class="data-item">
-        <text class="data-value">{{userInfo.bmr ? Math.round(userInfo.bmr) : '--'}}</text>
-        <text class="data-unit">kcal</text>
-        <text class="data-label">BMR</text>
+        <text class="data-val">{{userInfo.bmr ? Math.round(userInfo.bmr) : '--'}}</text>
+        <text class="data-unit">kcal · BMR</text>
       </view>
       <view class="data-item">
-        <text class="data-value">{{userInfo.tdee ? Math.round(userInfo.tdee) : '--'}}</text>
-        <text class="data-unit">kcal</text>
-        <text class="data-label">TDEE</text>
+        <text class="data-val">{{userInfo.tdee ? Math.round(userInfo.tdee) : '--'}}</text>
+        <text class="data-unit">kcal · TDEE</text>
       </view>
     </view>
   </view>
 
   <!-- 目标信息 -->
   <view class="card" wx:if="{{userInfo.target_weight || userInfo.allergies}}">
-    <view class="card-title">目标信息</view>
+    <text class="card-label">目标信息</text>
     <view class="info-row" wx:if="{{userInfo.target_weight}}">
-      <text class="info-label">目标体重</text>
-      <text class="info-value">{{userInfo.target_weight}} kg</text>
+      <text class="info-key">目标体重</text>
+      <text class="info-val">{{userInfo.target_weight}} kg</text>
     </view>
     <view class="info-row" wx:if="{{userInfo.allergies}}">
-      <text class="info-label">过敏源</text>
-      <text class="info-value">{{userInfo.allergies}}</text>
+      <text class="info-key">过敏源</text>
+      <text class="info-val">{{userInfo.allergies}}</text>
     </view>
   </view>
 
-  <!-- 编辑按钮 -->
-  <view class="card edit-card" bindtap="showEdit">
+  <!-- 编辑 -->
+  <view class="edit-row" bindtap="showEdit">
     <text class="edit-text">编辑个人资料</text>
     <text class="edit-arrow">></text>
   </view>
@@ -71,7 +67,7 @@
   <!-- 编辑弹窗 -->
   <view class="modal-mask" wx:if="{{showEditModal}}" bindtap="hideEdit">
     <view class="modal-content" catchtap="">
-      <view class="modal-title">编辑资料</view>
+      <text class="modal-title">编辑资料</text>
       <view class="form-group">
         <text class="form-label">身高 (cm)</text>
         <input class="form-input" type="digit" value="{{editForm.height}}" bindinput="onEditInput" data-field="height" />
@@ -100,8 +96,8 @@
         <input class="form-input" value="{{editForm.allergies}}" bindinput="onEditInput" data-field="allergies" />
       </view>
       <view class="modal-btns">
-        <button class="btn-secondary" bindtap="hideEdit">取消</button>
-        <button class="btn-primary" bindtap="saveProfile">保存</button>
+        <view class="btn-secondary" bindtap="hideEdit">取消</view>
+        <view class="btn-primary" bindtap="saveProfile">保存</view>
       </view>
     </view>
   </view>

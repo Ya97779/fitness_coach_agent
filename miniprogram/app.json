@@ -14,15 +14,15 @@
   ],
   "window": {
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#4CAF50",
+    "navigationBarBackgroundColor": "#111113",
     "navigationBarTitleText": "FitCoach AI",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#F5F7FA"
+    "backgroundColor": "#111113"
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#4CAF50",
-    "backgroundColor": "#ffffff",
+    "color": "rgba(255,255,255,0.25)",
+    "selectedColor": "#a8b5a0",
+    "backgroundColor": "#111113",
     "borderStyle": "black",
     "list": [
       {

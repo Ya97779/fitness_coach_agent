@@ -1,8 +1,7 @@
 <view class="page">
   <!-- 快捷入口 -->
   <scroll-view class="shortcuts-bar" scroll-x enable-flex>
-    <view class="shortcut-chip" wx:for="{{shortcuts}}" wx:key="text" bindtap="useShortcut" data-text="{{item.text}}">
-      <text class="chip-icon">{{item.icon}}</text>
+    <view class="chip" wx:for="{{shortcuts}}" wx:key="text" bindtap="useShortcut" data-text="{{item.text}}">
       <text class="chip-text">{{item.text}}</text>
     </view>
   </scroll-view>
@@ -10,8 +9,7 @@
   <!-- 消息列表 -->
   <scroll-view class="msg-list" scroll-y scroll-into-view="{{scrollToId}}" scroll-with-animation enhanced show-scrollbar="{{false}}">
     <view class="msg-item {{msg.role}}" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
-      <!-- AI 头像 -->
-      <view class="msg-avatar avatar-ai" wx:if="{{item.role === 'ai'}}">AI</view>
+      <view class="msg-avatar" wx:if="{{item.role === 'ai'}}">AI</view>
       <view class="msg-bubble bubble-{{item.role}}">
         <text class="msg-text" user-select>{{item.content}}</text>
         <view class="msg-loading" wx:if="{{item.loading}}">

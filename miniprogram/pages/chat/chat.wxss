@@ -2,47 +2,42 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #F5F7FA;
+  background: var(--bg-base);
 }
 
 /* 快捷入口 */
 .shortcuts-bar {
   white-space: nowrap;
-  padding: 20rpx 24rpx;
-  background: #fff;
-  border-bottom: 1rpx solid #F0F0F0;
+  padding: 16rpx 28rpx;
+  border-bottom: 1rpx solid var(--border);
   flex-shrink: 0;
 }
 
-.shortcut-chip {
+.chip {
   display: inline-flex;
   align-items: center;
-  padding: 12rpx 24rpx;
-  margin-right: 16rpx;
-  background: #F8F9FA;
-  border-radius: 32rpx;
-  border: 1rpx solid #F0F0F0;
-}
-
-.chip-icon {
-  font-size: 28rpx;
-  margin-right: 8rpx;
+  padding: 10rpx 22rpx;
+  margin-right: 12rpx;
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .chip-text {
-  font-size: 24rpx;
-  color: #666;
+  font-size: 22rpx;
+  color: var(--text-secondary);
+  letter-spacing: 1rpx;
 }
 
 /* 消息列表 */
 .msg-list {
   flex: 1;
-  padding: 24rpx;
+  padding: 24rpx 28rpx;
 }
 
 .msg-item {
   display: flex;
-  margin-bottom: 28rpx;
+  margin-bottom: 24rpx;
   align-items: flex-start;
 }
 
@@ -52,53 +47,48 @@
 
 /* AI 头像 */
 .msg-avatar {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 16rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20rpx;
+  font-size: 18rpx;
   font-weight: 700;
   flex-shrink: 0;
-  margin-right: 16rpx;
-}
-
-.avatar-ai {
-  background: linear-gradient(135deg, #4CAF50, #81C784);
-  color: #fff;
+  margin-right: 14rpx;
+  background: var(--accent-dim);
+  color: var(--accent);
+  letter-spacing: 1rpx;
 }
 
 .msg-item.user .msg-avatar {
   margin-right: 0;
-  margin-left: 16rpx;
+  margin-left: 14rpx;
 }
 
 /* 气泡 */
 .msg-bubble {
   max-width: 75%;
-  padding: 24rpx 28rpx;
-  border-radius: 20rpx;
-  position: relative;
+  padding: 20rpx 24rpx;
+  border-radius: var(--radius-md);
   word-break: break-all;
 }
 
 .bubble-user {
-  background: #4CAF50;
-  color: #fff;
-  border-top-right-radius: 6rpx;
+  background: var(--accent-dim);
+  color: var(--text-primary);
 }
 
 .bubble-ai {
-  background: #fff;
-  color: #333;
-  border-top-left-radius: 6rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  color: var(--text-primary);
 }
 
 .msg-text {
   font-size: 28rpx;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 /* 加载动画 */
@@ -109,11 +99,11 @@
 }
 
 .loading-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: 50%;
-  background: #ccc;
-  animation: dotBounce 1.4s infinite ease-in-out;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 2rpx;
+  background: var(--text-hint);
+  animation: dotPulse 1.4s infinite ease-in-out;
 }
 
 .loading-dot:nth-child(2) {
@@ -124,45 +114,48 @@
   animation-delay: 0.4s;
 }
 
-@keyframes dotBounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
 }
 
 /* 输入区 */
 .input-bar {
   display: flex;
   align-items: center;
-  padding: 16rpx 24rpx;
+  padding: 16rpx 28rpx;
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1rpx solid #F0F0F0;
+  border-top: 1rpx solid var(--border);
   flex-shrink: 0;
 }
 
 .input-field {
   flex: 1;
-  background: #F5F7FA;
-  border-radius: 36rpx;
-  padding: 18rpx 28rpx;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18rpx 24rpx;
   font-size: 28rpx;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .send-btn {
-  margin-left: 16rpx;
-  padding: 18rpx 32rpx;
-  border-radius: 36rpx;
-  background: #E0E0E0;
-  transition: all 0.2s;
+  margin-left: 12rpx;
+  padding: 18rpx 28rpx;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  transition: all 0.15s;
 }
 
 .send-active {
-  background: #4CAF50;
+  background: var(--accent-dim);
+  border-color: var(--accent);
 }
 
 .send-text {
-  font-size: 28rpx;
-  color: #fff;
-  font-weight: 500;
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  font-weight: 600;
+  letter-spacing: 1rpx;
 }

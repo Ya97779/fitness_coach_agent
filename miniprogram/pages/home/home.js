@@ -88,30 +88,29 @@ Page({
 
       // 背景环
       ctx.setLineWidth(lineWidth)
-      ctx.setStrokeStyle('#F0F0F0')
-      ctx.setLineCap('round')
+      ctx.setStrokeStyle('rgba(255,255,255,0.06)')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
       ctx.stroke()
 
-      // 摄入环（绿色）
+      // 摄入环
       const intakeAngle = Math.min(intake / tdee, 1) * 2 * Math.PI
       if (intakeAngle > 0) {
         ctx.setLineWidth(lineWidth)
-        ctx.setStrokeStyle('#4CAF50')
-        ctx.setLineCap('round')
+        ctx.setStrokeStyle('#a8b5a0')
+        ctx.setLineCap('butt')
         ctx.beginPath()
         ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + intakeAngle)
         ctx.stroke()
       }
 
-      // 消耗环（蓝色，外圈）
+      // 消耗环（外圈）
       const burnAngle = Math.min(burn / tdee, 1) * 2 * Math.PI
       if (burnAngle > 0) {
         const outerRadius = radius + lineWidth + 4
-        ctx.setLineWidth(8)
-        ctx.setStrokeStyle('#2196F3')
-        ctx.setLineCap('round')
+        ctx.setLineWidth(6)
+        ctx.setStrokeStyle('rgba(168,181,160,0.4)')
+        ctx.setLineCap('butt')
         ctx.beginPath()
         ctx.arc(cx, cy, outerRadius, -Math.PI / 2, -Math.PI / 2 + burnAngle)
         ctx.stroke()

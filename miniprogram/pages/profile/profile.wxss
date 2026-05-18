@@ -1,5 +1,5 @@
 .page {
-  padding: 0 32rpx 40rpx;
+  padding: 0 28rpx 40rpx;
 }
 
 /* 头部 */
@@ -10,25 +10,28 @@
 }
 
 .avatar {
-  width: 120rpx;
-  height: 120rpx;
+  width: 100rpx;
+  height: 100rpx;
   border-radius: 50%;
-  background: #E8F5E9;
-  margin-right: 28rpx;
+  background: var(--bg-card);
+  margin-right: 24rpx;
+  border: 1rpx solid var(--border);
 }
 
 .user-name {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #333;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 /* 数据网格 */
-.card-title {
-  font-size: 26rpx;
-  color: #999;
+.card-label {
+  font-size: 20rpx;
+  color: var(--text-hint);
+  letter-spacing: 3rpx;
+  font-weight: 600;
+  display: block;
   margin-bottom: 20rpx;
-  font-weight: 500;
 }
 
 .data-grid {
@@ -41,67 +44,65 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16rpx 0;
+  padding: 12rpx 0;
 }
 
-.data-value {
+.data-val {
   font-size: 44rpx;
-  font-weight: 700;
-  color: #333;
+  font-weight: 200;
+  color: var(--text-primary);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .data-unit {
-  font-size: 22rpx;
-  color: #999;
-  margin-top: 4rpx;
-}
-
-.data-label {
-  font-size: 22rpx;
-  color: #999;
-  margin-top: 8rpx;
+  font-size: 20rpx;
+  color: var(--text-hint);
+  margin-top: 6rpx;
+  letter-spacing: 1rpx;
 }
 
 /* 信息行 */
 .info-row {
   display: flex;
   justify-content: space-between;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #F5F5F5;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid var(--border-light);
 }
 
 .info-row:last-child {
   border-bottom: none;
 }
 
-.info-label {
+.info-key {
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
 }
 
-.info-value {
+.info-val {
   font-size: 28rpx;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
-/* 编辑卡片 */
-.edit-card {
+/* 编辑行 */
+.edit-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 22rpx 0;
+  margin-top: 8rpx;
 }
 
 .edit-text {
   font-size: 28rpx;
-  color: #4CAF50;
+  color: var(--accent);
   font-weight: 500;
 }
 
 .edit-arrow {
   font-size: 28rpx;
-  color: #ccc;
+  color: var(--text-hint);
 }
 
 /* 弹窗 */
@@ -111,27 +112,29 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0,0,0,0.7);
   z-index: 100;
   display: flex;
   align-items: flex-end;
 }
 
 .modal-content {
-  background: #fff;
+  background: var(--bg-base);
   width: 100%;
-  border-radius: 24rpx 24rpx 0 0;
-  padding: 40rpx;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 36rpx 28rpx;
   max-height: 80vh;
   overflow-y: auto;
+  border-top: 1rpx solid var(--border);
 }
 
 .modal-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #333;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-primary);
   text-align: center;
-  margin-bottom: 32rpx;
+  margin-bottom: 28rpx;
+  letter-spacing: 2rpx;
 }
 
 .form-group {
@@ -139,46 +142,48 @@
 }
 
 .form-label {
-  font-size: 24rpx;
-  color: #666;
+  font-size: 22rpx;
+  color: var(--text-hint);
   margin-bottom: 10rpx;
   display: block;
+  letter-spacing: 1rpx;
 }
 
 .form-input {
-  background: #F8F9FA;
-  border: 2rpx solid #F0F0F0;
-  border-radius: 10rpx;
-  padding: 18rpx 24rpx;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18rpx 22rpx;
   font-size: 28rpx;
+  color: var(--text-primary);
 }
 
 .gender-btns {
   display: flex;
-  gap: 20rpx;
+  gap: 16rpx;
 }
 
 .gender-btn {
   flex: 1;
   text-align: center;
   padding: 16rpx;
-  font-size: 28rpx;
-  color: #666;
-  background: #F8F9FA;
-  border-radius: 10rpx;
-  border: 2rpx solid transparent;
+  font-size: 26rpx;
+  color: var(--text-hint);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
 }
 
 .gender-active {
-  color: #4CAF50;
-  border-color: #4CAF50;
-  background: rgba(76, 175, 80, 0.06);
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .modal-btns {
   display: flex;
-  gap: 20rpx;
-  margin-top: 40rpx;
+  gap: 16rpx;
+  margin-top: 36rpx;
 }
 
 .modal-btns .btn-secondary,
@@ -189,8 +194,9 @@
 /* 退出登录 */
 .logout-btn {
   text-align: center;
-  color: #F44336;
-  font-size: 28rpx;
+  color: var(--danger);
+  font-size: 26rpx;
   padding: 32rpx;
-  margin-top: 16rpx;
+  margin-top: 8rpx;
+  letter-spacing: 1rpx;
 }

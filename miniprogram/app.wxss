@@ -1,46 +1,47 @@
-/* CSS 变量 */
+/* === 全局变量 === */
 page {
-  --color-primary: #4CAF50;
-  --color-primary-light: #81C784;
-  --color-accent: #2196F3;
-  --color-danger: #F44336;
-  --color-warning: #FF9800;
-  --color-bg: #F5F7FA;
-  --color-card: #FFFFFF;
-  --color-text: #333333;
-  --color-text-secondary: #666666;
-  --color-text-hint: #999999;
-  --color-border: #E8E8E8;
-  --radius-card: 16rpx;
-  --radius-button: 12rpx;
-  --spacing-page: 32rpx;
-  --spacing-card: 24rpx;
-  --font-title: 32rpx;
-  --font-body: 28rpx;
-  --font-caption: 24rpx;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-size: var(--font-body);
+  --bg-base: #111113;
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-card-hover: rgba(255,255,255,0.06);
+  --bg-input: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.08);
+  --border-light: rgba(255,255,255,0.05);
+  --text-primary: #f0ece4;
+  --text-secondary: rgba(255,255,255,0.5);
+  --text-hint: rgba(255,255,255,0.25);
+  --text-muted: rgba(255,255,255,0.15);
+  --accent: #a8b5a0;
+  --accent-dim: rgba(168,181,160,0.15);
+  --danger: #c47a6c;
+  --radius-sm: 4rpx;
+  --radius-md: 6rpx;
+
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 28rpx;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* 通用卡片 */
+/* === 通用卡片 === */
 .card {
-  background: var(--color-card);
-  border-radius: var(--radius-card);
-  padding: var(--spacing-card);
-  margin-bottom: var(--spacing-card);
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 28rpx;
+  margin-bottom: 16rpx;
 }
 
-/* 通用按钮 */
+/* === 通用按钮 === */
 .btn-primary {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--text-primary);
+  color: var(--bg-base);
   border: none;
-  border-radius: var(--radius-button);
-  padding: 20rpx 40rpx;
-  font-size: var(--font-body);
+  border-radius: var(--radius-sm);
+  padding: 22rpx 40rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
   text-align: center;
 }
 
@@ -50,22 +51,22 @@ page {
 
 .btn-secondary {
   background: transparent;
-  color: var(--color-primary);
-  border: 2rpx solid var(--color-primary);
-  border-radius: var(--radius-button);
-  padding: 18rpx 40rpx;
-  font-size: var(--font-body);
+  color: var(--text-secondary);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20rpx 40rpx;
+  font-size: 28rpx;
   text-align: center;
 }
 
-/* 页面容器 */
+/* === 页面容器 === */
 .page-container {
-  padding: var(--spacing-page);
+  padding: 32rpx 28rpx;
   min-height: 100vh;
   box-sizing: border-box;
 }
 
-/* 通用 flex */
+/* === 通用 flex === */
 .flex-row {
   display: flex;
   flex-direction: row;
@@ -84,25 +85,27 @@ page {
   align-items: center;
 }
 
-/* 标签 */
+/* === 标签 === */
 .tag {
   display: inline-block;
-  padding: 4rpx 16rpx;
-  border-radius: 8rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--radius-sm);
   font-size: 20rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
 }
 
 .tag-primary {
-  background: rgba(76, 175, 80, 0.1);
-  color: var(--color-primary);
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 .tag-accent {
-  background: rgba(33, 150, 243, 0.1);
-  color: var(--color-accent);
+  background: rgba(168,181,160,0.1);
+  color: var(--accent);
 }
 
 .tag-warning {
-  background: rgba(255, 152, 0, 0.1);
-  color: var(--color-warning);
+  background: rgba(196,122,108,0.12);
+  color: var(--danger);
 }

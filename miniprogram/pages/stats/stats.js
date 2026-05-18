@@ -55,7 +55,7 @@ Page({
       const maxVal = Math.max(...intakes, ...burns, 100)
 
       // 网格线
-      ctx.setStrokeStyle('#F0F0F0')
+      ctx.setStrokeStyle('rgba(255,255,255,0.06)')
       ctx.setLineWidth(1)
       for (let i = 0; i <= 4; i++) {
         const y = padding.top + chartH * (1 - i / 4)
@@ -64,13 +64,13 @@ Page({
         ctx.lineTo(width - padding.right, y)
         ctx.stroke()
 
-        ctx.setFillStyle('#999')
+        ctx.setFillStyle('rgba(255,255,255,0.2)')
         ctx.setFontSize(18)
         ctx.fillText(Math.round(maxVal * i / 4), 4, y + 5)
       }
 
       // X 轴标签
-      ctx.setFillStyle('#999')
+      ctx.setFillStyle('rgba(255,255,255,0.2)')
       ctx.setFontSize(16)
       ctx.setTextAlign('center')
       logs.forEach((l, i) => {
@@ -80,9 +80,9 @@ Page({
       })
 
       // 绘制摄入线
-      this.drawLine(ctx, intakes, maxVal, logs.length, padding, chartW, chartH, '#4CAF50')
+      this.drawLine(ctx, intakes, maxVal, logs.length, padding, chartW, chartH, '#a8b5a0')
       // 绘制消耗线
-      this.drawLine(ctx, burns, maxVal, logs.length, padding, chartW, chartH, '#2196F3')
+      this.drawLine(ctx, burns, maxVal, logs.length, padding, chartW, chartH, 'rgba(168,181,160,0.4)')
 
       ctx.draw()
     })
@@ -107,9 +107,9 @@ Page({
     values.forEach((v, i) => {
       const x = padding.left + chartW * i / (count - 1)
       const y = padding.top + chartH * (1 - v / maxVal)
-      ctx.setFillStyle('#fff')
+      ctx.setFillStyle('#111113')
       ctx.beginPath()
-      ctx.arc(x, y, 5, 0, 2 * Math.PI)
+      ctx.arc(x, y, 4, 0, 2 * Math.PI)
       ctx.fill()
       ctx.setStrokeStyle(color)
       ctx.setLineWidth(2)
@@ -133,7 +133,7 @@ Page({
 
       // 零线
       const zeroY = padding.top + chartH / 2
-      ctx.setStrokeStyle('#ddd')
+      ctx.setStrokeStyle('rgba(255,255,255,0.08)')
       ctx.setLineWidth(1)
       ctx.beginPath()
       ctx.moveTo(padding.left, zeroY)
@@ -141,7 +141,7 @@ Page({
       ctx.stroke()
 
       // Y 轴标签
-      ctx.setFillStyle('#999')
+      ctx.setFillStyle('rgba(255,255,255,0.2)')
       ctx.setFontSize(18)
       ctx.setTextAlign('right')
       ctx.fillText(`+${Math.round(maxAbs)}`, padding.left - 6, padding.top + 14)
@@ -156,12 +156,12 @@ Page({
         const barH = (Math.abs(net) / maxAbs) * (chartH / 2)
         const x = padding.left + gap * i + (gap - barW) / 2
         const y = net >= 0 ? zeroY - barH : zeroY
-        ctx.setFillStyle(net >= 0 ? '#4CAF50' : '#2196F3')
+        ctx.setFillStyle(net >= 0 ? '#a8b5a0' : 'rgba(168,181,160,0.35)')
         ctx.fillRect(x, y, barW, barH)
       })
 
       // X 轴标签
-      ctx.setFillStyle('#999')
+      ctx.setFillStyle('rgba(255,255,255,0.2)')
       ctx.setFontSize(16)
       ctx.setTextAlign('center')
       logs.forEach((l, i) => {

@@ -1,9 +1,9 @@
 const { exerciseData } = require('../../../data/exercises')
 
 const DIFF_MAP = {
-  beginner: { text: '初级', color: '#4CAF50', bg: 'rgba(76,175,80,0.1)' },
-  intermediate: { text: '中级', color: '#FF9800', bg: 'rgba(255,152,0,0.1)' },
-  advanced: { text: '高级', color: '#F44336', bg: 'rgba(244,67,54,0.1)' }
+  beginner: { text: '初级', color: '#a8b5a0', bg: 'rgba(168,181,160,0.12)' },
+  intermediate: { text: '中级', color: '#c4a882', bg: 'rgba(196,168,130,0.12)' },
+  advanced: { text: '高级', color: '#c47a6c', bg: 'rgba(196,122,108,0.12)' }
 }
 
 Page({

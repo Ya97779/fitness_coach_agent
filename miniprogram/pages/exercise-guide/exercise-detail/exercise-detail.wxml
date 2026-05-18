@@ -1,41 +1,41 @@
 <view class="page">
-  <!-- 视频/GIF 区域 -->
-  <view class="video-wrap" wx:if="{{exercise.video}}">
+  <!-- 视频/GIF -->
+  <view class="media-wrap" wx:if="{{exercise.video}}">
     <video src="{{exercise.video}}" class="video-player" controls show-fullscreen-btn show-play-btn />
   </view>
-  <view class="gif-wrap" wx:elif="{{exercise.gif}}">
+  <view class="media-wrap" wx:elif="{{exercise.gif}}">
     <image class="gif-image" src="{{exercise.gif}}" mode="aspectFit" />
   </view>
-  <view class="video-placeholder" wx:else>
-    <text class="placeholder-text">演示素材待添加</text>
+  <view class="media-empty" wx:else>
+    <text class="media-empty-text">演示素材待添加</text>
   </view>
 
   <!-- 基本信息 -->
-  <view class="info-card">
+  <view class="info-section">
     <text class="ex-name">{{exercise.name}}</text>
     <view class="tag-row">
-      <view class="tag tag-difficulty" style="background: {{diffBg}}; color: {{diffColor}};">{{diffText}}</view>
+      <view class="tag" style="background: {{diffBg}}; color: {{diffColor}};">{{diffText}}</view>
       <view class="tag tag-primary" wx:for="{{exercise.targetMuscles}}" wx:key="*this">{{item}}</view>
     </view>
     <view class="equip-row" wx:if="{{exercise.equipment}}">
-      <text class="equip-label">器械：</text>
-      <text class="equip-value">{{exercise.equipment}}</text>
+      <text class="equip-key">器械</text>
+      <text class="equip-val">{{exercise.equipment}}</text>
     </view>
   </view>
 
   <!-- Tab 切换 -->
   <view class="detail-tabs">
-    <view class="detail-tab {{activeTab === 'steps' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="steps">动作步骤</view>
-    <view class="detail-tab {{activeTab === 'tips' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="tips">动作细节</view>
-    <view class="detail-tab {{activeTab === 'mistakes' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="mistakes">常见错误</view>
-    <view class="detail-tab {{activeTab === 'variations' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="variations">变体动作</view>
+    <view class="detail-tab {{activeTab === 'steps' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="steps">步骤</view>
+    <view class="detail-tab {{activeTab === 'tips' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="tips">细节</view>
+    <view class="detail-tab {{activeTab === 'mistakes' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="mistakes">错误</view>
+    <view class="detail-tab {{activeTab === 'variations' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="variations">变体</view>
   </view>
 
-  <!-- 动作步骤 -->
-  <view class="tab-content" wx:if="{{activeTab === 'steps'}}">
+  <!-- 步骤 -->
+  <view class="tab-body" wx:if="{{activeTab === 'steps'}}">
     <view class="step-list" wx:if="{{exercise.steps && exercise.steps.length > 0}}">
       <view class="step-item" wx:for="{{exercise.steps}}" wx:key="*this">
-        <view class="step-num">{{index + 1}}</view>
+        <text class="step-num">{{index + 1}}</text>
         <text class="step-text">{{item}}</text>
       </view>
     </view>
@@ -44,11 +44,11 @@
     </view>
   </view>
 
-  <!-- 动作细节 -->
-  <view class="tab-content" wx:if="{{activeTab === 'tips'}}">
+  <!-- 细节 -->
+  <view class="tab-body" wx:if="{{activeTab === 'tips'}}">
     <view class="tip-list" wx:if="{{exercise.tips && exercise.tips.length > 0}}">
       <view class="tip-item" wx:for="{{exercise.tips}}" wx:key="*this">
-        <text class="tip-icon">✓</text>
+        <text class="tip-icon">></text>
         <text class="tip-text">{{item}}</text>
       </view>
     </view>
@@ -58,15 +58,15 @@
   </view>
 
   <!-- 常见错误 -->
-  <view class="tab-content" wx:if="{{activeTab === 'mistakes'}}">
+  <view class="tab-body" wx:if="{{activeTab === 'mistakes'}}">
     <view class="mistake-list" wx:if="{{exercise.mistakes && exercise.mistakes.length > 0}}">
       <view class="mistake-item" wx:for="{{exercise.mistakes}}" wx:key="wrong">
-        <view class="mistake-wrong">
-          <text class="mistake-icon bad">✗</text>
+        <view class="mistake-row">
+          <text class="mistake-icon bad">x</text>
           <text class="mistake-text">{{item.wrong}}</text>
         </view>
-        <view class="mistake-fix">
-          <text class="mistake-icon good">✓</text>
+        <view class="mistake-row">
+          <text class="mistake-icon good">v</text>
           <text class="mistake-text">{{item.fix}}</text>
         </view>
       </view>
@@ -76,8 +76,8 @@
     </view>
   </view>
 
-  <!-- 变体动作 -->
-  <view class="tab-content" wx:if="{{activeTab === 'variations'}}">
+  <!-- 变体 -->
+  <view class="tab-body" wx:if="{{activeTab === 'variations'}}">
     <view class="var-list" wx:if="{{exercise.variations && exercise.variations.length > 0}}">
       <view class="var-item" wx:for="{{exercise.variations}}" wx:key="id" bindtap="goVariation" data-id="{{item.id}}">
         <view class="var-info">
@@ -93,12 +93,12 @@
   </view>
 
   <!-- 底部按钮 -->
-  <view class="bottom-actions">
-    <view class="action-btn secondary-btn" bindtap="addToPlan">
-      <text class="action-text">加入训练计划</text>
+  <view class="bottom-bar">
+    <view class="bottom-btn secondary" bindtap="addToPlan">
+      <text class="bottom-btn-text">加入训练计划</text>
     </view>
-    <view class="action-btn primary-btn" bindtap="askAI">
-      <text class="action-text">咨询 AI</text>
+    <view class="bottom-btn primary" bindtap="askAI">
+      <text class="bottom-btn-text">咨询 AI</text>
     </view>
   </view>
 </view>

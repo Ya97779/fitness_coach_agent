@@ -1,16 +1,16 @@
 .ex-card {
   display: flex;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #F5F5F5;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid rgba(255,255,255,0.05);
 }
 
 .ex-dot {
-  width: 12rpx;
-  height: 12rpx;
-  border-radius: 50%;
-  background: #2196F3;
-  margin-right: 20rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 2rpx;
+  background: rgba(168,181,160,0.5);
+  margin-right: 16rpx;
   flex-shrink: 0;
 }
 
@@ -20,20 +20,21 @@
 
 .ex-name {
   font-size: 28rpx;
-  color: #333;
+  color: #f0ece4;
   display: block;
 }
 
 .ex-meta {
-  font-size: 22rpx;
-  color: #999;
-  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: rgba(255,255,255,0.25);
+  margin-top: 2rpx;
   display: block;
 }
 
 .ex-cal {
   font-size: 28rpx;
   font-weight: 600;
-  color: #2196F3;
+  color: rgba(168,181,160,0.7);
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }

@@ -1,8 +1,8 @@
 <view class="page">
   <!-- Tab 切换 -->
   <view class="tabs">
-    <view class="tab {{activeTab === 'food' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="food">饮食</view>
-    <view class="tab {{activeTab === 'exercise' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="exercise">运动</view>
+    <view class="tab {{activeTab === 'food' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="food">饮食</view>
+    <view class="tab {{activeTab === 'exercise' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="exercise">运动</view>
   </view>
 
   <!-- 饮食录入 -->
@@ -25,9 +25,9 @@
           <view class="meal-btn {{mealType === 'snack' ? 'meal-active' : ''}}" bindtap="selectMeal" data-meal="snack">加餐</view>
         </view>
       </view>
-      <button class="btn-primary submit-btn" bindtap="submitFood" disabled="{{!foodName || !mealType}}">
-        记录饮食
-      </button>
+      <view class="submit-btn {{!foodName || !mealType ? 'submit-disabled' : ''}}" bindtap="submitFood">
+        <text class="submit-text">记录饮食</text>
+      </view>
     </view>
   </view>
 
@@ -49,9 +49,9 @@
         <text class="form-label">时长（分钟）</text>
         <input class="form-input" type="number" placeholder="如：30" value="{{exerciseDuration}}" bindinput="onDurationInput" />
       </view>
-      <button class="btn-primary submit-btn" bindtap="submitExercise" disabled="{{!exerciseType || !exerciseDuration}}">
-        记录运动
-      </button>
+      <view class="submit-btn {{!exerciseType || !exerciseDuration ? 'submit-disabled' : ''}}" bindtap="submitExercise">
+        <text class="submit-text">记录运动</text>
+      </view>
     </view>
   </view>
 </view>
