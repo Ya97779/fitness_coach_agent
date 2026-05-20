@@ -54,6 +54,7 @@ venv.bak/
 .idea/
 .DS_Store
 Thumbs.db
+miniprogram/project.private.config.json
 
 # =========================
 # Agent 运行时可能产生的日志或本地数据

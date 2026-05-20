@@ -11,8 +11,13 @@ security = HTTPBearer()
 
 WECHAT_APPID = os.getenv("WECHAT_APPID", "")
 WECHAT_SECRET = os.getenv("WECHAT_SECRET", "")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-secret-change-me")
-JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "72"))
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY or len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError(
+        "JWT_SECRET_KEY 未设置或长度不足 32 位，请在 .env 中配置一个强密钥"
+    )
+JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
 
 async def wx_code_to_session(code: str) -> dict:
