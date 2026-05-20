@@ -28,8 +28,9 @@ Page({
 
       this.setData({ logs: filtered, loading: false })
       this.drawCharts(filtered)
-    }).catch(() => {
+    }).catch(err => {
       this.setData({ loading: false })
+      wx.showToast({ title: err.message || '加载失败', icon: 'none' })
     })
   },
 

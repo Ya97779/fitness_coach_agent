@@ -1,5 +1,7 @@
 const { API_BASE_URL } = require('./config')
 
+let loginModalShowing = false
+
 function request(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync('token')
@@ -16,12 +18,22 @@ function request(options) {
       method: options.method || 'GET',
       data: options.data,
       header,
+      timeout: 10000,
       success(res) {
         if (res.statusCode === 200) {
           resolve(res.data)
         } else if (res.statusCode === 401) {
           wx.removeStorageSync('token')
-          wx.reLaunch({ url: '/pages/home/home' })
+          if (!loginModalShowing) {
+            loginModalShowing = true
+            wx.showModal({
+              title: '登录已过期',
+              content: '请重新登录',
+              showCancel: false,
+              confirmText: '知道了',
+              complete() { loginModalShowing = false }
+            })
+          }
           reject(new Error('登录已过期，请重新登录'))
         } else {
           const msg = (res.data && res.data.message) || '请求失败'
@@ -29,7 +41,12 @@ function request(options) {
         }
       },
       fail(err) {
-        reject(new Error(err.errMsg || '网络错误'))
+        const msg = err.errMsg || ''
+        if (msg.includes('timeout')) {
+          reject(new Error('请求超时，请检查网络'))
+        } else {
+          reject(new Error(msg || '网络错误'))
+        }
       }
     })
   })

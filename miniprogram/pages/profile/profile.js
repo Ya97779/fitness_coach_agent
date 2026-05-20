@@ -18,7 +18,9 @@ Page({
   loadProfile() {
     request({ url: '/api/v1/user/me' }).then(user => {
       this.setData({ userInfo: user })
-    }).catch(() => {})
+    }).catch(err => {
+      wx.showToast({ title: err.message || '加载失败', icon: 'none' })
+    })
   },
 
   showEdit() {

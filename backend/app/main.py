@@ -3,12 +3,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from . import models, database, auth
 from .agents.graph import process_user_message, stream_user_message
 from .agents.fitness_agent import estimate_exercise_calories
 from .food_api import search_food_nutrient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 import asyncio
 import os
@@ -20,7 +23,16 @@ load_dotenv()
 
 models.Base.metadata.create_all(bind=database.engine)
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"code": 429, "message": "请求过于频繁，请稍后再试"},
+    )
 
 # ========== 静态文件 ==========
 # 图片资源（动作演示图等）通过 /guide/ 路径访问
@@ -82,12 +94,12 @@ async def startup_event():
 
 # ========== Pydantic 模型 ==========
 class UserCreate(BaseModel):
-    height: float
-    weight: float
-    age: int
-    gender: str
-    target_weight: Optional[float] = None
-    allergies: Optional[str] = None
+    height: float = Field(gt=0, le=300, description="身高(cm)")
+    weight: float = Field(gt=0, le=500, description="体重(kg)")
+    age: int = Field(gt=0, le=150, description="年龄")
+    gender: str = Field(pattern=r"^(男|女|未知)$", description="性别")
+    target_weight: Optional[float] = Field(None, gt=0, le=500)
+    allergies: Optional[str] = Field(None, max_length=500)
 
 class UserResponse(BaseModel):
     id: int
@@ -148,6 +160,7 @@ class ChatResponse(BaseModel):
 
 class StreamChatRequest(BaseModel):
     message: str
+    history: Optional[List[dict]] = None  # 多轮对话历史
 
 class WxLoginRequest(BaseModel):
     code: str
@@ -161,16 +174,16 @@ class ErrorResponse(BaseModel):
     message: str
 
 class FoodLogCreate(BaseModel):
-    name: str
-    calories: Optional[float] = None
+    name: str = Field(min_length=1, max_length=200)
+    calories: Optional[float] = Field(None, gt=0, le=10000)
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
 
 class ExerciseLogCreate(BaseModel):
-    type: str
-    duration: int  # 分钟
-    name: Optional[str] = None
-    sets: Optional[int] = None
-    weight: Optional[float] = None
+    type: str = Field(min_length=1, max_length=100)
+    duration: int = Field(gt=0, le=600, description="运动时长(分钟)")
+    name: Optional[str] = Field(None, max_length=100)
+    sets: Optional[int] = Field(None, gt=0, le=100)
+    weight: Optional[float] = Field(None, gt=0, le=1000)
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -199,13 +212,11 @@ async def wx_login(req: WxLoginRequest, db: Session = Depends(database.get_db)):
         user = models.User(
             openid=wx_session["openid"],
             unionid=wx_session.get("unionid"),
-            session_key=wx_session["session_key"],
         )
         db.add(user)
         db.commit()
         db.refresh(user)
     else:
-        user.session_key = wx_session["session_key"]
         if wx_session.get("unionid"):
             user.unionid = wx_session["unionid"]
         db.commit()
@@ -373,15 +384,17 @@ def _build_user_context(user: models.User, db: Session):
     return user_profile, daily_stats
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("30/minute")
 def chat(
-    request: ChatRequest,
+    request: Request,
+    body: ChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
 
     result = process_user_message(
-        user_message=request.message,
+        user_message=body.message,
         user_id=current_user.id,
         user_profile=user_profile,
         daily_stats=daily_stats,
@@ -395,14 +408,16 @@ def chat(
     )
 
 @router.post("/chat/stream")
+@limiter.limit("20/minute")
 async def chat_stream(
-    request: StreamChatRequest,
+    request: Request,
+    body: StreamChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
 
-    user_message = request.message.strip() if request.message else "你好"
+    user_message = body.message.strip() if body.message else "你好"
 
     async def event_generator():
         try:

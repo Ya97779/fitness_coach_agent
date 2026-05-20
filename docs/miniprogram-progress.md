@@ -82,34 +82,34 @@
 
 **致命（不修必炸）**
 
-| # | 问题 | 操作 |
-|---|------|------|
-| 1 | `.env` 在 git 历史中泄露过 API Key | **立即轮换**智谱 API Key 和天行 API Key，在微信公众平台和智谱控制台重新生成 |
-| 2 | `images/guide/` 目录为空（57 个文件缺失） | 补齐 50+ 个动作 GIF + 7 个肌群封面 PNG |
-| 3 | `images/default-avatar.png` 缺失 | 准备默认头像图片 |
-| 4 | 视频 URL 全是占位符 `cdn.example.com` | 替换为真实 CDN 地址或暂时清空 video 字段 |
-| 5 | `config.js` 中的 `api.yourdomain.com` | 替换为实际 HTTPS 域名，并在微信公众平台配置白名单 |
+| # | 问题 | 状态 | 操作 |
+|---|------|------|------|
+| 1 | `.env` 在 git 历史中泄露过 API Key | 待用户操作 | **立即轮换**智谱 API Key 和天行 API Key |
+| 2 | `images/guide/` 目录为空（57 个文件缺失） | 待用户操作 | 图片改从后端服务器加载，需上传到 `backend/static/guide/` |
+| 3 | `images/default-avatar.png` 缺失 | 待用户操作 | 准备默认头像图片 |
+| 4 | 视频 URL 全是占位符 `cdn.example.com` | 待用户操作 | 替换为真实地址或清空 video 字段 |
+| 5 | `config.js` 中的 `api.yourdomain.com` | **已修复** | 已改为 `https://gzyapi.gzyhm.xyz` |
 
 **高危（上线后大概率出事）**
 
-| # | 问题 | 操作 |
-|---|------|------|
-| 6 | 无频率限制，LLM 接口可被刷到欠费 | 后端加 `slowapi` 限流 |
-| 7 | 401 处理死循环 | `request.js` 改为弹登录弹窗而非跳首页 |
-| 8 | `request.js` 无超时 | 加 10s 超时 + 用户提示 |
-| 9 | 聊天 `sending` 标志永久卡住 | catch/finally 中重置 |
-| 10 | SSE 流断开无重连 | 加断连提示和重试按钮 |
-| 11 | 聊天无上下文，每条消息独立 | 传历史消息实现多轮对话 |
-| 12 | 多个页面静默吞错误 | 加 toast 提示 |
-| 13 | `requirements.txt` 未锁版本 | `pip freeze` 锁版本 |
-| 14 | `session_key` 持久化在数据库 | 改用 Redis 短期缓存 |
-| 15 | Pydantic 无输入校验 | 加 `Field` 约束 |
+| # | 问题 | 状态 | 操作 |
+|---|------|------|------|
+| 6 | 无频率限制，LLM 接口可被刷到欠费 | **已修复** | `slowapi` 限流：chat 30次/分，stream 20次/分 |
+| 7 | 401 处理死循环 | **已修复** | `request.js` 改为 `wx.showModal` 弹窗，防重复弹出 |
+| 8 | `request.js` 无超时 | **已修复** | 加 10s 超时，超时提示「请求超时，请检查网络」 |
+| 9 | 聊天 `sending` 标志永久卡住 | **已修复** | `sending: false` 移到 `finishAiMessage` 统一重置 |
+| 10 | SSE 流断开无重连 | **已修复** | 断连时显示「连接中断，点击重试」按钮 |
+| 11 | 聊天无上下文，每条消息独立 | **已修复** | 传最近 10 条历史消息，后端接收 `history` 字段 |
+| 12 | 多个页面静默吞错误 | **已修复** | home/stats/profile 的 catch 中加 `wx.showToast` |
+| 13 | `requirements.txt` 未锁版本 | **已修复** | 全部加 `>=x.y,<next-major` 版本约束 |
+| 14 | `session_key` 持久化在数据库 | **已修复** | 登录后不再存储 session_key 到数据库 |
+| 15 | Pydantic 无输入校验 | **已修复** | UserCreate/FoodLogCreate/ExerciseLogCreate 加 `Field` 约束 |
 
 **中等（影响体验）**
 
 | # | 问题 |
 |---|------|
-| 16 | SQLite 做生产库，多人并发会锁死 |
+| 16 | SQLite 做生产库，多人并发会锁死 | **已修复** | database.py 支持通过 `DATABASE_URL` 切换 PostgreSQL |
 | 17 | 热量估算硬编码 `duration * 6` |
 | 18 | 统计页无数据时白屏 |
 | 19 | 保存训练记录 `Promise.all` 无部分失败处理 |
