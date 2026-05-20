@@ -1,10 +1,5 @@
 const { groupList, exerciseData } = require('../../../data/exercises')
 
-const EMOJI_MAP = {
-  chest: '💪', back: '🔙', shoulder: '🏋️',
-  arms: '💪', legs: '🦵', core: '🎯', cardio: '🏃'
-}
-
 Page({
   data: {
     groups: [],
@@ -13,11 +8,7 @@ Page({
   },
 
   onLoad() {
-    const groups = groupList.map(g => ({
-      ...g,
-      emoji: EMOJI_MAP[g.id] || '🏃'
-    }))
-    this.setData({ groups })
+    this.setData({ groups: groupList })
   },
 
   onSearch(e) {

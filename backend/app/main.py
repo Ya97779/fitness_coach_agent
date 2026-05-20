@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from . import models, database, auth
 from .agents.graph import process_user_message, stream_user_message
@@ -20,6 +21,12 @@ load_dotenv()
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
+
+# ========== 静态文件 ==========
+# 图片资源（动作演示图等）通过 /guide/ 路径访问
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.isdir(static_dir):
+    app.mount("/guide", StaticFiles(directory=static_dir + "/guide"), name="guide")
 
 # ========== CORS ==========
 ALLOWED_ORIGINS = [

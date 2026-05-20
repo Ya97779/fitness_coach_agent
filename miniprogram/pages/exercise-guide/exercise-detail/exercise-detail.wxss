@@ -13,7 +13,7 @@
   height: 400rpx;
 }
 
-.gif-image {
+.cover-image {
   width: 100%;
   height: 400rpx;
 }

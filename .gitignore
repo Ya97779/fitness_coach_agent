@@ -55,6 +55,12 @@ venv.bak/
 .DS_Store
 Thumbs.db
 miniprogram/project.private.config.json
+miniprogram/images/guide/
+
+# =========================
+# 静态资源（大文件，需单独部署）
+# =========================
+backend/static/guide/
 
 # =========================
 # Agent 运行时可能产生的日志或本地数据

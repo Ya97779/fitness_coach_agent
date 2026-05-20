@@ -3,8 +3,8 @@
   <view class="media-wrap" wx:if="{{exercise.video}}">
     <video src="{{exercise.video}}" class="video-player" controls show-fullscreen-btn show-play-btn />
   </view>
-  <view class="media-wrap" wx:elif="{{exercise.gif}}">
-    <image class="gif-image" src="{{exercise.gif}}" mode="aspectFit" />
+  <view class="media-wrap" wx:elif="{{exercise.cover}}">
+    <image class="cover-image" src="{{exercise.cover}}" mode="aspectFit" />
   </view>
   <view class="media-empty" wx:else>
     <text class="media-empty-text">演示素材待添加</text>

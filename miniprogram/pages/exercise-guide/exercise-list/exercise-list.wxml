@@ -20,9 +20,9 @@
     <!-- 右侧动作列表 -->
     <scroll-view class="content" scroll-y enhanced show-scrollbar="{{false}}">
       <view class="ex-card" wx:for="{{filteredExercises}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
-        <image class="ex-gif" src="{{item.gif}}" mode="aspectFill" wx:if="{{item.gif}}" />
-        <view class="ex-gif-empty" wx:else>
-          <text class="ex-gif-char">{{item.name[0]}}</text>
+        <image class="ex-cover" src="{{item.cover}}" mode="aspectFill" wx:if="{{item.cover}}" />
+        <view class="ex-cover-empty" wx:else>
+          <text class="ex-cover-char">{{item.name[0]}}</text>
         </view>
         <text class="ex-name">{{item.name}}</text>
         <view class="diff-dot" style="background: {{item.diffColor}};"></view>

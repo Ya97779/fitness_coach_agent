@@ -88,14 +88,14 @@
   position: relative;
 }
 
-.ex-gif {
+.ex-cover {
   width: 100%;
   height: 260rpx;
   border-radius: var(--radius-sm);
   background: var(--bg-input);
 }
 
-.ex-gif-empty {
+.ex-cover-empty {
   width: 100%;
   height: 260rpx;
   border-radius: var(--radius-sm);
@@ -106,7 +106,7 @@
   justify-content: center;
 }
 
-.ex-gif-char {
+.ex-cover-char {
   font-size: 56rpx;
   font-weight: 200;
   color: var(--text-muted);
