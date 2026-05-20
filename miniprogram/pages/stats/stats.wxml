@@ -6,13 +6,13 @@
   </view>
 
   <!-- 折线图 -->
-  <view class="card">
+  <view class="card" wx:if="{{logs.length > 0}}">
     <text class="chart-label">摄入 vs 消耗</text>
     <canvas canvas-id="lineChart" id="lineChart" class="chart-canvas" />
   </view>
 
   <!-- 柱状图 -->
-  <view class="card">
+  <view class="card" wx:if="{{logs.length > 0}}">
     <text class="chart-label">每日净热量</text>
     <canvas canvas-id="barChart" id="barChart" class="chart-canvas" />
   </view>

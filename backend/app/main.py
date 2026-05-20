@@ -21,7 +21,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-models.Base.metadata.create_all(bind=database.engine)
+# 仅在表不存在时创建，不会修改已有表结构
+from sqlalchemy import inspect
+inspector = inspect(database.engine)
+if not inspector.has_table("users"):
+    models.Base.metadata.create_all(bind=database.engine)
 
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
@@ -339,7 +343,8 @@ def create_exercise_log(
         db.refresh(log)
 
     body_weight = current_user.weight or 60
-    calories = estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
+    result = estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
+    calories = result.get("calories", 0) if isinstance(result, dict) else 0
 
     item = models.ExerciseItem(
         log_id=log.id,
