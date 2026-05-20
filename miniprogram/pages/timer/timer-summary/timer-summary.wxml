@@ -28,7 +28,10 @@
     <text class="done-title">完成动作</text>
     <view class="done-row" wx:for="{{exercises}}" wx:key="name">
       <text class="done-name">{{item.name}}</text>
-      <text class="done-sets">{{item.sets}} 组</text>
+      <view class="done-meta">
+        <text class="done-sets">{{item.sets}} 组</text>
+        <text class="done-weight" wx:if="{{item.weight}}"> × {{item.weight}}kg</text>
+      </view>
     </view>
   </view>
 

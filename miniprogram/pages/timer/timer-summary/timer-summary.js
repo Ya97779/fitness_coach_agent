@@ -29,13 +29,22 @@ Page({
       return
     }
 
-    const { duration } = this.data
+    const { exercises, duration } = this.data
+    const perExerciseDuration = Math.max(1, Math.round((duration || 1) / exercises.length))
+
     wx.showLoading({ title: '保存中...' })
-    request({
-      url: '/api/v1/exercise-log',
-      method: 'POST',
-      data: { type: '力量训练', duration: duration || 1 }
-    }).then(() => {
+    const requests = exercises.map(ex => {
+      const data = {
+        type: ex.name || '力量训练',
+        name: ex.name,
+        sets: ex.sets,
+        duration: perExerciseDuration
+      }
+      if (ex.weight) data.weight = ex.weight
+      return request({ url: '/api/v1/exercise-log', method: 'POST', data })
+    })
+
+    Promise.all(requests).then(() => {
       wx.hideLoading()
       wx.showToast({ title: '保存成功', icon: 'success' })
       this.setData({ saved: true })

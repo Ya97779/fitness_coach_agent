@@ -83,7 +83,13 @@ Page({
     const { index, field } = e.currentTarget.dataset
     const value = e.detail.value
     const exercises = [...this.data.exercises]
-    exercises[index][field] = field === 'name' ? value : (parseInt(value) || 0)
+    if (field === 'name') {
+      exercises[index][field] = value
+    } else if (field === 'weight') {
+      exercises[index][field] = parseFloat(value) || 0
+    } else {
+      exercises[index][field] = parseInt(value) || 0
+    }
     this.setData({ exercises })
   },
 
@@ -106,7 +112,7 @@ Page({
   },
 
   addExercise() {
-    const exercises = [...this.data.exercises, { name: '', sets: 3, rest: this.data.defaultRest }]
+    const exercises = [...this.data.exercises, { name: '', sets: 3, rest: this.data.defaultRest, weight: 0 }]
     this.setData({ exercises, activeTemplate: '', isRestDay: false })
     this.calcTotalSets()
     this.syncToWeeklyPlan()

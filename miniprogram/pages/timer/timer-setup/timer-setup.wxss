@@ -265,6 +265,16 @@
   padding: 4rpx 0;
 }
 
+.ex-weight-input {
+  width: 72rpx;
+  font-size: 26rpx;
+  color: var(--text-primary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1rpx solid var(--border);
+  padding: 4rpx 0;
+}
+
 .ex-del {
   font-size: 28rpx;
   color: var(--text-muted);

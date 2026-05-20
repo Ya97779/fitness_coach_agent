@@ -58,6 +58,9 @@ class ExerciseItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     log_id = Column(Integer, ForeignKey("daily_logs.id"))
     type = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    sets = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
     duration = Column(Integer, nullable=False)
     calories = Column(Float, nullable=False)
 

@@ -110,6 +110,9 @@ class FoodLogResponse(BaseModel):
 class ExerciseLogResponse(BaseModel):
     id: int
     type: str
+    name: Optional[str] = None
+    sets: Optional[int] = None
+    weight: Optional[float] = None
     duration: int
     calories: float
     log_id: int
@@ -158,6 +161,9 @@ class FoodLogCreate(BaseModel):
 class ExerciseLogCreate(BaseModel):
     type: str
     duration: int  # 分钟
+    name: Optional[str] = None
+    sets: Optional[int] = None
+    weight: Optional[float] = None
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -314,12 +320,15 @@ def create_exercise_log(
         db.commit()
         db.refresh(log)
 
-    weight = current_user.weight or 60
-    calories = estimate_exercise_calories(data.type, data.duration, "medium", weight)
+    body_weight = current_user.weight or 60
+    calories = estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
 
     item = models.ExerciseItem(
         log_id=log.id,
         type=data.type,
+        name=data.name,
+        sets=data.sets,
+        weight=data.weight,
         duration=data.duration,
         calories=calories,
     )
@@ -328,7 +337,8 @@ def create_exercise_log(
     db.commit()
     db.refresh(item)
     return ExerciseLogResponse(
-        id=item.id, type=item.type, duration=item.duration,
+        id=item.id, type=item.type, name=item.name, sets=item.sets,
+        weight=item.weight, duration=item.duration,
         calories=item.calories, log_id=item.log_id,
     )
 

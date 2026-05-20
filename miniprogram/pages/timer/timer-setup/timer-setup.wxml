@@ -65,6 +65,10 @@
               <input class="ex-rest-input" type="number" value="{{item.rest}}" bindinput="onExInput" data-index="{{index}}" data-field="rest" />
               <text class="ex-meta-label">s</text>
             </view>
+            <view class="ex-meta-item">
+              <input class="ex-weight-input" type="digit" placeholder="kg" placeholder-class="ex-placeholder" value="{{item.weight || ''}}" bindinput="onExInput" data-index="{{index}}" data-field="weight" />
+              <text class="ex-meta-label">kg</text>
+            </view>
           </view>
         </view>
         <text class="ex-del" bindtap="deleteExercise" data-index="{{index}}">×</text>

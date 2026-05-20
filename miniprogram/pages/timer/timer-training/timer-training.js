@@ -193,7 +193,7 @@ Page({
       url: '/pages/timer/timer-summary/timer-summary',
       success: (res) => {
         res.eventChannel.emit('trainingResult', {
-          exercises: exercises.map(ex => ({ name: ex.name, sets: ex.sets })),
+          exercises: exercises.map(ex => ({ name: ex.name, sets: ex.sets, weight: ex.weight || 0 })),
           totalSets: this.totalSets,
           completedSets,
           duration,

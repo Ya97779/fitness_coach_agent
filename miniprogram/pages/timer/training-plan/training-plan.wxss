@@ -203,6 +203,17 @@
   color: var(--text-hint);
 }
 
+.day-weight-input {
+  width: 72rpx;
+  font-size: 26rpx;
+  color: var(--text-primary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1rpx solid var(--border);
+  padding: 4rpx 0;
+  margin-left: 12rpx;
+}
+
 .day-ex-del {
   width: 44rpx;
   height: 44rpx;

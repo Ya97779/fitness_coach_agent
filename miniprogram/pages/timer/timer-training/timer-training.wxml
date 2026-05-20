@@ -13,6 +13,7 @@
   <!-- 训练中 -->
   <view class="main-area" wx:if="{{!isResting}}">
     <text class="ex-name">{{currentEx.name}}</text>
+    <text class="ex-weight" wx:if="{{currentEx.weight}}">{{currentEx.weight}} kg</text>
     <view class="set-row">
       <text class="set-num">{{currentSet}}</text>
       <text class="set-sep">/</text>

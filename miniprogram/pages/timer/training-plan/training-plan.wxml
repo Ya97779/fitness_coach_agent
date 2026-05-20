@@ -49,6 +49,10 @@
                 <text class="stepper-btn" bindtap="adjustSets" data-daykey="{{item.key}}" data-index="{{exIdx}}" data-delta="1">+</text>
               </view>
               <text class="day-ex-sets-label">组</text>
+              <input class="day-weight-input" type="digit" placeholder="kg" placeholder-class="day-placeholder"
+                     value="{{ex.weight || ''}}" bindinput="onExInput" bindblur="onExBlur"
+                     data-daykey="{{item.key}}" data-index="{{exIdx}}" data-field="weight" />
+              <text class="day-ex-sets-label">kg</text>
             </view>
           </view>
           <text class="day-ex-del" bindtap="deleteExercise" data-daykey="{{item.key}}" data-index="{{exIdx}}">×</text>

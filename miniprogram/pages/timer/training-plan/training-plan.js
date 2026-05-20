@@ -103,7 +103,7 @@ Page({
     const key = this.data.expandedDay
     const plan = { ...this.data.plan }
     const day = { ...plan[key] }
-    day.exercises = [...day.exercises, { name: '', sets: 3, rest: 60 }]
+    day.exercises = [...day.exercises, { name: '', sets: 3, rest: 60, weight: 0 }]
     day.isRest = false
     plan[key] = day
     this.setData({ plan })
@@ -116,7 +116,13 @@ Page({
     const day = { ...plan[daykey] }
     const exercises = [...day.exercises]
     exercises[index] = { ...exercises[index] }
-    exercises[index][field] = field === 'name' ? value : (parseInt(value) || 0)
+    if (field === 'name') {
+      exercises[index][field] = value
+    } else if (field === 'weight') {
+      exercises[index][field] = parseFloat(value) || 0
+    } else {
+      exercises[index][field] = parseInt(value) || 0
+    }
     day.exercises = exercises
     plan[daykey] = day
     this.setData({ plan })
