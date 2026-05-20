@@ -40,9 +40,13 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 # ========== 静态文件 ==========
 # 图片资源（动作演示图等）通过 /guide/ 路径访问
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
-if os.path.isdir(static_dir):
-    app.mount("/guide", StaticFiles(directory=static_dir + "/guide"), name="guide")
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_guide_dir = os.path.join(_backend_dir, "static", "guide")
+if os.path.isdir(_guide_dir):
+    app.mount("/guide", StaticFiles(directory=_guide_dir), name="guide")
+    print(f"[静态文件] 已挂载: {_guide_dir}")
+else:
+    print(f"[静态文件] 目录不存在: {_guide_dir}")
 
 # ========== CORS ==========
 ALLOWED_ORIGINS = [
