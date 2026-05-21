@@ -265,9 +265,12 @@ def nutrition_with_user(
             response = llm.bind_tools(nutrition_tools).invoke(chat_history)
         except Exception as e:
             error_msg = str(e)
+            print(f"[nutrition_agent] invoke 异常: {error_msg}")
             if "1214" in error_msg or "messages" in error_msg.lower():
-                return f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
-            return f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+                yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
+            else:
+                yield f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
+            return
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
             # 无工具调用，直接返回内容（不做第二次 LLM 调用）

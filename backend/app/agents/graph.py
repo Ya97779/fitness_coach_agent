@@ -612,14 +612,21 @@ def stream_user_message(
 
     # 收集完整回复用于保存对话历史
     full_response = ""
-    for chunk in response_generator:
-        full_response += chunk
-        yield chunk
+    try:
+        for chunk in response_generator:
+            full_response += chunk
+            yield chunk
+    except Exception as e:
+        error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
+        print(f"[stream] 迭代异常: {e}")
+        full_response += error_msg
+        yield error_msg
 
-    # 流式完成后保存对话历史
-    memory_manager.save_conversation(
-        user_message=user_message,
-        agent_response=full_response,
-        agent_type=agent,
-        session_id=None
-    )
+    # 流式完成后保存对话历史（错误回复也保存，便于排查）
+    if full_response:
+        memory_manager.save_conversation(
+            user_message=user_message,
+            agent_response=full_response,
+            agent_type=agent,
+            session_id=None
+        )
