@@ -459,22 +459,41 @@ async def chat_stream(
     user_message = request.message.strip() if request.message else "你好"
 
     async def event_generator():
-        try:
-            loop = asyncio.get_event_loop()
-            response_generator = await loop.run_in_executor(
-                None,
-                stream_user_message,
-                user_message,
-                current_user.id,
-                user_profile,
-                daily_stats,
-            )
-            for chunk in response_generator:
-                yield f"data: {chunk}\n\n"
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            yield f"data: Error: {str(e)}\n\n"
-            yield "data: [DONE]\n\n"
+        import queue
+        import threading
+
+        q = queue.Queue()
+
+        def run():
+            try:
+                for chunk in stream_user_message(
+                    user_message, current_user.id, user_profile, daily_stats
+                ):
+                    q.put(("chunk", chunk))
+                q.put(("done", None))
+            except Exception as e:
+                q.put(("error", str(e)))
+
+        threading.Thread(target=run, daemon=True).start()
+
+        while True:
+            try:
+                # 30 秒超时等待，超时发心跳保活
+                msg_type, data = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: q.get(timeout=30)
+                )
+                if msg_type == "chunk":
+                    yield f"data: {data}\n\n"
+                elif msg_type == "done":
+                    yield "data: [DONE]\n\n"
+                    break
+                elif msg_type == "error":
+                    yield f"data: Error: {data}\n\n"
+                    yield "data: [DONE]\n\n"
+                    break
+            except Exception:
+                # queue.Empty 超时，发 SSE 注释心跳（客户端忽略）
+                yield ": heartbeat\n\n"
 
     return StreamingResponse(
         event_generator(),

@@ -43,6 +43,11 @@ load_dotenv()
 MAX_RETRIES = 3
 MIN_APPROVAL_SCORE = 3
 
+
+def _collect(gen) -> str:
+    """消费 agent generator，收集完整回复字符串"""
+    return "".join(gen)
+
 # 快速通道模式：匹配到这些模式的问题属于简单事实查询，跳过专家评审
 QUICK_PATTERNS = [
     r".*的热量[是为多少].*",
@@ -153,7 +158,7 @@ def chat(state: AgentState) -> Dict[str, Any]:
     memory_summary = state.get("memory_summary", {})
     enhanced_prompt = state.get("enhanced_prompts", {}).get("chat")
 
-    response = chat_with_user(messages, user_id, memory_summary, enhanced_prompt)
+    response = _collect(chat_with_user(messages, user_id, memory_summary, enhanced_prompt))
 
     return {
         "messages": [AIMessage(content=response)],
@@ -175,7 +180,7 @@ def nutrition(state: AgentState) -> Dict[str, Any]:
     memory_summary = state.get("memory_summary", {})
     enhanced_prompt = state.get("enhanced_prompts", {}).get("nutrition")
 
-    response = nutrition_with_user(messages, user_id, memory_summary, enhanced_prompt)
+    response = _collect(nutrition_with_user(messages, user_id, memory_summary, enhanced_prompt))
 
     # 判断是否跳过评审（快速通道）
     state_with_response = {**state, "messages": messages + [AIMessage(content=response)]}
@@ -202,7 +207,7 @@ def fitness(state: AgentState) -> Dict[str, Any]:
     memory_summary = state.get("memory_summary", {})
     enhanced_prompt = state.get("enhanced_prompts", {}).get("fitness")
 
-    response = fitness_with_user(messages, user_id, memory_summary, enhanced_prompt)
+    response = _collect(fitness_with_user(messages, user_id, memory_summary, enhanced_prompt))
 
     # 判断是否跳过评审（快速通道）
     state_with_response = {**state, "messages": messages + [AIMessage(content=response)]}

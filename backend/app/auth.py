@@ -2,12 +2,12 @@ import os
 import jwt
 import httpx
 from datetime import datetime, timedelta, timezone
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from . import database, models
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 WECHAT_APPID = os.getenv("WECHAT_APPID", "")
 WECHAT_SECRET = os.getenv("WECHAT_SECRET", "")
@@ -69,10 +69,23 @@ def decode_access_token(token: str) -> int:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(database.get_db),
 ) -> models.User:
     """FastAPI 依赖：从 Authorization header 解析当前用户"""
+    # 本地调试放行：127.0.0.1 请求无 token 时使用 user_id=1
+    client_ip = request.client.host if request.client else ""
+    if client_ip in ("127.0.0.1", "::1") and not credentials:
+        user = db.query(models.User).filter(models.User.id == 1).first()
+        if user:
+            return user
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="未提供 Token"
+        )
+
     user_id = decode_access_token(credentials.credentials)
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
