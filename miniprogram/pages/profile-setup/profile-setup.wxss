@@ -1,5 +1,5 @@
 .page {
-  padding: 60rpx 40rpx;
+  padding: 80rpx 40rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20,40 +20,6 @@
   margin-bottom: 60rpx;
 }
 
-/* 头像 */
-.avatar-section {
-  margin-bottom: 48rpx;
-}
-
-.avatar-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: transparent;
-  border: none;
-  padding: 0;
-  line-height: normal;
-}
-
-.avatar-btn::after {
-  display: none;
-}
-
-.avatar-img {
-  width: 160rpx;
-  height: 160rpx;
-  border-radius: 50%;
-  background: var(--bg-input);
-  border: 2rpx solid var(--border);
-  margin-bottom: 16rpx;
-}
-
-.avatar-hint {
-  font-size: 24rpx;
-  color: var(--text-hint);
-}
-
-/* 昵称 */
 .nickname-section {
   width: 100%;
   margin-bottom: 60rpx;
@@ -79,7 +45,6 @@
   box-sizing: border-box;
 }
 
-/* 按钮 */
 .btn-group {
   width: 100%;
 }
