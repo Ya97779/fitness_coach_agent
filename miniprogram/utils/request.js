@@ -41,11 +41,10 @@ function request(options) {
         }
       },
       fail(err) {
-        const msg = err.errMsg || ''
-        if (msg.includes('timeout')) {
+        if ((err.errMsg || '').includes('timeout')) {
           reject(new Error('请求超时，请检查网络'))
         } else {
-          reject(new Error(msg || '网络错误'))
+          reject(new Error(err.errMsg || '网络错误'))
         }
       }
     })
