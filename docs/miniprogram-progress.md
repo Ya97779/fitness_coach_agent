@@ -1,156 +1,104 @@
 # 微信小程序前端开发进度
 
-更新日期：2026-05-20
+更新日期：2026-05-15
 
-## 当前状态：功能开发完成，上线前安全审查中
-
----
+## 当前状态：代码框架已搭建，待联调测试
 
 ## 已完成
 
-### 1. 核心页面（12 个）
+### 1. 项目功能梳理
 
-| 页面 | 路径 | 说明 |
-|------|------|------|
-| 首页 | `pages/home/home` | 今日卡路里环形进度、食物/运动记录列表 |
-| 聊天 | `pages/chat/chat` | SSE 流式 AI 对话、快捷入口 |
-| 训练计划 | `pages/timer/timer-setup/timer-setup` | 预设模板、动作列表配置、同步周计划 |
-| 训练中 | `pages/timer/timer-training/timer-training` | 倒计时、组间休息、完成本组 |
-| 训练完成 | `pages/timer/timer-summary/timer-summary` | 训练统计、逐动作保存记录 |
-| 周训练计划 | `pages/timer/training-plan/training-plan` | 周一至周日计划、模板应用、休息日 |
-| 记录 | `pages/log/log` | 饮食/运动快捷录入 |
-| 我的 | `pages/profile/profile` | 身体数据、编辑资料 |
-| 历史统计 | `pages/stats/stats` | 摄入/消耗折线图、净卡路里柱状图 |
-| 动作指导库 | `pages/exercise-guide/exercise-guide/` | 肌群分类列表、搜索 |
-| 动作列表 | `pages/exercise-guide/exercise-list/` | 某肌群动作列表、子区域筛选 |
-| 动作详情 | `pages/exercise-guide/exercise-detail/` | 视频播放、步骤/技巧/常见错误/变体 |
+后端现有功能：
 
-### 2. 动作数据（7 个肌群，52 个动作）
+| 模块 | API | 说明 |
+|------|-----|------|
+| 登录 | `POST /api/v1/auth/wx-login` | 微信 code → JWT |
+| 用户档案 | `GET /api/v1/user/me` | 获取用户信息 |
+| 用户档案 | `POST /api/v1/user/` | 创建/更新档案 |
+| 今日数据 | `GET /api/v1/user/me/today` | 今日摄入/消耗/记录列表 |
+| 历史数据 | `GET /api/v1/user/me/logs` | 全部日志（趋势图用） |
+| 聊天 | `POST /api/v1/chat/stream` | SSE 流式 AI 对话 |
 
-全部动作包含完整数据：steps / tips / mistakes / variations / equipment / targetMuscles / gif
+数据模型：User、DailyLog、FoodItem、ExerciseItem、ConversationLog
 
-| 肌群 | 动作数 | 文件 |
-|------|--------|------|
-| 胸部 | 9 | `data/exercises/chest.js` |
-| 背部 | 8 | `data/exercises/back.js` |
-| 肩部 | 7 | `data/exercises/shoulder.js` |
-| 手臂 | 9 | `data/exercises/arms.js` |
-| 腿部 | 7 | `data/exercises/legs.js` |
-| 核心 | 6 | `data/exercises/core.js` |
-| 有氧减脂 | 6 | `data/exercises/cardio.js` |
+### 2. 设计方案确认
 
-### 3. 训练模板（`data/templates.js`）
+- **框架**：微信原生小程序（wxml + wxss + js）
+- **导航**：底部五 Tab — 首页、聊天、计时器、记录、我的
+- **视觉**：清新健康风（#4CAF50 绿色主色调，白底圆角卡片）
+- **记录方式**：聊天触发 + 快捷表单两种都要
 
-7 个预设模板，每个含 4 个动作，带 weight 字段。
+### 3. 设计文档
 
-### 4. 后端接口
+已提交到 `docs/superpowers/specs/2026-05-14-miniprogram-design.md`
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/v1/auth/wx-login` | 微信登录 → JWT |
-| `GET /api/v1/user/me` | 用户信息 |
-| `POST /api/v1/user/` | 创建/更新档案 |
-| `GET /api/v1/user/me/today` | 今日数据（含 food_items、exercise_items） |
-| `GET /api/v1/user/me/logs` | 历史日志 |
-| `POST /api/v1/food-log` | 记录食物 |
-| `POST /api/v1/exercise-log` | 记录运动（含 name/sets/weight） |
-| `POST /api/v1/chat/stream` | SSE 流式 AI 对话 |
+内容包括：
+- 目录结构（pages / utils / components）
+- 四个 Tab 页面详细设计
+- 后端新增接口设计（POST /food-log、POST /exercise-log）
+- 数据流（登录、首页加载、记录、聊天）
+- 视觉规范（色值、字号、间距）
+- 注意事项（FoodItem 需加 meal_type 字段）
 
-### 5. 通用组件
+### 4. 小程序前端代码框架（2026-05-15）
 
-- `components/food-item/` — 食物记录卡片
-- `components/exercise-item/` — 运动记录卡片
+- 11 个页面全部创建（5 Tab + 6 非 Tab）
+- 2 个通用组件（food-item、exercise-item）
+- 3 个工具函数（request、auth、config）
+- 7 个肌群动作数据文件（胸部含完整示例，其余为骨架）
+- 后端新增 2 个记录接口（POST /food-log、POST /exercise-log）
+- 后端 FoodItem 模型新增 meal_type 字段
 
-### 6. 二次开发文档
+## 未完成
 
-- `miniprogram/DEVELOPMENT.md` — 覆盖 10 个常见修改场景
+1. **TabBar 图标** — 需要准备 10 个 PNG 图标文件（81x81 像素）
+2. **动作指导视频素材** — 需要准备或链接到动作演示视频 URL
+3. **动作数据填充** — 背部/肩部/手臂/腿部/核心/有氧的动作详情（steps/tips/mistakes）待补充
+4. **后端 Today 接口扩展** — 当前 /today 不返回 food_items 和 exercise_items 列表，首页记录列表需要后端配合
+5. **联调测试** — 微信开发者工具中编译运行、接口联调
+6. **echarts 集成** — 统计页折线图/柱状图需要引入 echarts-for-weixin
 
----
+## 下次继续的步骤
 
-## 上线前安全审查（2026-05-20）
+1. 准备 TabBar 图标文件（10 个 PNG）放入 `miniprogram/images/`
+2. 配置 `project.config.json` 中的真实 appid
+3. 修改 `utils/config.js` 中的 API_BASE_URL 为实际后端地址
+4. 在微信开发者工具中编译运行，检查页面渲染
+5. 补充动作数据详情（其余 6 个肌群的 steps/tips/mistakes）
+6. 后端扩展 /today 接口返回 items 列表
+7. 统计页引入 echarts-for-weixin 组件
 
-### 已修复
-
-| 修复项 | 状态 | 说明 |
-|--------|------|------|
-| JWT 密钥硬编码默认值 | **已修复** | 移除 `"default-secret-change-me"` 默认值，未配置时启动直接报错 |
-| JWT 过期时间 72h | **已修复** | 调整为 24h |
-| API 地址 HTTP 裸 IP | **已修复** | 改为 HTTPS 域名占位，需替换为真实域名 |
-| `project.private.config.json` 入库 | **已修复** | 已加入 `.gitignore` |
-
-### 待修复 — 上线前必做
-
-**致命（不修必炸）**
-
-| # | 问题 | 状态 | 操作 |
-|---|------|------|------|
-| 1 | `.env` 在 git 历史中泄露过 API Key | 待用户操作 | **立即轮换**智谱 API Key 和天行 API Key |
-| 2 | `images/guide/` 目录为空（57 个文件缺失） | 待用户操作 | 图片改从后端服务器加载，需上传到 `backend/static/guide/` |
-| 3 | `images/default-avatar.png` 缺失 | 待用户操作 | 准备默认头像图片 |
-| 4 | 视频 URL 全是占位符 `cdn.example.com` | 待用户操作 | 替换为真实地址或清空 video 字段 |
-| 5 | `config.js` 中的 `api.yourdomain.com` | **已修复** | 已改为 `https://gzyapi.gzyhm.xyz` |
-
-**高危（上线后大概率出事）**
-
-| # | 问题 | 状态 | 操作 |
-|---|------|------|------|
-| 6 | 无频率限制，LLM 接口可被刷到欠费 | **已修复** | `slowapi` 限流：chat 30次/分，stream 20次/分 |
-| 7 | 401 处理死循环 | **已修复** | `request.js` 改为 `wx.showModal` 弹窗，防重复弹出 |
-| 8 | `request.js` 无超时 | **已修复** | 加 10s 超时，超时提示「请求超时，请检查网络」 |
-| 9 | 聊天 `sending` 标志永久卡住 | **已修复** | `sending: false` 移到 `finishAiMessage` 统一重置 |
-| 10 | SSE 流断开无重连 | **已修复** | 断连时显示「连接中断，点击重试」按钮 |
-| 11 | 聊天无上下文，每条消息独立 | **已修复** | 传最近 10 条历史消息，后端接收 `history` 字段 |
-| 12 | 多个页面静默吞错误 | **已修复** | home/stats/profile 的 catch 中加 `wx.showToast` |
-| 13 | `requirements.txt` 未锁版本 | **已修复** | 全部加 `>=x.y,<next-major` 版本约束 |
-| 14 | `session_key` 持久化在数据库 | **已修复** | 登录后不再存储 session_key 到数据库 |
-| 15 | Pydantic 无输入校验 | **已修复** | UserCreate/FoodLogCreate/ExerciseLogCreate 加 `Field` 约束 |
-
-**中等（影响体验）**
-
-| # | 问题 | 状态 | 说明 |
-|---|------|------|------|
-| 16 | SQLite 做生产库 | **已修复** | 全面切换 PostgreSQL，移除 SQLite 依赖 |
-| 17 | 热量估算硬编码 | **已修复** | 修复 MET 返回值提取 bug，正确使用 MET × 体重 × 时长 |
-| 18 | 统计页无数据时白屏 | **已修复** | canvas 包裹 `wx:if="{{logs.length > 0}}"` |
-| 19 | `Promise.all` 无部分失败处理 | **已修复** | 改为 `Promise.allSettled`，区分全部/部分/全部失败 |
-| 20 | `create_all` 每次启动建表 | **已修复** | 改为 `inspect` 检查表是否存在，不存在才创建 |
-
----
-
-## 目录结构
+## 目录结构预览
 
 ```
 miniprogram/
 ├── app.js / app.json / app.wxss
-├── DEVELOPMENT.md              # 二次开发指南
 ├── utils/
-│   ├── request.js              # wx.request 封装，自动带 JWT
-│   ├── auth.js                 # 登录、token 管理
-│   └── config.js               # API base URL（HTTPS）
+│   ├── request.js        # wx.request 封装，自动带 JWT
+│   ├── auth.js           # 登录、token 管理
+│   └── config.js         # API base URL
 ├── pages/
-│   ├── home/                   # 首页
-│   ├── chat/                   # AI 聊天
-│   ├── log/                    # 记录
-│   ├── profile/                # 我的
-│   ├── stats/                  # 统计
-│   ├── timer/
-│   │   ├── timer-setup/        # 训练计划配置
-│   │   ├── timer-training/     # 训练中
-│   │   ├── timer-summary/      # 训练完成
-│   │   └── training-plan/      # 周训练计划
-│   └── exercise-guide/
-│       ├── exercise-guide/     # 肌群列表
-│       ├── exercise-list/      # 动作列表
-│       └── exercise-detail/    # 动作详情
+│   ├── home/             # 首页：今日概览、卡路里环
+│   ├── chat/             # AI 聊天：SSE 流式
+│   ├── log/              # 记录：饮食/运动快捷录入
+│   ├── profile/          # 我的：个人档案
+│   ├── stats/            # 统计：历史趋势图
+│   ├── timer/            # 训练计时器（新增 2026-05-15）
+│   │   ├── timer-setup/      # 训练计划配置
+│   │   ├── timer-training/   # 训练进行中（组间休息计时）
+│   │   └── timer-summary/    # 训练完成总结
+│   └── exercise-guide/   # 动作指导库（新增 2026-05-15）
+│       ├── exercise-guide/   # 肌群分类列表
+│       ├── exercise-list/    # 某肌群的动作列表
+│       └── exercise-detail/  # 动作详情（视频+讲解）
 ├── data/
-│   ├── exercises.js            # 动作数据聚合
-│   ├── exercises/              # 7 个肌群数据文件
-│   └── templates.js            # 训练模板
-├── components/
-│   ├── food-item/
-│   └── exercise-item/
-└── images/
-    ├── tab-*.png               # TabBar 图标（10 个）
-    ├── guide/                  # 肌群封面 + 动作 GIF（待补充）
-    └── default-avatar.png      # 默认头像（待补充）
+│   ├── exercises.js          # 动作数据聚合入口
+│   └── exercises/            # 按肌群拆分的数据文件
+│       ├── chest.js / back.js / shoulder.js
+│       ├── arms.js / legs.js / core.js / cardio.js
+└── components/
+    ├── calorie-ring/     # 卡路里环形进度条
+    ├── chat-bubble/      # 聊天气泡
+    ├── food-item/        # 食物记录卡片
+    └── exercise-item/    # 运动记录卡片
 ```

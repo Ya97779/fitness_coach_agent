@@ -159,16 +159,3 @@
   font-weight: 600;
   letter-spacing: 1rpx;
 }
-
-.retry-bar {
-  text-align: center;
-  padding: 16rpx;
-  background: var(--bg-card);
-  border-top: 1rpx solid var(--border);
-}
-
-.retry-text {
-  font-size: 24rpx;
-  color: var(--accent);
-  font-weight: 500;
-}

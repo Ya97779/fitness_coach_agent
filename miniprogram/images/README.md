@@ -20,8 +20,10 @@
 | 文件名 | 说明 |
 |--------|------|
 | default-avatar.png | 默认头像（120x120） |
-
-## 动作演示图
-
-动作演示图（GIF/JPG/PNG）存放在后端服务器 `backend/static/guide/` 目录，通过 `https://gzyhm.xyz/guide/` 访问。
-数据文件中 `cover` 字段直接使用完整 URL，不打包进小程序代码包（超出 2MB 限制）。
+| guide/chest.png | 胸部肌群封面 |
+| guide/back.png | 背部肌群封面 |
+| guide/shoulder.png | 肩部肌群封面 |
+| guide/arms.png | 手臂肌群封面 |
+| guide/legs.png | 腿部肌群封面 |
+| guide/core.png | 核心肌群封面 |
+| guide/cardio.png | 有氧减脂封面 |

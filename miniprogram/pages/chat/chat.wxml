@@ -22,11 +22,6 @@
     <view id="msg-bottom" style="height: 20rpx;"></view>
   </scroll-view>
 
-  <!-- 重试按钮 -->
-  <view class="retry-bar" wx:if="{{disconnected && !sending}}" bindtap="retryLastMessage">
-    <text class="retry-text">连接中断，点击重试</text>
-  </view>
-
   <!-- 输入区 -->
   <view class="input-bar">
     <input class="input-field" placeholder="问我任何健身或营养问题..." value="{{inputValue}}" bindinput="onInput" bindconfirm="sendMessage" confirm-type="send" />

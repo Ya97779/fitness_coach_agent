@@ -44,19 +44,13 @@ Page({
       return request({ url: '/api/v1/exercise-log', method: 'POST', data })
     })
 
-    Promise.allSettled(requests).then(results => {
+    Promise.all(requests).then(() => {
       wx.hideLoading()
-      const failed = results.filter(r => r.status === 'rejected')
-      if (failed.length === 0) {
-        wx.showToast({ title: '保存成功', icon: 'success' })
-      } else if (failed.length < results.length) {
-        wx.showToast({ title: `部分保存失败（${failed.length}/${results.length}）`, icon: 'none' })
-      } else {
-        wx.showToast({ title: '保存失败', icon: 'none' })
-      }
-      if (failed.length < results.length) {
-        this.setData({ saved: true })
-      }
+      wx.showToast({ title: '保存成功', icon: 'success' })
+      this.setData({ saved: true })
+    }).catch(err => {
+      wx.hideLoading()
+      wx.showToast({ title: err.message || '保存失败', icon: 'none' })
     })
   },
 

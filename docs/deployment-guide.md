@@ -184,7 +184,7 @@ After=network.target
 Type=simple
 User=fitcoach
 Group=fitcoach
-WorkingDirectory=/var/www/fitcoach
+WorkingDirectory=/var/www/fitcoach/fitness_coach_agent
 Environment="PATH=/var/www/fitcoach/venv/bin"
 ExecStart=/var/www/fitcoach/venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 2
 Restart=always
