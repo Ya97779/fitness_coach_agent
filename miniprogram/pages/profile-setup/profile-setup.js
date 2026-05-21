@@ -9,9 +9,15 @@ Page({
     this.setData({ nickname: e.detail.value })
   },
 
+  onNicknameChange(e) {
+    if (e.detail.value) {
+      this.setData({ nickname: e.detail.value })
+    }
+  },
+
   saveProfile() {
-    const { nickname } = this.data
-    if (!nickname.trim()) {
+    const nickname = this.data.nickname.trim()
+    if (!nickname) {
       wx.showToast({ title: '请输入昵称', icon: 'none' })
       return
     }

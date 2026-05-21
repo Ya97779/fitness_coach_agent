@@ -1,13 +1,19 @@
 <view class="page">
-  <view class="top-section">
-    <text class="title">设置个人信息</text>
-    <text class="desc">让 AI 助手更好地认识你</text>
+  <text class="title">设置个人信息</text>
+  <text class="desc">让 AI 助手更好地认识你</text>
 
-    <!-- 昵称 -->
-    <view class="nickname-section">
-      <text class="field-label">昵称</text>
-      <input class="nickname-input" type="nickname" placeholder="点击选择微信昵称或手动输入" value="{{nickname}}" bindinput="onNicknameInput" bindchange="onNicknameInput" />
-    </view>
+  <!-- 昵称 -->
+  <view class="nickname-section">
+    <text class="field-label">昵称</text>
+    <input
+      class="nickname-input"
+      type="nickname"
+      placeholder="点击输入框选择微信昵称"
+      value="{{nickname}}"
+      bindinput="onNicknameInput"
+      bindchange="onNicknameChange"
+      bindblur="onNicknameChange"
+    />
   </view>
 
   <!-- 按钮 -->
