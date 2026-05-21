@@ -87,4 +87,9 @@
     <text class="empty-main">今天还没有记录</text>
     <text class="empty-sub">去聊天或记录页面开始吧</text>
   </view>
+
+  <!-- 反馈入口 -->
+  <view class="feedback-entry" wx:if="{{loggedIn}}" bindtap="goFeedback">
+    <text class="feedback-text">帮助改进 FitCoach</text>
+  </view>
 </view>

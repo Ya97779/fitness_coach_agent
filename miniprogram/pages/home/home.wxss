@@ -251,6 +251,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 反馈入口 */
+.feedback-entry {
+  text-align: center;
+  padding: 32rpx 0 16rpx;
+}
+
+.feedback-text {
+  font-size: 24rpx;
+  color: var(--text-hint);
+  letter-spacing: 1rpx;
+  text-decoration: underline;
+}
+
 /* 空状态 */
 .empty {
   text-align: center;

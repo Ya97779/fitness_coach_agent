@@ -138,6 +138,10 @@ Page({
     wx.navigateTo({ url: '/pages/stats/stats' })
   },
 
+  goFeedback() {
+    wx.navigateTo({ url: '/pages/feedback/feedback' })
+  },
+
   handleLogin() {
     showLoginPrompt().then(loggedIn => {
       if (loggedIn) {

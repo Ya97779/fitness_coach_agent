@@ -12,7 +12,8 @@
     "pages/timer/training-plan/training-plan",
     "pages/exercise-guide/exercise-guide/exercise-guide",
     "pages/exercise-guide/exercise-list/exercise-list",
-    "pages/exercise-guide/exercise-detail/exercise-detail"
+    "pages/exercise-guide/exercise-detail/exercise-detail",
+    "pages/feedback/feedback"
   ],
   "window": {
     "backgroundTextStyle": "light",

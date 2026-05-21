@@ -54,10 +54,12 @@ async def general_exception_handler(request: Request, exc: Exception):
 _backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _guide_dir = os.path.join(_backend_dir, "static", "guide")
 _avatars_dir = os.path.join(_backend_dir, "static", "avatars")
+_feedback_dir = os.path.join(_backend_dir, "static", "feedback")
 if os.path.isdir(_guide_dir):
     app.mount("/guide", StaticFiles(directory=_guide_dir), name="guide")
 os.makedirs(_avatars_dir, exist_ok=True)
 app.mount("/avatars", StaticFiles(directory=_avatars_dir), name="avatars")
+os.makedirs(_feedback_dir, exist_ok=True)
 
 # ========== RAG 启动初始化 ==========
 rag_initialized = False
@@ -179,6 +181,10 @@ class ExerciseLogCreate(BaseModel):
     name: Optional[str] = None
     sets: Optional[int] = None
     weight: Optional[float] = None
+
+class FeedbackCreate(BaseModel):
+    content: str
+    contact: Optional[str] = None
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -479,6 +485,39 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+# ----- 反馈 -----
+@router.post("/feedback")
+def submit_feedback(
+    data: FeedbackCreate,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    from datetime import datetime
+    now = datetime.now()
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    date_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    nickname = current_user.nickname or "未设置"
+    contact = data.contact or "未提供"
+
+    filename = f"{now.strftime('%Y-%m-%d')}_{current_user.id}_{ts}.md"
+    filepath = os.path.join(_feedback_dir, filename)
+
+    content = f"""# 用户反馈
+
+- 时间: {date_str}
+- 用户ID: {current_user.id}
+- 昵称: {nickname}
+- 联系方式: {contact}
+
+## 反馈内容
+
+{data.content}
+"""
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return {"message": "反馈已提交", "filename": filename}
+
 
 # ----- 工具列表（无需鉴权） -----
 @router.get("/agents")
