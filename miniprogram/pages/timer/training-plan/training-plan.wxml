@@ -87,7 +87,6 @@
     </view>
     <scroll-view class="sheet-body" scroll-y>
       <view class="tpl-row" wx:for="{{templates}}" wx:key="id" bindtap="applyTemplate" data-id="{{item.id}}">
-        <text class="tpl-icon">{{item.icon}}</text>
         <view class="tpl-info">
           <text class="tpl-name">{{item.name}}</text>
           <text class="tpl-desc">{{item.exercises.length}} 个动作</text>

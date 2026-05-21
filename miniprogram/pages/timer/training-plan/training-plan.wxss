@@ -362,17 +362,6 @@
   border-bottom: none;
 }
 
-.tpl-icon {
-  font-size: 40rpx;
-  width: 64rpx;
-  height: 64rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-base);
-  border-radius: var(--radius-sm);
-}
-
 .tpl-info {
   flex: 1;
 }

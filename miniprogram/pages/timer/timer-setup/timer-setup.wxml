@@ -20,7 +20,6 @@
       <view class="template-card {{activeTemplate === item.id ? 'template-active' : ''}}"
             wx:for="{{templates}}" wx:key="id"
             bindtap="useTemplate" data-id="{{item.id}}">
-        <text class="template-icon">{{item.icon}}</text>
         <text class="template-name">{{item.name}}</text>
       </view>
     </scroll-view>
