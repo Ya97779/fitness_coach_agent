@@ -1,4 +1,5 @@
 const { request } = require('../../utils/request')
+const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 const MEAL_TYPE_MAP = {
   breakfast: '早餐',
@@ -17,11 +18,17 @@ Page({
     tdee: 2000,
     foodItems: [],
     exerciseItems: [],
-    loading: true
+    loading: true,
+    loggedIn: false
   },
 
   onShow() {
     this.setGreeting()
+    if (!isLoggedIn()) {
+      this.setData({ loggedIn: false, loading: false })
+      return
+    }
+    this.setData({ loggedIn: true })
     this.loadData()
   },
 
@@ -66,9 +73,8 @@ Page({
         loading: false
       })
       this.drawRing(intake, burn, tdee)
-    }).catch(err => {
+    }).catch(() => {
       this.setData({ loading: false })
-      wx.showToast({ title: err.message || '加载失败', icon: 'none' })
     })
   },
 
@@ -128,5 +134,14 @@ Page({
 
   goStats() {
     wx.navigateTo({ url: '/pages/stats/stats' })
+  },
+
+  handleLogin() {
+    showLoginPrompt().then(loggedIn => {
+      if (loggedIn) {
+        this.setData({ loggedIn: true })
+        this.loadData()
+      }
+    })
   }
 })

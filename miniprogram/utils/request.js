@@ -24,13 +24,25 @@ function request(options) {
           resolve(res.data)
         } else if (res.statusCode === 401) {
           wx.removeStorageSync('token')
+          const app = getApp()
+          if (app) { app.globalData.token = null }
           if (!loginModalShowing) {
             loginModalShowing = true
+            const { login } = require('./auth')
             wx.showModal({
               title: '登录已过期',
-              content: '请重新登录',
-              showCancel: false,
-              confirmText: '知道了',
+              content: '是否重新登录？',
+              confirmText: '重新登录',
+              cancelText: '取消',
+              success(modalRes) {
+                if (modalRes.confirm) {
+                  login().then(() => {
+                    wx.showToast({ title: '登录成功', icon: 'success' })
+                  }).catch(() => {
+                    wx.showToast({ title: '登录失败', icon: 'none' })
+                  })
+                }
+              },
               complete() { loginModalShowing = false }
             })
           }

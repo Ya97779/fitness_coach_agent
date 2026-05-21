@@ -1,9 +1,10 @@
 const { request } = require('../../utils/request')
-const { logout: authLogout } = require('../../utils/auth')
+const { logout: authLogout, isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 Page({
   data: {
     userInfo: {},
+    loggedIn: false,
     showEditModal: false,
     editForm: {
       height: '', weight: '', age: '', gender: '男',
@@ -12,15 +13,18 @@ Page({
   },
 
   onShow() {
+    if (!isLoggedIn()) {
+      this.setData({ loggedIn: false })
+      return
+    }
+    this.setData({ loggedIn: true })
     this.loadProfile()
   },
 
   loadProfile() {
     request({ url: '/api/v1/user/me' }).then(user => {
       this.setData({ userInfo: user })
-    }).catch(err => {
-      wx.showToast({ title: err.message || '加载失败', icon: 'none' })
-    })
+    }).catch(() => {})
   },
 
   showEdit() {
@@ -80,8 +84,17 @@ Page({
       success: res => {
         if (res.confirm) {
           authLogout()
-          wx.reLaunch({ url: '/pages/home/home' })
+          this.setData({ loggedIn: false, userInfo: {} })
         }
+      }
+    })
+  },
+
+  handleLogin() {
+    showLoginPrompt().then(loggedIn => {
+      if (loggedIn) {
+        this.setData({ loggedIn: true })
+        this.loadProfile()
       }
     })
   }

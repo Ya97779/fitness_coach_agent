@@ -1,8 +1,10 @@
 const { request } = require('../../utils/request')
+const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 Page({
   data: {
     activeTab: 'food',
+    loggedIn: false,
     // 饮食
     foodName: '',
     foodCalories: '',
@@ -11,6 +13,16 @@ Page({
     exerciseType: '',
     exerciseDuration: '',
     exercisePresets: ['跑步', '游泳', '骑行', '跳绳', '力量训练', 'HIIT', '瑜伽', '快走']
+  },
+
+  onLoad() {
+    if (!isLoggedIn()) {
+      showLoginPrompt().then(loggedIn => {
+        if (loggedIn) this.setData({ loggedIn: true })
+      })
+      return
+    }
+    this.setData({ loggedIn: true })
   },
 
   switchTab(e) {
@@ -58,6 +70,12 @@ Page({
     }).catch(err => {
       wx.hideLoading()
       wx.showToast({ title: err.message || '记录失败', icon: 'none' })
+    })
+  },
+
+  handleLogin() {
+    showLoginPrompt().then(loggedIn => {
+      if (loggedIn) this.setData({ loggedIn: true })
     })
   }
 })

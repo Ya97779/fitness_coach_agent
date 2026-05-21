@@ -1,23 +1,31 @@
 <view class="page">
+  <!-- 未登录提示 -->
+  <view class="login-card" wx:if="{{!loggedIn}}">
+    <text class="login-card-title">登录后可查看统计数据</text>
+    <view class="login-card-btn" bindtap="handleLogin">
+      <text class="login-card-btn-text">立即登录</text>
+    </view>
+  </view>
+
   <!-- 日期范围 -->
-  <view class="range-tabs">
+  <view class="range-tabs" wx:if="{{loggedIn}}">
     <view class="range-tab {{range === 7 ? 'range-on' : ''}}" bindtap="setRange" data-range="7">近 7 天</view>
     <view class="range-tab {{range === 30 ? 'range-on' : ''}}" bindtap="setRange" data-range="30">近 30 天</view>
   </view>
 
   <!-- 折线图 -->
-  <view class="card" wx:if="{{logs.length > 0}}">
+  <view class="card" wx:if="{{loggedIn}}">
     <text class="chart-label">摄入 vs 消耗</text>
     <canvas canvas-id="lineChart" id="lineChart" class="chart-canvas" />
   </view>
 
   <!-- 柱状图 -->
-  <view class="card" wx:if="{{logs.length > 0}}">
+  <view class="card" wx:if="{{loggedIn}}">
     <text class="chart-label">每日净热量</text>
     <canvas canvas-id="barChart" id="barChart" class="chart-canvas" />
   </view>
 
-  <view class="empty" wx:if="{{!loading && logs.length === 0}}">
+  <view class="empty" wx:if="{{loggedIn && !loading && logs.length === 0}}">
     <text class="empty-text">暂无历史数据</text>
   </view>
 </view>

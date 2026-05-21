@@ -46,4 +46,25 @@ function isLoggedIn() {
   return !!wx.getStorageSync('token')
 }
 
-module.exports = { login, logout, getToken, isLoggedIn }
+function showLoginPrompt() {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title: '登录提示',
+      content: '登录后可使用 AI 助手、记录训练、查看统计等功能',
+      confirmText: '立即登录',
+      cancelText: '稍后再说',
+      success(res) {
+        if (res.confirm) {
+          login().then(() => resolve(true)).catch(() => {
+            wx.showToast({ title: '登录失败，请重试', icon: 'none' })
+            resolve(false)
+          })
+        } else {
+          resolve(false)
+        }
+      }
+    })
+  })
+}
+
+module.exports = { login, logout, getToken, isLoggedIn, showLoginPrompt }

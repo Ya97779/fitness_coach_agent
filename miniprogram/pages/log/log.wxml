@@ -1,12 +1,21 @@
 <view class="page">
+  <!-- 未登录提示 -->
+  <view class="login-card" wx:if="{{!loggedIn}}">
+    <text class="login-card-title">登录后可记录饮食和运动</text>
+    <text class="login-card-desc">自动查询食物热量、保存训练记录</text>
+    <view class="login-card-btn" bindtap="handleLogin">
+      <text class="login-card-btn-text">立即登录</text>
+    </view>
+  </view>
+
   <!-- Tab 切换 -->
-  <view class="tabs">
+  <view class="tabs" wx:if="{{loggedIn}}">
     <view class="tab {{activeTab === 'food' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="food">饮食</view>
     <view class="tab {{activeTab === 'exercise' ? 'tab-on' : ''}}" bindtap="switchTab" data-tab="exercise">运动</view>
   </view>
 
   <!-- 饮食录入 -->
-  <view class="tab-content" wx:if="{{activeTab === 'food'}}">
+  <view class="tab-content" wx:if="{{loggedIn && activeTab === 'food'}}">
     <view class="card">
       <view class="form-group">
         <text class="form-label">食物名称</text>
@@ -32,7 +41,7 @@
   </view>
 
   <!-- 运动录入 -->
-  <view class="tab-content" wx:if="{{activeTab === 'exercise'}}">
+  <view class="tab-content" wx:if="{{loggedIn && activeTab === 'exercise'}}">
     <view class="card">
       <view class="form-group">
         <text class="form-label">运动类型</text>

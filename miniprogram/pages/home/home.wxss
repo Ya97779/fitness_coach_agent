@@ -2,6 +2,44 @@
   padding-bottom: 40rpx;
 }
 
+/* 登录提示卡片 */
+.login-card {
+  margin: 0 28rpx 24rpx;
+  padding: 36rpx;
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.login-card-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 12rpx;
+}
+
+.login-card-desc {
+  font-size: 24rpx;
+  color: var(--text-hint);
+  display: block;
+  margin-bottom: 28rpx;
+}
+
+.login-card-btn {
+  display: inline-block;
+  background: var(--text-primary);
+  color: #fff;
+  padding: 18rpx 64rpx;
+  border-radius: var(--radius-sm);
+}
+
+.login-card-btn-text {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
 /* 顶部 */
 .hero {
   padding: 48rpx 28rpx 28rpx;

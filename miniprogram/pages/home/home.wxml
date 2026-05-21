@@ -5,8 +5,17 @@
     <text class="hero-date">{{todayStr}}</text>
   </view>
 
+  <!-- 未登录提示 -->
+  <view class="login-card" wx:if="{{!loggedIn}}">
+    <text class="login-card-title">登录解锁更多功能</text>
+    <text class="login-card-desc">登录后可使用 AI 助手、记录训练、查看统计等</text>
+    <view class="login-card-btn" bindtap="handleLogin">
+      <text class="login-card-btn-text">立即登录</text>
+    </view>
+  </view>
+
   <!-- 卡路里 -->
-  <view class="calorie-card">
+  <view class="calorie-card" wx:if="{{loggedIn}}">
     <view class="ring-wrap">
       <canvas canvas-id="calorieRing" id="calorieRing" class="ring-canvas" />
       <view class="ring-center">
@@ -28,7 +37,7 @@
   </view>
 
   <!-- 快捷入口 -->
-  <view class="shortcuts">
+  <view class="shortcuts" wx:if="{{loggedIn}}">
     <view class="shortcut" bindtap="goLog">
       <text class="shortcut-icon">+</text>
       <text class="shortcut-text">记录饮食</text>
@@ -44,11 +53,11 @@
   </view>
 
   <!-- 今日记录 -->
-  <view class="section-head">
+  <view class="section-head" wx:if="{{loggedIn}}">
     <text class="section-title">今日记录</text>
   </view>
 
-  <view class="card" wx:if="{{foodItems.length > 0}}">
+  <view class="card" wx:if="{{loggedIn && foodItems.length > 0}}">
     <text class="record-group-label">饮食</text>
     <view class="record-item" wx:for="{{foodItems}}" wx:key="id">
       <view class="record-dot dot-food"></view>
@@ -60,7 +69,7 @@
     </view>
   </view>
 
-  <view class="card" wx:if="{{exerciseItems.length > 0}}">
+  <view class="card" wx:if="{{loggedIn && exerciseItems.length > 0}}">
     <text class="record-group-label">运动</text>
     <view class="record-item" wx:for="{{exerciseItems}}" wx:key="id">
       <view class="record-dot dot-exercise"></view>
@@ -72,7 +81,7 @@
     </view>
   </view>
 
-  <view class="empty" wx:if="{{!loading && foodItems.length === 0 && exerciseItems.length === 0}}">
+  <view class="empty" wx:if="{{loggedIn && !loading && foodItems.length === 0 && exerciseItems.length === 0}}">
     <text class="empty-main">今天还没有记录</text>
     <text class="empty-sub">去聊天或记录页面开始吧</text>
   </view>

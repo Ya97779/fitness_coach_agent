@@ -1,13 +1,27 @@
 const { request } = require('../../utils/request')
+const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 Page({
   data: {
     range: 7,
     logs: [],
-    loading: true
+    loading: true,
+    loggedIn: false
   },
 
   onLoad() {
+    if (!isLoggedIn()) {
+      showLoginPrompt().then(loggedIn => {
+        if (loggedIn) {
+          this.setData({ loggedIn: true })
+          this.loadLogs()
+        } else {
+          this.setData({ loading: false })
+        }
+      })
+      return
+    }
+    this.setData({ loggedIn: true })
     this.loadLogs()
   },
 
@@ -28,9 +42,8 @@ Page({
 
       this.setData({ logs: filtered, loading: false })
       this.drawCharts(filtered)
-    }).catch(err => {
+    }).catch(() => {
       this.setData({ loading: false })
-      wx.showToast({ title: err.message || '加载失败', icon: 'none' })
     })
   },
 
@@ -171,6 +184,15 @@ Page({
       })
 
       ctx.draw()
+    })
+  },
+
+  handleLogin() {
+    showLoginPrompt().then(loggedIn => {
+      if (loggedIn) {
+        this.setData({ loggedIn: true })
+        this.loadLogs()
+      }
     })
   }
 })

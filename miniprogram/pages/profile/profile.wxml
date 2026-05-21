@@ -7,8 +7,17 @@
     </view>
   </view>
 
+  <!-- 未登录提示 -->
+  <view class="login-card" wx:if="{{!loggedIn}}">
+    <text class="login-card-title">登录后可查看个人资料</text>
+    <text class="login-card-desc">管理身体数据、查看训练记录</text>
+    <view class="login-card-btn" bindtap="handleLogin">
+      <text class="login-card-btn-text">立即登录</text>
+    </view>
+  </view>
+
   <!-- 身体数据 -->
-  <view class="card">
+  <view class="card" wx:if="{{loggedIn}}">
     <text class="card-label">身体数据</text>
     <view class="data-grid">
       <view class="data-item">
@@ -31,7 +40,7 @@
   </view>
 
   <!-- 代谢数据 -->
-  <view class="card">
+  <view class="card" wx:if="{{loggedIn}}">
     <text class="card-label">代谢指标</text>
     <view class="data-grid">
       <view class="data-item">
@@ -46,7 +55,7 @@
   </view>
 
   <!-- 目标信息 -->
-  <view class="card" wx:if="{{userInfo.target_weight || userInfo.allergies}}">
+  <view class="card" wx:if="{{loggedIn && (userInfo.target_weight || userInfo.allergies)}}">
     <text class="card-label">目标信息</text>
     <view class="info-row" wx:if="{{userInfo.target_weight}}">
       <text class="info-key">目标体重</text>
@@ -59,7 +68,7 @@
   </view>
 
   <!-- 编辑 -->
-  <view class="edit-row" bindtap="showEdit">
+  <view class="edit-row" wx:if="{{loggedIn}}" bindtap="showEdit">
     <text class="edit-text">编辑个人资料</text>
     <text class="edit-arrow">></text>
   </view>
@@ -103,5 +112,5 @@
   </view>
 
   <!-- 退出登录 -->
-  <view class="logout-btn" bindtap="logout">退出登录</view>
+  <view class="logout-btn" wx:if="{{loggedIn}}" bindtap="logout">退出登录</view>
 </view>

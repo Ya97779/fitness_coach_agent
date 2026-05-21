@@ -2,6 +2,37 @@
   padding: 0 28rpx 40rpx;
 }
 
+/* 登录提示 */
+.login-card {
+  padding: 36rpx;
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  margin-top: 40rpx;
+}
+
+.login-card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 28rpx;
+}
+
+.login-card-btn {
+  display: inline-block;
+  background: var(--text-primary);
+  color: #fff;
+  padding: 18rpx 64rpx;
+  border-radius: var(--radius-sm);
+}
+
+.login-card-btn-text {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
 /* 日期范围 */
 .range-tabs {
   display: flex;

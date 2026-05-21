@@ -1,4 +1,5 @@
 const { streamRequest } = require('../../utils/request')
+const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 let msgId = 0
 
@@ -8,8 +9,6 @@ Page({
     inputValue: '',
     scrollToId: '',
     sending: false,
-    disconnected: false,
-    lastUserMessage: '',
     shortcuts: [
       { icon: '🍚', text: '记录早餐' },
       { icon: '🏋️', text: '记录运动' },
@@ -31,6 +30,11 @@ Page({
     const text = this.data.inputValue.trim()
     if (!text || this.data.sending) return
 
+    if (!isLoggedIn()) {
+      showLoginPrompt()
+      return
+    }
+
     const userMsg = { id: `m${++msgId}`, role: 'user', content: text }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
 
@@ -38,62 +42,30 @@ Page({
       messages: [...this.data.messages, userMsg, aiMsg],
       inputValue: '',
       sending: true,
-      disconnected: false,
-      lastUserMessage: text,
       scrollToId: `msg-${aiMsg.id}`
     })
-
-    this._doStream(text, aiMsg.id)
-  },
-
-  retryLastMessage() {
-    if (!this.data.lastUserMessage || this.data.sending) return
-    // 删除最后一条空的或错误的 AI 消息，重新创建
-    const messages = this.data.messages.filter(m => {
-      if (m.role === 'ai' && m.id === `m${msgId}`) return false
-      return true
-    })
-    const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
-    this.setData({
-      messages: [...messages, aiMsg],
-      sending: true,
-      disconnected: false,
-      scrollToId: `msg-${aiMsg.id}`
-    })
-    this._doStream(this.data.lastUserMessage, aiMsg.id)
-  },
-
-  _doStream(text, aiMsgId) {
-    // 构建上下文：最近 10 条消息
-    const history = this.data.messages
-      .slice(-10)
-      .filter(m => !m.loading)
-      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
 
     let fullContent = ''
     const requestTask = streamRequest(
-      { url: '/api/v1/chat/stream', data: { message: text, history } },
+      { url: '/api/v1/chat/stream', data: { message: text } },
       (chunk) => {
+        // 解析 SSE 数据
         const lines = chunk.split('\n')
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') continue
             fullContent += data
-            this.updateAiMessage(aiMsgId, fullContent)
+            this.updateAiMessage(aiMsg.id, fullContent)
           }
         }
       },
       () => {
-        this.finishAiMessage(aiMsgId)
+        this.finishAiMessage(aiMsg.id)
       },
       (err) => {
-        if (!fullContent) {
-          this.setData({ disconnected: true })
-        }
-        this.updateAiMessage(aiMsgId, fullContent || '连接中断，请点击重试')
-        this.setData({ sending: false })
-        this.finishAiMessage(aiMsgId)
+        this.updateAiMessage(aiMsg.id, fullContent || '抱歉，发生了错误，请稍后重试。')
+        this.finishAiMessage(aiMsg.id)
       }
     )
   },
