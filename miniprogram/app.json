@@ -5,6 +5,7 @@
     "pages/timer/timer-setup/timer-setup",
     "pages/log/log",
     "pages/profile/profile",
+    "pages/profile-setup/profile-setup",
     "pages/stats/stats",
     "pages/timer/timer-training/timer-training",
     "pages/timer/timer-summary/timer-summary",

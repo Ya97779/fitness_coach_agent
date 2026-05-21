@@ -1,52 +1,27 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from . import models, database, auth
 from .agents.graph import process_user_message, stream_user_message
 from .agents.fitness_agent import estimate_exercise_calories
 from .food_api import search_food_nutrient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Optional, Literal
 import asyncio
 import os
+import uuid
 from datetime import date
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 仅在表不存在时创建，不会修改已有表结构
-from sqlalchemy import inspect
-inspector = inspect(database.engine)
-if not inspector.has_table("users"):
-    models.Base.metadata.create_all(bind=database.engine)
+models.Base.metadata.create_all(bind=database.engine)
 
-limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
-app.state.limiter = limiter
-
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
-        status_code=429,
-        content={"code": 429, "message": "请求过于频繁，请稍后再试"},
-    )
-
-# ========== 静态文件 ==========
-# 图片资源（动作演示图等）通过 /guide/ 路径访问
-_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_guide_dir = os.path.join(_backend_dir, "static", "guide")
-if os.path.isdir(_guide_dir):
-    app.mount("/guide", StaticFiles(directory=_guide_dir), name="guide")
-    print(f"[静态文件] 已挂载: {_guide_dir}")
-else:
-    print(f"[静态文件] 目录不存在: {_guide_dir}")
 
 # ========== CORS ==========
 ALLOWED_ORIGINS = [
@@ -75,6 +50,15 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"code": 500, "message": "服务器内部错误"},
     )
 
+# ========== 静态文件 ==========
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_guide_dir = os.path.join(_backend_dir, "static", "guide")
+_avatars_dir = os.path.join(_backend_dir, "static", "avatars")
+if os.path.isdir(_guide_dir):
+    app.mount("/guide", StaticFiles(directory=_guide_dir), name="guide")
+os.makedirs(_avatars_dir, exist_ok=True)
+app.mount("/avatars", StaticFiles(directory=_avatars_dir), name="avatars")
+
 # ========== RAG 启动初始化 ==========
 rag_initialized = False
 
@@ -102,12 +86,16 @@ async def startup_event():
 
 # ========== Pydantic 模型 ==========
 class UserCreate(BaseModel):
-    height: float = Field(gt=0, le=300, description="身高(cm)")
-    weight: float = Field(gt=0, le=500, description="体重(kg)")
-    age: int = Field(gt=0, le=150, description="年龄")
-    gender: str = Field(pattern=r"^(男|女|未知)$", description="性别")
-    target_weight: Optional[float] = Field(None, gt=0, le=500)
-    allergies: Optional[str] = Field(None, max_length=500)
+    height: float
+    weight: float
+    age: int
+    gender: str
+    target_weight: Optional[float] = None
+    allergies: Optional[str] = None
+
+class ProfileUpdate(BaseModel):
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -168,7 +156,6 @@ class ChatResponse(BaseModel):
 
 class StreamChatRequest(BaseModel):
     message: str
-    history: Optional[List[dict]] = None  # 多轮对话历史
 
 class WxLoginRequest(BaseModel):
     code: str
@@ -182,16 +169,16 @@ class ErrorResponse(BaseModel):
     message: str
 
 class FoodLogCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    calories: Optional[float] = Field(None, gt=0, le=10000)
+    name: str
+    calories: Optional[float] = None
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
 
 class ExerciseLogCreate(BaseModel):
-    type: str = Field(min_length=1, max_length=100)
-    duration: int = Field(gt=0, le=600, description="运动时长(分钟)")
-    name: Optional[str] = Field(None, max_length=100)
-    sets: Optional[int] = Field(None, gt=0, le=100)
-    weight: Optional[float] = Field(None, gt=0, le=1000)
+    type: str
+    duration: int  # 分钟
+    name: Optional[str] = None
+    sets: Optional[int] = None
+    weight: Optional[float] = None
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -220,11 +207,13 @@ async def wx_login(req: WxLoginRequest, db: Session = Depends(database.get_db)):
         user = models.User(
             openid=wx_session["openid"],
             unionid=wx_session.get("unionid"),
+            session_key=wx_session["session_key"],
         )
         db.add(user)
         db.commit()
         db.refresh(user)
     else:
+        user.session_key = wx_session["session_key"]
         if wx_session.get("unionid"):
             user.unionid = wx_session["unionid"]
         db.commit()
@@ -254,6 +243,45 @@ def create_or_update_user(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+@router.post("/user/profile", response_model=UserResponse)
+def update_profile(
+    data: ProfileUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    if data.nickname is not None:
+        current_user.nickname = data.nickname
+    if data.avatar_url is not None:
+        current_user.avatar_url = data.avatar_url
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+@router.post("/user/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    ext = os.path.splitext(file.filename)[1] if file.filename else '.png'
+    filename = f"avatar_{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
+    avatar_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "static", "avatars"
+    )
+    os.makedirs(avatar_dir, exist_ok=True)
+    filepath = os.path.join(avatar_dir, filename)
+    content = await file.read()
+    with open(filepath, 'wb') as f:
+        f.write(content)
+
+    base_url = os.getenv("API_BASE_URL", "https://gzyapi.gzyhm.xyz")
+    avatar_url = f"{base_url}/avatars/{filename}"
+    current_user.avatar_url = avatar_url
+    db.commit()
+    db.refresh(current_user)
+    return {"avatar_url": avatar_url}
 
 @router.get("/user/me", response_model=UserResponse)
 def get_current_user_info(
@@ -347,8 +375,7 @@ def create_exercise_log(
         db.refresh(log)
 
     body_weight = current_user.weight or 60
-    result = estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
-    calories = result.get("calories", 0) if isinstance(result, dict) else 0
+    calories = estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
 
     item = models.ExerciseItem(
         log_id=log.id,
@@ -393,17 +420,15 @@ def _build_user_context(user: models.User, db: Session):
     return user_profile, daily_stats
 
 @router.post("/chat", response_model=ChatResponse)
-@limiter.limit("30/minute")
 def chat(
-    request: Request,
-    body: ChatRequest,
+    request: ChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
 
     result = process_user_message(
-        user_message=body.message,
+        user_message=request.message,
         user_id=current_user.id,
         user_profile=user_profile,
         daily_stats=daily_stats,
@@ -417,16 +442,14 @@ def chat(
     )
 
 @router.post("/chat/stream")
-@limiter.limit("20/minute")
 async def chat_stream(
-    request: Request,
-    body: StreamChatRequest,
+    request: StreamChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
 
-    user_message = body.message.strip() if body.message else "你好"
+    user_message = request.message.strip() if request.message else "你好"
 
     async def event_generator():
         try:

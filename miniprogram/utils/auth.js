@@ -55,7 +55,14 @@ function showLoginPrompt() {
       cancelText: '稍后再说',
       success(res) {
         if (res.confirm) {
-          login().then(() => resolve(true)).catch(() => {
+          login().then((data) => {
+            // 登录成功，检查是否需要设置头像昵称
+            const user = data.user
+            if (!user.nickname) {
+              wx.navigateTo({ url: '/pages/profile-setup/profile-setup' })
+            }
+            resolve(true)
+          }).catch(() => {
             wx.showToast({ title: '登录失败，请重试', icon: 'none' })
             resolve(false)
           })
