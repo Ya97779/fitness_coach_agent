@@ -211,6 +211,128 @@ class MemoryManager:
         """
         return self.summarizer.should_summarize(messages)
 
+    def load_all_memory(self) -> None:
+        """一次性加载所有记忆数据到缓存（单次 DB 连接）
+
+        替代分别调用 load_profile / get_goal / get_today_stats / get_week_stats，
+        将 8-10 次独立 DB 连接合并为 1 次，大幅减少流式响应的首字延迟。
+        """
+        from datetime import date, timedelta
+
+        db = database.SessionLocal()
+        try:
+            # ── User 表：一次查询，供 profile / goal / tdee 共用 ──
+            user = db.query(models.User).filter(models.User.id == self.user_id).first()
+
+            if user:
+                self._profile = {
+                    "user_id": user.id,
+                    "basic_info": {
+                        "height": user.height,
+                        "weight": user.weight,
+                        "age": user.age,
+                        "gender": user.gender,
+                    },
+                    "body_metrics": {
+                        "bmr": user.bmr,
+                        "tdee": user.tdee,
+                    },
+                    "goal": {
+                        "target_weight": user.target_weight,
+                        "current_weight": user.weight,
+                        "weight_diff": user.weight - (user.target_weight or user.weight)
+                    },
+                    "constraints": {
+                        "allergies": user.allergies or "无",
+                    },
+                    "created_at": user.created_at.isoformat() if user.created_at else None
+                }
+                # goal
+                if user.target_weight:
+                    diff = user.weight - user.target_weight
+                    if diff > 2:
+                        self._goal = "减脂"
+                    elif diff < -2:
+                        self._goal = "增肌"
+                    else:
+                        self._goal = "维持"
+                else:
+                    self._goal = "维持现状"
+                tdee = user.tdee
+            else:
+                from .user_profile import UserProfileLoader
+                self._profile = UserProfileLoader._get_default_profile()
+                self._goal = "维持现状"
+                tdee = None
+
+            # ── DailyLog 表：一次查本周所有记录，供 today_stats / week_stats 共用 ──
+            today = date.today()
+            week_start = today - timedelta(days=today.weekday())
+
+            logs = db.query(models.DailyLog).filter(
+                models.DailyLog.user_id == self.user_id,
+                models.DailyLog.date >= week_start,
+                models.DailyLog.date <= today
+            ).all()
+
+            log_by_date = {log.date: log for log in logs}
+            today_log = log_by_date.get(today)
+
+            # today_stats
+            if today_log:
+                food_items = [{"name": i.name, "calories": i.calories} for i in today_log.food_items]
+                exercise_items = [{"type": i.type, "duration": i.duration, "calories": i.calories, "notes": i.notes} for i in today_log.exercise_items]
+                net = today_log.intake_calories - today_log.burn_calories
+                self._today_stats = {
+                    "date": today.isoformat(),
+                    "intake_calories": today_log.intake_calories,
+                    "burn_calories": today_log.burn_calories,
+                    "net_calories": net,
+                    "tdee": tdee,
+                    "calorie_balance": net - tdee if tdee else None,
+                    "food_count": len(today_log.food_items),
+                    "exercise_count": len(today_log.exercise_items),
+                    "food_items": food_items,
+                    "exercise_items": exercise_items,
+                    "weight_log": today_log.weight_log
+                }
+            else:
+                self._today_stats = {
+                    "date": today.isoformat(),
+                    "intake_calories": 0, "burn_calories": 0, "net_calories": 0,
+                    "tdee": tdee,
+                    "calorie_balance": -tdee if tdee else None,
+                    "food_count": 0, "exercise_count": 0,
+                    "food_items": [], "exercise_items": []
+                }
+
+            # week_stats
+            if logs:
+                total_intake = sum(l.intake_calories for l in logs)
+                total_burn = sum(l.burn_calories for l in logs)
+                days_count = len(logs)
+                days_below = sum(1 for l in logs if tdee and l.intake_calories < tdee)
+                days_above = sum(1 for l in logs if tdee and l.intake_calories >= tdee)
+                daily_logs = [{"date": l.date.isoformat(), "intake": l.intake_calories, "burn": l.burn_calories, "net": l.intake_calories - l.burn_calories} for l in logs]
+                self._week_stats = {
+                    "week_start": week_start.isoformat(),
+                    "week_end": today.isoformat(),
+                    "days_logged": days_count,
+                    "total_intake": total_intake, "total_burn": total_burn,
+                    "avg_intake": total_intake / days_count, "avg_burn": total_burn / days_count,
+                    "days_below_tdee": days_below, "days_above_tdee": days_above,
+                    "daily_logs": daily_logs
+                }
+            else:
+                self._week_stats = {
+                    "week_start": week_start.isoformat(), "week_end": today.isoformat(),
+                    "days_logged": 0, "total_intake": 0, "total_burn": 0,
+                    "avg_intake": 0, "avg_burn": 0,
+                    "days_below_tdee": 0, "days_above_tdee": 0, "daily_logs": []
+                }
+        finally:
+            db.close()
+
     def get_memory_summary(self) -> Dict[str, Any]:
         """获取记忆摘要
 

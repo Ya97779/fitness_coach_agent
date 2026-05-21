@@ -424,6 +424,7 @@ def process_user_message(
         }
     """
     memory_manager = MemoryManager(user_id=user_id)
+    memory_manager.load_all_memory()
     memory_summary = memory_manager.get_memory_summary()
 
     conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
@@ -564,25 +565,6 @@ def stream_user_message(
     Yields:
         str: 回复片段
     """
-    memory_manager = MemoryManager(user_id=user_id)
-    memory_summary = memory_manager.get_memory_summary()
-
-    conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
-    memory_summary["conversation_history"] = conversation_history
-
-    messages_for_prompt = [HumanMessage(content=user_message)]
-    enhanced_prompts = {
-        "chat": memory_manager.enhance_system_prompt(
-            AGENT_SYSTEM_PROMPTS["chat"], "chat", messages_for_prompt
-        ),
-        "nutrition": memory_manager.enhance_system_prompt(
-            AGENT_SYSTEM_PROMPTS["nutrition"], "nutrition", messages_for_prompt
-        ),
-        "fitness": memory_manager.enhance_system_prompt(
-            AGENT_SYSTEM_PROMPTS["fitness"], "fitness", messages_for_prompt
-        )
-    }
-
     user_message_clean = user_message.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
     user_message_clean = ' '.join(user_message_clean.split())
 
@@ -590,11 +572,24 @@ def stream_user_message(
         yield "你好，有什么我可以帮助你的吗？"
         return
 
-    # 流式模式下跳过 LLM 路由，只用关键词匹配（省去一次 LLM 调用的延迟）
+    # 路由前置：先决定 agent，再只为它构建 prompt（省掉 2/3 的 prompt 构建开销）
     result = hybrid_route(user_message_clean, require_llm_confirm=False)
     agent = result["agent"]
     if agent not in ["nutrition", "fitness"]:
         agent = "chat"
+
+    memory_manager = MemoryManager(user_id=user_id)
+    memory_manager.load_all_memory()
+    memory_summary = memory_manager.get_memory_summary()
+
+    conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
+    memory_summary["conversation_history"] = conversation_history
+
+    messages_for_prompt = [HumanMessage(content=user_message)]
+    enhanced_prompt = memory_manager.enhance_system_prompt(
+        AGENT_SYSTEM_PROMPTS[agent], agent, messages_for_prompt
+    )
+    enhanced_prompts = {agent: enhanced_prompt}
 
     state = {
         "messages": [HumanMessage(content=user_message)],
@@ -607,6 +602,14 @@ def stream_user_message(
         "memory_summary": memory_summary,
         "enhanced_prompts": enhanced_prompts
     }
+
+    # 工具调用型 agent 需要先决策再生成，给用户即时反馈降低感知等待
+    _status_messages = {
+        "nutrition": "正在查询营养数据...",
+        "fitness": "正在搜索训练方案...",
+    }
+    if agent in _status_messages:
+        yield _status_messages[agent]
 
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
