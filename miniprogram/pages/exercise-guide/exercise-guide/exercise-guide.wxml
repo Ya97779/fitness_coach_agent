@@ -17,9 +17,12 @@
     <view class="group-card" wx:for="{{groups}}" wx:key="id" bindtap="goList" data-id="{{item.id}}">
       <view class="group-info">
         <text class="group-name">{{item.name}}</text>
-        <text class="group-count">{{item.exercises.length}} 个动作</text>
+        <text class="group-func">{{item.functions}}</text>
       </view>
-      <text class="group-arrow">></text>
+      <view class="group-right">
+        <text class="group-count">{{item.exercises.length}}</text>
+        <text class="group-arrow">></text>
+      </view>
     </view>
   </view>
 </view>

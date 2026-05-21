@@ -62,11 +62,10 @@
 .group-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   background: var(--bg-card);
   border: 1rpx solid var(--border);
   border-radius: var(--radius-md);
-  padding: 28rpx 24rpx;
+  padding: 24rpx;
 }
 
 .group-info {
@@ -81,16 +80,31 @@
   display: block;
 }
 
-.group-count {
-  font-size: 24rpx;
+.group-func {
+  font-size: 22rpx;
   color: var(--text-hint);
   margin-top: 4rpx;
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-right {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-left: 12rpx;
+}
+
+.group-count {
+  font-size: 28rpx;
+  font-weight: 200;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .group-arrow {
-  font-size: 28rpx;
+  font-size: 24rpx;
   color: var(--text-muted);
-  flex-shrink: 0;
-  margin-left: 12rpx;
 }
