@@ -34,7 +34,7 @@ class StatsSummarizer:
             ).first()
 
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            tdee = user.tdee if user else 2000
+            tdee = (user.tdee if user and user.tdee else 2000)
 
             if not log:
                 return {
@@ -101,7 +101,7 @@ class StatsSummarizer:
             ).all()
 
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            tdee = user.tdee if user else 2000
+            tdee = (user.tdee if user and user.tdee else 2000)
 
             if not logs:
                 return {
