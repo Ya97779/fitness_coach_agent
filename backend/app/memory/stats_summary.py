@@ -34,7 +34,7 @@ class StatsSummarizer:
             ).first()
 
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            tdee = (user.tdee if user and user.tdee else 2000)
+            tdee = user.tdee if user and user.tdee else None
 
             if not log:
                 return {
@@ -43,7 +43,7 @@ class StatsSummarizer:
                     "burn_calories": 0,
                     "net_calories": 0,
                     "tdee": tdee,
-                    "calorie_balance": -tdee,
+                    "calorie_balance": -tdee if tdee else None,
                     "food_count": 0,
                     "exercise_count": 0,
                     "food_items": [],
@@ -62,13 +62,14 @@ class StatsSummarizer:
                 "notes": item.notes
             } for item in log.exercise_items]
 
+            net = log.intake_calories - log.burn_calories
             return {
                 "date": today.isoformat(),
                 "intake_calories": log.intake_calories,
                 "burn_calories": log.burn_calories,
-                "net_calories": log.intake_calories - log.burn_calories,
+                "net_calories": net,
                 "tdee": tdee,
-                "calorie_balance": log.intake_calories - log.burn_calories - tdee,
+                "calorie_balance": net - tdee if tdee else None,
                 "food_count": len(log.food_items),
                 "exercise_count": len(log.exercise_items),
                 "food_items": food_items,
@@ -101,7 +102,7 @@ class StatsSummarizer:
             ).all()
 
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            tdee = (user.tdee if user and user.tdee else 2000)
+            tdee = user.tdee if user and user.tdee else None
 
             if not logs:
                 return {
@@ -251,8 +252,8 @@ class StatsSummarizer:
         intake = stats.get("intake_calories", 0)
         burn = stats.get("burn_calories", 0)
         net = stats.get("net_calories", 0)
-        tdee = stats.get("tdee", 2000)
-        balance = stats.get("calorie_balance", -tdee)
+        tdee = stats.get("tdee")
+        balance = stats.get("calorie_balance")
         food_count = stats.get("food_count", 0)
         exercise_count = stats.get("exercise_count", 0)
 
@@ -262,11 +263,15 @@ class StatsSummarizer:
         result = f"""【今日统计】{date_str}
 - 摄入热量: {intake:.0f} kcal
 - 消耗热量: {burn:.0f} kcal
-- 净热量: {net:.0f} kcal
-- 目标TDEE: {tdee:.0f} kcal
-- 热量平衡: {'+' if balance > 0 else ''}{balance:.0f} kcal
-- 记录食物: {food_count} 种
-- 记录运动: {exercise_count} 项"""
+- 净热量: {net:.0f} kcal"""
+
+        if tdee:
+            result += f"\n- 目标TDEE: {tdee:.0f} kcal"
+        if balance is not None:
+            result += f"\n- 热量平衡: {'+' if balance > 0 else ''}{balance:.0f} kcal"
+
+        result += f"\n- 记录食物: {food_count} 种"
+        result += f"\n- 记录运动: {exercise_count} 项"
 
         if food_items:
             food_list = ", ".join([f"{f['name']}({f['calories']:.0f}kcal)" for f in food_items[:5]])
@@ -300,17 +305,23 @@ class StatsSummarizer:
         avg_burn = stats.get("avg_burn", 0)
         total_intake = stats.get("total_intake", 0)
         total_burn = stats.get("total_burn", 0)
-        days_below = stats.get("days_below_tdee", 0)
-        days_above = stats.get("days_above_tdee", 0)
 
-        return f"""【本周统计】{week_start} 至 {week_end}
+        result = f"""【本周统计】{week_start} 至 {week_end}
 - 记录天数: {days_logged} 天
 - 总摄入: {total_intake:.0f} kcal
 - 总消耗: {total_burn:.0f} kcal
 - 日均摄入: {avg_intake:.0f} kcal
-- 日均消耗: {avg_burn:.0f} kcal
-- 达标天数(摄入<TDEE): {days_below} 天
-- 超标天数(摄入≥TDEE): {days_above} 天"""
+- 日均消耗: {avg_burn:.0f} kcal"""
+
+        # 只有 tdee 存在时才显示达标/超标天数
+        tdee_available = stats.get("tdee") is not None
+        if tdee_available:
+            days_below = stats.get("days_below_tdee", 0)
+            days_above = stats.get("days_above_tdee", 0)
+            result += f"\n- 达标天数(摄入<TDEE): {days_below} 天"
+            result += f"\n- 超标天数(摄入≥TDEE): {days_above} 天"
+
+        return result
 
     @staticmethod
     def get_context_for_nutrition(stats: Dict[str, Any]) -> str:
@@ -326,10 +337,15 @@ class StatsSummarizer:
             return "今日暂无饮食记录"
 
         intake = stats.get("intake_calories", 0)
-        tdee = stats.get("tdee", 2000)
-        remaining = tdee - intake
+        tdee = stats.get("tdee")
         food_count = stats.get("food_count", 0)
 
+        if not tdee:
+            if intake > 0:
+                return f"今日已摄入 {intake:.0f} kcal（用户未设置TDEE目标）"
+            return "今日暂无饮食记录"
+
+        remaining = tdee - intake
         if remaining > 0:
             return f"今日已摄入 {intake:.0f} kcal，还剩 {remaining:.0f} kcal 可摄入（目标TDEE: {tdee:.0f} kcal）"
         else:

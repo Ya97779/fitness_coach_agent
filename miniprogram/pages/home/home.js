@@ -15,7 +15,8 @@ Page({
     intake: 0,
     burn: 0,
     remaining: 0,
-    tdee: 2000,
+    tdee: null,
+    hasTdee: false,
     foodItems: [],
     exerciseItems: [],
     loading: true,
@@ -55,10 +56,11 @@ Page({
       request({ url: '/api/v1/user/me' }),
       request({ url: '/api/v1/user/me/today' })
     ]).then(([user, today]) => {
-      const tdee = user.tdee || 2000
+      const tdee = user.tdee || null
+      const hasTdee = !!tdee
       const intake = today.intake_calories || 0
       const burn = today.burn_calories || 0
-      const remaining = Math.round(tdee - intake + burn)
+      const remaining = tdee ? Math.round(tdee - intake + burn) : 0
 
       const foodItems = (today.food_items || []).map(item => ({
         ...item,
@@ -67,12 +69,12 @@ Page({
       const exerciseItems = today.exercise_items || []
 
       this.setData({
-        tdee, intake: Math.round(intake), burn: Math.round(burn),
+        tdee, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
         remaining: remaining > 0 ? remaining : 0,
         foodItems, exerciseItems,
         loading: false
       })
-      this.drawRing(intake, burn, tdee)
+      this.drawRing(intake, burn, tdee || 1)
     }).catch(() => {
       this.setData({ loading: false })
     })

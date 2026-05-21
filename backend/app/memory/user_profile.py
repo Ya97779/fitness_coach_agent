@@ -77,16 +77,16 @@ class UserProfileLoader:
                     "TDEE": "未知"
                 }
 
-            return {
-                "身高": f"{user.height} cm",
-                "体重": f"{user.weight} kg",
-                "年龄": f"{user.age} 岁",
-                "性别": user.gender,
-                "BMR": f"{user.bmr:.0f} kcal" if user.bmr else "未知",
-                "TDEE": f"{user.tdee:.0f} kcal" if user.tdee else "未知",
-                "目标体重": f"{user.target_weight} kg" if user.target_weight else "未设定",
-                "过敏史": user.allergies or "无"
-            }
+            result = {}
+            if user.height: result["身高"] = f"{user.height} cm"
+            if user.weight: result["体重"] = f"{user.weight} kg"
+            if user.age: result["年龄"] = f"{user.age} 岁"
+            if user.gender and user.gender != "未知": result["性别"] = user.gender
+            if user.bmr: result["BMR"] = f"{user.bmr:.0f} kcal"
+            if user.tdee: result["TDEE"] = f"{user.tdee:.0f} kcal"
+            if user.target_weight: result["目标体重"] = f"{user.target_weight} kg"
+            if user.allergies: result["过敏史"] = user.allergies
+            return result
         finally:
             db.close()
 
@@ -118,35 +118,53 @@ class UserProfileLoader:
 
     @staticmethod
     def format_profile_for_agent(profile: Dict[str, Any], goal: str) -> str:
-        """格式化用户画像为 Agent 可读的字符串
-
-        Args:
-            profile: 用户画像字典
-            goal: 用户目标
-
-        Returns:
-            str: 格式化后的字符串
-        """
+        """格式化用户画像为 Agent 可读的字符串。只包含用户实际填写的字段。"""
         if not profile or "basic_info" not in profile:
-            return "用户信息未找到"
+            return "【用户状态】新用户，尚未填写身体数据"
 
         basic = profile.get("basic_info", {})
         metrics = profile.get("body_metrics", {})
         constraints = profile.get("constraints", {})
 
-        return f"""【用户基本信息】
-- 身高: {basic.get('height', '未知')} cm
-- 体重: {basic.get('weight', '未知')} kg
-- 年龄: {basic.get('age', '未知')} 岁
-- 性别: {basic.get('gender', '未知')}
+        lines = []
 
-【身体指标】
-- 基础代谢率(BMR): {metrics.get('bmr', '未知')} kcal
-- 每日总消耗(TDEE): {metrics.get('tdee', '未知')} kcal
+        # 基本信息：只输出非零值
+        basic_lines = []
+        h = basic.get("height")
+        w = basic.get("weight")
+        a = basic.get("age")
+        g = basic.get("gender")
+        if h: basic_lines.append(f"- 身高: {h} cm")
+        if w: basic_lines.append(f"- 体重: {w} kg")
+        if a: basic_lines.append(f"- 年龄: {a} 岁")
+        if g and g != "未知": basic_lines.append(f"- 性别: {g}")
+        if basic_lines:
+            lines.append("【用户基本信息】")
+            lines.extend(basic_lines)
 
-【用户目标】
-- 目标: {goal}
-- 过敏史: {constraints.get('allergies', '无')}"""
+        # 身体指标：只输出非空值
+        bmr = metrics.get("bmr")
+        tdee = metrics.get("tdee")
+        metric_lines = []
+        if bmr: metric_lines.append(f"- 基础代谢率(BMR): {bmr:.0f} kcal")
+        if tdee: metric_lines.append(f"- 每日总消耗(TDEE): {tdee:.0f} kcal")
+        if metric_lines:
+            lines.append("【身体指标】")
+            lines.extend(metric_lines)
+
+        # 目标和约束
+        target_w = (profile.get("goal") or {}).get("target_weight")
+        allergies = constraints.get("allergies")
+        if goal and goal != "维持现状" or target_w or (allergies and allergies != "无"):
+            lines.append("【用户目标】")
+            if goal and goal != "维持现状":
+                lines.append(f"- 目标: {goal}")
+            if target_w:
+                lines.append(f"- 目标体重: {target_w} kg")
+            if allergies and allergies != "无":
+                lines.append(f"- 过敏史: {allergies}")
+
+        return "\n".join(lines) if lines else "【用户状态】新用户，尚未填写身体数据"
 
     @staticmethod
     def _get_default_profile() -> Dict[str, Any]:

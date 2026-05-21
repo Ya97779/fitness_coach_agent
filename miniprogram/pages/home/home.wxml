@@ -19,8 +19,10 @@
     <view class="ring-wrap">
       <canvas canvas-id="calorieRing" id="calorieRing" class="ring-canvas" />
       <view class="ring-center">
-        <text class="ring-val">{{remaining}}</text>
-        <text class="ring-label">剩余</text>
+        <text class="ring-val" wx:if="{{hasTdee}}">{{remaining}}</text>
+        <text class="ring-val" wx:else>--</text>
+        <text class="ring-label" wx:if="{{hasTdee}}">剩余</text>
+        <text class="ring-label" wx:else>未设目标</text>
       </view>
     </view>
     <view class="calorie-stats">

@@ -398,15 +398,16 @@ def create_exercise_log(
 
 # ----- 对话 -----
 def _build_user_context(user: models.User, db: Session):
-    user_profile = {
-        "height": user.height,
-        "weight": user.weight,
-        "age": user.age,
-        "gender": user.gender,
-        "bmr": user.bmr,
-        "tdee": user.tdee,
-        "allergies": user.allergies,
-    }
+    # 只包含用户实际填写的字段，跳过零值和默认值
+    user_profile = {}
+    if user.height: user_profile["height"] = user.height
+    if user.weight: user_profile["weight"] = user.weight
+    if user.age: user_profile["age"] = user.age
+    if user.gender and user.gender != "未知": user_profile["gender"] = user.gender
+    if user.bmr: user_profile["bmr"] = user.bmr
+    if user.tdee: user_profile["tdee"] = user.tdee
+    if user.allergies: user_profile["allergies"] = user.allergies
+
     today = date.today()
     log = db.query(models.DailyLog).filter(
         models.DailyLog.user_id == user.id,

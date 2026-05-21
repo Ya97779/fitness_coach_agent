@@ -84,7 +84,7 @@ def get_daily_nutrition_summary(user_id: int):
         ).first()
 
         user = db.query(models.User).filter(models.User.id == user_id).first()
-        tdee = (user.tdee if user and user.tdee else 2000)
+        tdee = user.tdee if user and user.tdee else None
 
         if log:
             return {
