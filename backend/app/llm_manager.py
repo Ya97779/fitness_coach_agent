@@ -47,3 +47,45 @@ class LLMManager:
     def clear(cls):
         """清空缓存（用于测试或配置变更后）"""
         cls._instances.clear()
+
+    @staticmethod
+    def stream_with_glm(messages, temperature: float = 0.7):
+        """使用 GLM SDK 直接流式调用，绕过 LangChain 的 OpenAI 兼容层缓冲
+
+        Args:
+            messages: LangChain 消息列表
+            temperature: 温度参数
+
+        Yields:
+            str: 响应内容片段
+        """
+        from zai import ZhipuAiClient
+
+        client = ZhipuAiClient(api_key=os.getenv("OPENAI_API_KEY"))
+
+        glm_messages = []
+        for msg in messages:
+            msg_type = getattr(msg, "type", None)
+            content = getattr(msg, "content", "")
+
+            if msg_type == "system":
+                glm_messages.append({"role": "system", "content": content})
+            elif msg_type == "human":
+                glm_messages.append({"role": "user", "content": content})
+            elif msg_type == "ai":
+                if content:
+                    glm_messages.append({"role": "assistant", "content": content})
+            elif msg_type == "tool":
+                glm_messages.append({"role": "user", "content": f"[工具返回结果] {content}"})
+
+        response = client.chat.completions.create(
+            model=os.getenv("LLM_MODEL", "glm-4.7"),
+            messages=glm_messages,
+            stream=True,
+            temperature=temperature,
+        )
+
+        for chunk in response:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content

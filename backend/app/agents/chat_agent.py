@@ -85,12 +85,12 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
 
     def generate_response():
         try:
+            chat_messages = [system_msg] + list(messages)
             if stream:
-                for chunk in llm.stream([system_msg] + messages):
-                    if chunk.content:
-                        yield chunk.content
+                for chunk in LLMManager.stream_with_glm(chat_messages):
+                    yield chunk
             else:
-                response = llm.invoke([system_msg] + messages)
+                response = llm.invoke(chat_messages)
                 yield response.content
         except Exception as e:
             error_msg = str(e)
