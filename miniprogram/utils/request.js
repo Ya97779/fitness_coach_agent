@@ -79,6 +79,7 @@ function streamRequest(options, onChunk, onDone, onError) {
     data: options.data,
     header,
     enableChunked: true,
+    timeout: 60000,
     success(res) {
       if (onDone) onDone(res.data)
     },

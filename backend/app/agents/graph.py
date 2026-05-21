@@ -585,7 +585,8 @@ def stream_user_message(
         yield "你好，有什么我可以帮助你的吗？"
         return
 
-    result = hybrid_route(user_message_clean, require_llm_confirm=True)
+    # 流式模式下跳过 LLM 路由，只用关键词匹配（省去一次 LLM 调用的延迟）
+    result = hybrid_route(user_message_clean, require_llm_confirm=False)
     agent = result["agent"]
     if agent not in ["nutrition", "fitness"]:
         agent = "chat"

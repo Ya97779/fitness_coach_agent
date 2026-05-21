@@ -270,13 +270,10 @@ def nutrition_with_user(
             return f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
-            if stream:
-                if hasattr(response, 'content') and response.content:
-                    for chunk in llm.stream(chat_history + [response]):
-                        if chunk.content:
-                            yield chunk.content
-            else:
-                yield response.content if hasattr(response, 'content') else str(response)
+            # 无工具调用，直接返回内容（不做第二次 LLM 调用）
+            content = response.content if hasattr(response, 'content') else str(response)
+            if content:
+                yield content
             return
 
         tool_messages = []

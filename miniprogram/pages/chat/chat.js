@@ -46,15 +46,25 @@ Page({
     })
 
     let fullContent = ''
+    let lineBuffer = ''
     const requestTask = streamRequest(
       { url: '/api/v1/chat/stream', data: { message: text } },
       (chunk) => {
-        // 解析 SSE 数据
-        const lines = chunk.split('\n')
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+        // 行缓冲：TCP 分包可能截断 SSE 行，需要拼接后再解析
+        lineBuffer += chunk
+        const parts = lineBuffer.split('\n')
+        // 最后一个元素可能是不完整的行，保留在 buffer 中
+        lineBuffer = parts.pop() || ''
+        for (const line of parts) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6)
             if (data === '[DONE]') continue
+            if (data.startsWith('Error:')) {
+              fullContent = data
+              this.updateAiMessage(aiMsg.id, fullContent)
+              continue
+            }
             fullContent += data
             this.updateAiMessage(aiMsg.id, fullContent)
           }
