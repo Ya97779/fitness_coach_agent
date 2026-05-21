@@ -52,6 +52,7 @@ venv.bak/
 # =========================
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 miniprogram/project.private.config.json
