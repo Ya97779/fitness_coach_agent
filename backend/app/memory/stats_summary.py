@@ -137,10 +137,11 @@ class StatsSummarizer:
                     "net": intake - burn
                 })
 
-                if intake < tdee:
-                    days_below += 1
-                else:
-                    days_above += 1
+                if tdee is not None:
+                    if intake < tdee:
+                        days_below += 1
+                    else:
+                        days_above += 1
 
             days_count = len(logs) if logs else 1
 
