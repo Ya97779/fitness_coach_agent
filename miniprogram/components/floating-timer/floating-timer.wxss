@@ -1,0 +1,74 @@
+.timer-panel {
+  background: #1a1a1a;
+  border-radius: 12rpx;
+  margin: 0 0 16rpx;
+  overflow: hidden;
+}
+
+.panel-progress {
+  height: 4rpx;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.panel-progress-fill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s;
+}
+
+.panel-body {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 24rpx;
+}
+
+.panel-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.panel-ex-name {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.panel-set-info {
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.panel-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rpx;
+  padding: 8rpx 16rpx;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8rpx;
+}
+
+.panel-rest-label {
+  font-size: 16rpx;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.panel-rest-sec {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #ff9800;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-arrow-wrap {
+  background: transparent;
+  padding: 0 8rpx;
+}
+
+.panel-arrow {
+  font-size: 32rpx;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 300;
+}

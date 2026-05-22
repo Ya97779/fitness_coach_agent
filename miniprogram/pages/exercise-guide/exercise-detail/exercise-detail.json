@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "动作详情"
+  "navigationBarTitleText": "动作详情",
+  "usingComponents": {
+    "floating-timer": "/components/floating-timer/floating-timer"
+  }
 }

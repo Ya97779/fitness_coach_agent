@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 搜索框 -->
   <view class="search-bar">
     <input class="search-input" placeholder="搜索动作名称..." value="{{searchText}}" bindinput="onSearch" />

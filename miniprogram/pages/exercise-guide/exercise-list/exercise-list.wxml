@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 肌群头部 -->
   <view class="group-header">
     <text class="header-name">{{group.name}}</text>

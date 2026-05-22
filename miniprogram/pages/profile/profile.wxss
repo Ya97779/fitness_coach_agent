@@ -56,6 +56,19 @@
   border: 1rpx solid var(--border);
 }
 
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+}
+
+.avatar-text {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .user-name {
   font-size: 34rpx;
   font-weight: 700;
@@ -98,6 +111,70 @@
   color: var(--text-hint);
   margin-top: 6rpx;
   letter-spacing: 1rpx;
+}
+
+/* BMI */
+.bmi-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.bmi-val {
+  font-size: 52rpx;
+  font-weight: 200;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.bmi-tag {
+  font-size: 22rpx;
+  font-weight: 600;
+  padding: 4rpx 14rpx;
+  border-radius: 6rpx;
+}
+
+.bmi-low { color: #2196f3; background: rgba(33,150,243,0.12); }
+.bmi-normal { color: #4caf50; background: rgba(76,175,80,0.12); }
+.bmi-high { color: #ff9800; background: rgba(255,152,0,0.12); }
+.bmi-danger { color: #f44336; background: rgba(244,67,54,0.12); }
+
+.bmi-bar {
+  position: relative;
+}
+
+.bmi-bar-fill {
+  height: 8rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(90deg, #2196f3 0%, #2196f3 25%, #4caf50 25%, #4caf50 50%, #ff9800 50%, #ff9800 75%, #f44336 75%, #f44336 100%);
+  margin-bottom: 10rpx;
+}
+
+.bmi-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4rpx;
+}
+
+.bmi-scale-item {
+  font-size: 18rpx;
+  color: var(--text-secondary);
+  flex: 1;
+  text-align: center;
+}
+
+.bmi-range {
+  display: flex;
+  justify-content: space-between;
+}
+
+.bmi-range text {
+  font-size: 16rpx;
+  color: var(--text-hint);
+  flex: 1;
+  text-align: center;
 }
 
 /* 信息行 */
@@ -213,6 +290,27 @@
 }
 
 .gender-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.goal-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.goal-btn {
+  padding: 12rpx 24rpx;
+  font-size: 24rpx;
+  color: var(--text-hint);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.goal-active {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-dim);

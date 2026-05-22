@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 顶部 -->
   <view class="hero">
     <text class="hero-greeting">{{greeting}}</text>

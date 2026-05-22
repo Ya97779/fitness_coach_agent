@@ -40,6 +40,7 @@ class UserProfileLoader:
                     "tdee": user.tdee,
                 },
                 "goal": {
+                    "type": user.goal or None,
                     "target_weight": user.target_weight,
                     "current_weight": user.weight,
                     "weight_diff": user.weight - (user.target_weight or user.weight)
@@ -85,6 +86,7 @@ class UserProfileLoader:
             if user.bmr: result["BMR"] = f"{user.bmr:.0f} kcal"
             if user.tdee: result["TDEE"] = f"{user.tdee:.0f} kcal"
             if user.target_weight: result["目标体重"] = f"{user.target_weight} kg"
+            if user.goal: result["健身目标"] = user.goal
             if user.allergies: result["过敏史"] = user.allergies
             return result
         finally:
@@ -103,7 +105,11 @@ class UserProfileLoader:
         db = database.SessionLocal()
         try:
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            if not user or not user.target_weight:
+            if not user:
+                return "维持现状"
+            if user.goal:
+                return user.goal
+            if not user.target_weight:
                 return "维持现状"
 
             diff = user.weight - user.target_weight

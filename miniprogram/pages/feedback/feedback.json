@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "意见反馈"
+  "navigationBarTitleText": "意见反馈",
+  "usingComponents": {
+    "floating-timer": "/components/floating-timer/floating-timer"
+  }
 }

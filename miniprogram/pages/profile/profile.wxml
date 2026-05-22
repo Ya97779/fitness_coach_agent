@@ -1,10 +1,20 @@
 <view class="page">
+  <floating-timer />
   <!-- 用户头部 -->
   <view class="profile-header">
-    <image class="avatar" src="{{userInfo.avatar_url || '/images/default-avatar.png'}}" mode="aspectFill" />
+    <image class="avatar" wx:if="{{userInfo.avatar_url}}" src="{{userInfo.avatar_url}}" mode="aspectFill" />
+    <view class="avatar avatar-placeholder" wx:else>
+      <text class="avatar-text">{{userInfo.nickname ? userInfo.nickname[0] : '?'}}</text>
+    </view>
     <view class="user-info">
       <text class="user-name">{{userInfo.nickname || '未设置昵称'}}</text>
     </view>
+  </view>
+
+  <!-- 编辑 -->
+  <view class="edit-row" wx:if="{{loggedIn}}" bindtap="showEdit">
+    <text class="edit-text">编辑个人信息及身体状况</text>
+    <text class="edit-arrow">></text>
   </view>
 
   <!-- 未登录提示 -->
@@ -16,47 +26,52 @@
     </view>
   </view>
 
-  <!-- 身体数据 -->
-  <view class="card" wx:if="{{loggedIn}}">
-    <text class="card-label">身体数据</text>
-    <view class="data-grid">
-      <view class="data-item">
-        <text class="data-val">{{userInfo.height || '--'}}</text>
-        <text class="data-unit">cm</text>
+  <!-- BMI -->
+  <view class="card" wx:if="{{loggedIn && userInfo.bmiVal && userInfo.bmiVal !== '--'}}" bindtap="showEdit">
+    <text class="card-label">BMI 体质指数</text>
+    <view class="bmi-row">
+      <text class="bmi-val">{{userInfo.bmiVal}}</text>
+      <text class="bmi-tag bmi-{{userInfo.bmiLevel}}">{{userInfo.bmiCategory}}</text>
+    </view>
+    <view class="bmi-bar">
+      <view class="bmi-bar-fill bmi-bar-{{userInfo.bmiLevel}}"></view>
+      <view class="bmi-scale">
+        <text class="bmi-scale-item">偏瘦</text>
+        <text class="bmi-scale-item">正常</text>
+        <text class="bmi-scale-item">超重</text>
+        <text class="bmi-scale-item">肥胖</text>
       </view>
-      <view class="data-item">
-        <text class="data-val">{{userInfo.weight || '--'}}</text>
-        <text class="data-unit">kg</text>
-      </view>
-      <view class="data-item">
-        <text class="data-val">{{userInfo.age || '--'}}</text>
-        <text class="data-unit">岁</text>
-      </view>
-      <view class="data-item">
-        <text class="data-val">{{userInfo.gender || '--'}}</text>
-        <text class="data-unit"></text>
+      <view class="bmi-range">
+        <text>≤18.5</text>
+        <text>18.5-23.9</text>
+        <text>24-27.9</text>
+        <text>≥28</text>
       </view>
     </view>
   </view>
 
   <!-- 代谢数据 -->
-  <view class="card" wx:if="{{loggedIn}}">
+  <view class="card" wx:if="{{loggedIn}}" bindtap="showEdit">
     <text class="card-label">代谢指标</text>
     <view class="data-grid">
       <view class="data-item">
-        <text class="data-val">{{userInfo.bmr ? Math.round(userInfo.bmr) : '--'}}</text>
+        <text class="data-val">{{userInfo.bmrRounded}}</text>
         <text class="data-unit">kcal · 基础代谢</text>
       </view>
       <view class="data-item">
-        <text class="data-val">{{userInfo.tdee ? Math.round(userInfo.tdee) : '--'}}</text>
-        <text class="data-unit">kcal · 每日总消耗</text>
+        <text class="data-val">{{userInfo.tdeeRounded}}</text>
+        <text class="data-unit">kcal · 活动代谢</text>
       </view>
     </view>
   </view>
 
   <!-- 目标信息 -->
-  <view class="card" wx:if="{{loggedIn && (userInfo.target_weight || userInfo.allergies)}}">
+  <view class="card" wx:if="{{loggedIn && (userInfo.goal || userInfo.target_weight || userInfo.allergies)}}" bindtap="showEdit">
     <text class="card-label">目标信息</text>
+    <view class="info-row" wx:if="{{userInfo.goal}}">
+      <text class="info-key">健身目标</text>
+      <text class="info-val">{{userInfo.goal}}</text>
+    </view>
     <view class="info-row" wx:if="{{userInfo.target_weight}}">
       <text class="info-key">目标体重</text>
       <text class="info-val">{{userInfo.target_weight}} kg</text>
@@ -67,15 +82,9 @@
     </view>
   </view>
 
-  <!-- 编辑 -->
-  <view class="edit-row" wx:if="{{loggedIn}}" bindtap="showEdit">
-    <text class="edit-text">编辑个人资料</text>
-    <text class="edit-arrow">></text>
-  </view>
-
   <!-- 编辑弹窗 -->
   <view class="modal-mask" wx:if="{{showEditModal}}" bindtap="hideEdit">
-    <view class="modal-content" catchtap="">
+    <view class="modal-content" catchtap="preventBubble">
       <text class="modal-title">编辑资料</text>
       <view class="form-group">
         <text class="form-label">身高 (cm)</text>
@@ -94,6 +103,16 @@
         <view class="gender-btns">
           <view class="gender-btn {{editForm.gender === '男' ? 'gender-active' : ''}}" bindtap="selectGender" data-gender="男">男</view>
           <view class="gender-btn {{editForm.gender === '女' ? 'gender-active' : ''}}" bindtap="selectGender" data-gender="女">女</view>
+        </view>
+      </view>
+      <view class="form-group">
+        <text class="form-label">健身目标</text>
+        <view class="goal-btns">
+          <view wx:for="{{goalOptions}}" wx:key="*this"
+            class="goal-btn {{editForm.goal === item ? 'goal-active' : ''}}"
+            bindtap="selectGoal" data-goal="{{item}}">
+            {{item}}
+          </view>
         </view>
       </view>
       <view class="form-group">

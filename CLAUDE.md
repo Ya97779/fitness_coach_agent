@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-FitCoach AI — 基于多 Agent 的健身营养顾问系统。后端 FastAPI + LangGraph 多 Agent 编排，前端 Streamlit + 微信小程序，RAG 检索增强生成，SQLite 持久化。
+FitCoach AI — 基于多 Agent 的健身营养顾问系统。后端 FastAPI + LangGraph 多 Agent 编排，前端 Streamlit + 微信小程序，RAG 检索增强生成，PostgreSQL 持久化。
 
 ## 常用命令
 
@@ -57,8 +57,8 @@ fitness_coach_agent/
 │   ├── app/
 │   │   ├── main.py              # FastAPI 入口，路由注册，启动时增量索引
 │   │   ├── auth.py              # JWT 鉴权 + 微信 jscode2session 登录
-│   │   ├── database.py          # SQLAlchemy engine/session（SQLite）
-│   │   ├── models.py            # 数据模型：User, DailyLog, FoodItem, ExerciseItem, ConversationLog
+│   │   ├── database.py          # SQLAlchemy engine/session（PostgreSQL）
+│   │   ├── models.py            # 数据模型：User（含 goal）, DailyLog, FoodItem, ExerciseItem, ConversationLog
 │   │   ├── llm_manager.py       # ChatOpenAI 按 temperature 分桶缓存（单例）
 │   │   ├── food_api.py          # 天行数据食物营养 API + 本地兜底数据
 │   │   ├── agents/
@@ -107,16 +107,19 @@ fitness_coach_agent/
 │   │   └── auth.js              # 微信登录逻辑
 │   ├── components/              # 自定义组件
 │   │   ├── exercise-item/       # 运动记录组件
-│   │   └── food-item/           # 食物记录组件
+│   │   ├── food-item/           # 食物记录组件
+│   │   └── mp-html/             # 富文本/HTML 渲染组件
 │   ├── data/
 │   │   ├── exercises.js         # 运动数据汇总
 │   │   ├── exercises/           # 按部位分类：arms/back/cardio/chest/core/legs/shoulder
 │   │   └── templates.js         # 训练模板
 │   └── pages/
 │       ├── home/                # 首页
-│       ├── chat/                # AI 对话（SSE 流式）
+│       ├── chat/                # AI 对话（SSE 流式，支持 markdown 渲染）
 │       ├── log/                 # 快捷记录
-│       ├── profile/             # 个人档案
+│       ├── profile/             # 个人档案（含 BMI、健身目标）
+│       ├── profile-setup/       # 首次登录昵称设置
+│       ├── feedback/            # 反馈页面
 │       ├── stats/               # 数据统计
 │       ├── timer/               # 训练计时器
 │       │   ├── timer-setup/     # 计时器设置
@@ -129,8 +132,6 @@ fitness_coach_agent/
 │           └── exercise-detail/ # 动作详情
 ├── knowledge_base/              # RAG 知识库（PDF 等文档）
 ├── chroma_db/                   # ChromaDB 向量库（gitignore）
-├── fitness_coach.db             # SQLite 数据库（gitignore）
-├── checkpoints.db               # LangGraph checkpoint（gitignore）
 └── requirements.txt
 ```
 
@@ -150,7 +151,7 @@ fitness_coach_agent/
 | RAG 模块 | `backend/app/rag/modules/` | BM25(jieba)、混合检索(RRF)、HyDE、Self-RAG、Agentic RAG、语义分块 |
 | 记忆系统 | `backend/app/memory/` | MemoryManager 整合 3 个子模块：UserProfileLoader、ConversationSummarizer、StatsSummarizer |
 | LLM 管理 | `backend/app/llm_manager.py` | ChatOpenAI 实例按 temperature 分桶缓存（单例），避免重复创建 |
-| 数据模型 | `backend/app/models.py` | SQLAlchemy 5 张表：User、DailyLog、FoodItem、ExerciseItem、ConversationLog |
+| 数据模型 | `backend/app/models.py` | SQLAlchemy 5 张表：User（含 goal）、DailyLog、FoodItem、ExerciseItem、ConversationLog |
 | 食物 API | `backend/app/food_api.py` | 天行数据 API 查询食物营养，API 不可用时回退到本地 8 条兜底数据 |
 | Streamlit 前端 | `frontend/app.py` | 单文件，三模式：chat(SSE 流式)、profile(登录/档案)、stats(图表) |
 | 微信小程序 | `miniprogram/` | 6 个 tabBar 页面 + 训练计时器 + 动作指导，SSE 流式对话 |
@@ -172,7 +173,7 @@ fitness_coach_agent/
 - **LLM**：智谱 GLM-4.7，通过 OpenAI 兼容接口调用 (`open.bigmodel.cn`)
 - **Embedding**：智谱 embedding-2
 - **向量库**：ChromaDB（本地持久化 `./chroma_db`）
-- **数据库**：SQLite + SQLAlchemy（`./fitness_coach.db`）
+- **数据库**：PostgreSQL + SQLAlchemy（通过 `DATABASE_URL` 连接）
 - **Agent 框架**：LangChain + LangGraph（StateGraph 编排）
 - **鉴权**：JWT (PyJWT) + 微信小程序登录 (httpx)
 - **前端 Web**：Streamlit + Plotly（图表）
@@ -192,7 +193,7 @@ fitness_coach_agent/
 - `JWT_EXPIRE_HOURS` — JWT 过期时间（默认 72 小时）
 - `TianxingFood_API_KEY` — 天行数据食物营养 API Key
 - `CORS_ORIGINS` — CORS 允许的来源（逗号分隔）
-- `DB_PATH` — SQLite 数据库路径（默认 `./fitness_coach.db`）
+- `DATABASE_URL` — PostgreSQL 连接字符串（如 `postgresql://user:pass@localhost:5432/dbname`）
 - `SSL_VERIFY` — Streamlit 前端是否验证 SSL（默认 `true`）
 - `BACKEND_URL` — Streamlit 前端连接的后端地址
 

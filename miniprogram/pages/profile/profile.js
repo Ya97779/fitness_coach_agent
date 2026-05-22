@@ -8,8 +8,9 @@ Page({
     showEditModal: false,
     editForm: {
       height: '', weight: '', age: '', gender: '男',
-      target_weight: '', allergies: ''
-    }
+      target_weight: '', allergies: '', goal: ''
+    },
+    goalOptions: ['增肌', '减脂', '塑形', '改善体态', '提升体能', '保持健康']
   },
 
   onShow() {
@@ -23,8 +24,36 @@ Page({
 
   loadProfile() {
     request({ url: '/api/v1/user/me' }).then(user => {
+      user.bmrRounded = user.bmr ? Math.round(user.bmr) : '--'
+      user.tdeeRounded = user.tdee ? Math.round(user.tdee) : '--'
+      this._calcBmi(user)
       this.setData({ userInfo: user })
     }).catch(() => {})
+  },
+
+  _calcBmi(user) {
+    if (user.height && user.weight) {
+      const h = user.height / 100
+      const bmi = user.weight / (h * h)
+      user.bmiVal = bmi.toFixed(1)
+      if (bmi < 18.5) {
+        user.bmiCategory = '偏瘦'
+        user.bmiLevel = 'low'
+      } else if (bmi < 24) {
+        user.bmiCategory = '正常'
+        user.bmiLevel = 'normal'
+      } else if (bmi < 28) {
+        user.bmiCategory = '超重'
+        user.bmiLevel = 'high'
+      } else {
+        user.bmiCategory = '肥胖'
+        user.bmiLevel = 'danger'
+      }
+    } else {
+      user.bmiVal = '--'
+      user.bmiCategory = ''
+      user.bmiLevel = ''
+    }
   },
 
   showEdit() {
@@ -37,10 +66,13 @@ Page({
         age: userInfo.age ? String(userInfo.age) : '',
         gender: userInfo.gender || '男',
         target_weight: userInfo.target_weight ? String(userInfo.target_weight) : '',
-        allergies: userInfo.allergies || ''
+        allergies: userInfo.allergies || '',
+        goal: userInfo.goal || ''
       }
     })
   },
+
+  preventBubble() {},
 
   hideEdit() {
     this.setData({ showEditModal: false })
@@ -55,6 +87,10 @@ Page({
     this.setData({ 'editForm.gender': e.currentTarget.dataset.gender })
   },
 
+  selectGoal(e) {
+    this.setData({ 'editForm.goal': e.currentTarget.dataset.goal })
+  },
+
   saveProfile() {
     const form = this.data.editForm
     const data = {
@@ -63,13 +99,17 @@ Page({
       age: parseInt(form.age) || 0,
       gender: form.gender,
       target_weight: form.target_weight ? parseFloat(form.target_weight) : null,
-      allergies: form.allergies || null
+      allergies: form.allergies || null,
+      goal: form.goal || null
     }
 
     wx.showLoading({ title: '保存中...' })
     request({ url: '/api/v1/user/', method: 'POST', data }).then(user => {
       wx.hideLoading()
       wx.showToast({ title: '保存成功', icon: 'success' })
+      user.bmrRounded = user.bmr ? Math.round(user.bmr) : '--'
+      user.tdeeRounded = user.tdee ? Math.round(user.tdee) : '--'
+      this._calcBmi(user)
       this.setData({ userInfo: user, showEditModal: false })
     }).catch(err => {
       wx.hideLoading()

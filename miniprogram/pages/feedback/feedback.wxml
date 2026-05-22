@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <view class="section">
     <text class="label">你的反馈</text>
     <textarea

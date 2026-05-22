@@ -1,26 +1,35 @@
 const { request } = require('../../../utils/request')
+const app = getApp()
 
 Page({
   data: {
     exercises: [],
     totalSets: 0,
     completedSets: 0,
-    duration: 0,
+    durationSeconds: 0,
+    durationText: '00:00',
     estimatedCalories: 0,
+    calorieDetails: [],
     saved: false
   },
 
   onLoad() {
-    const eventChannel = this.getOpenerEventChannel()
-    eventChannel.on('trainingResult', (data) => {
+    const data = app.globalData.trainingResult
+    if (data) {
+      const secs = data.durationSeconds || 0
+      const mins = Math.floor(secs / 60)
+      const remainSecs = secs % 60
       this.setData({
         exercises: data.exercises,
         totalSets: data.totalSets,
         completedSets: data.completedSets,
-        duration: data.duration,
-        estimatedCalories: data.estimatedCalories
+        durationSeconds: secs,
+        durationText: `${String(mins).padStart(2, '0')}:${String(remainSecs).padStart(2, '0')}`,
+        estimatedCalories: data.estimatedCalories,
+        calorieDetails: data.calorieDetails || []
       })
-    })
+      app.globalData.trainingResult = null
+    }
   },
 
   saveRecord() {
@@ -29,8 +38,15 @@ Page({
       return
     }
 
-    const { exercises, duration } = this.data
-    const perExerciseDuration = Math.max(1, Math.round((duration || 1) / exercises.length))
+    const { exercises, durationSeconds, calorieDetails } = this.data
+    const durationMin = Math.max(1, Math.round(durationSeconds / 60))
+    const perExerciseDuration = Math.max(1, Math.round(durationMin / exercises.length))
+
+    // 构建动作热量映射
+    const calMap = {}
+    if (calorieDetails) {
+      calorieDetails.forEach(d => { calMap[d.name] = d.calories })
+    }
 
     wx.showLoading({ title: '保存中...' })
     const requests = exercises.map(ex => {
@@ -38,7 +54,8 @@ Page({
         type: ex.name || '力量训练',
         name: ex.name,
         sets: ex.sets,
-        duration: perExerciseDuration
+        duration: perExerciseDuration,
+        calories: calMap[ex.name] || 0
       }
       if (ex.weight) data.weight = ex.weight
       return request({ url: '/api/v1/exercise-log', method: 'POST', data })
@@ -55,7 +72,7 @@ Page({
   },
 
   trainAgain() {
-    wx.redirectTo({ url: '/pages/timer/timer-setup/timer-setup' })
+    wx.switchTab({ url: '/pages/timer/timer-setup/timer-setup' })
   },
 
   goHome() {

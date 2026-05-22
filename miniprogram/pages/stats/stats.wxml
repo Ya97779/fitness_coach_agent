@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 未登录提示 -->
   <view class="login-card" wx:if="{{!loggedIn}}">
     <text class="login-card-title">登录后可查看统计数据</text>

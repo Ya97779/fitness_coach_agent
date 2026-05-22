@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 视频/GIF -->
   <view class="media-wrap" wx:if="{{exercise.video}}">
     <video src="{{exercise.video}}" class="video-player" controls show-fullscreen-btn show-play-btn />

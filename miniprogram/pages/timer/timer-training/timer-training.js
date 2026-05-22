@@ -1,3 +1,6 @@
+const app = getApp()
+const { request } = require('../../../utils/request')
+
 Page({
   data: {
     exercises: [],
@@ -7,136 +10,161 @@ Page({
     nextEx: null,
     isResting: false,
     restRemaining: 0,
+    restTotal: 0,
     overallProgress: 0,
-    // 训练统计
-    startTime: 0,
+    elapsed: '00:00',
     completedSets: 0
   },
 
-  restTimer: null,
-  totalSets: 0,
-
   onLoad(options) {
-    const eventChannel = this.getOpenerEventChannel()
-    eventChannel.on('trainingPlan', (data) => {
-      const exercises = data.exercises
-      const totalSets = exercises.reduce((sum, ex) => sum + ex.sets, 0)
-      this.totalSets = totalSets
-      this.setData({
-        exercises,
-        currentEx: exercises[0],
-        currentSet: 1,
-        nextEx: exercises.length > 1 ? exercises[1] : null,
-        startTime: Date.now(),
-        overallProgress: 0
+    const t = app.globalData.training
+    if (t.active) {
+      // 从悬浮组件进入，训练已在进行中
+      this._syncFromGlobal()
+      this._subscribe()
+    } else {
+      // 从 timer-setup 进入，通过 eventChannel 接收训练计划
+      const eventChannel = this.getOpenerEventChannel()
+      eventChannel.on('trainingPlan', (data) => {
+        const exercises = data.exercises
+        app.startTraining(exercises)
+        const ex = exercises[0]
+        const nextEx = exercises.length > 1 ? exercises[1] : null
+        this.setData({
+          exercises,
+          currentEx: ex,
+          currentSet: 1,
+          nextEx,
+          overallProgress: 0,
+          elapsed: '00:00',
+          completedSets: 0,
+          isResting: false
+        })
+        this._subscribe()
       })
-    })
+    }
+  },
+
+  onShow() {
+    // 从其他页面返回时重新订阅
+    if (app.globalData.training.active) {
+      this._syncFromGlobal()
+      this._subscribe()
+    }
+  },
+
+  onHide() {
+    this._unsubscribe()
   },
 
   onUnload() {
-    this.clearRestTimer()
+    this._unsubscribe()
+  },
+
+  _subscribe() {
+    this._unsubscribe()
+    this._onTick = (t) => this._handleTick(t)
+    app.onTimerTick(this._onTick)
+  },
+
+  _unsubscribe() {
+    if (this._onTick) {
+      app.offTimerTick(this._onTick)
+      this._onTick = null
+    }
+  },
+
+  _handleTick(t) {
+    const ex = t.exercises[t.currentExIndex]
+    const nextEx = t.currentExIndex + 1 < t.exercises.length ? t.exercises[t.currentExIndex + 1] : null
+    const mins = Math.floor(t.elapsedSeconds / 60)
+    const secs = t.elapsedSeconds % 60
+    const progress = t.totalSets > 0 ? Math.round((t.completedSets / t.totalSets) * 100) : 0
+
+    const update = {
+      currentExIndex: t.currentExIndex,
+      currentEx: ex,
+      currentSet: t.currentSet,
+      nextEx,
+      isResting: t.isResting,
+      restRemaining: t.restRemaining,
+      restTotal: t.restTotal,
+      elapsed: `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+      overallProgress: progress,
+      completedSets: t.completedSets
+    }
+    this.setData(update)
+
+    if (t.isResting) {
+      this.drawRestRing(t.restTotal, t.restRemaining)
+    }
+
+    // 休息结束后检测到全部完成
+    if (t.finished) {
+      t.finished = false
+      this._unsubscribe()
+      this._goToSummary()
+    }
+  },
+
+  _syncFromGlobal() {
+    const t = app.globalData.training
+    const ex = t.exercises[t.currentExIndex]
+    const nextEx = t.currentExIndex + 1 < t.exercises.length ? t.exercises[t.currentExIndex + 1] : null
+    const mins = Math.floor(t.elapsedSeconds / 60)
+    const secs = t.elapsedSeconds % 60
+    const progress = t.totalSets > 0 ? Math.round((t.completedSets / t.totalSets) * 100) : 0
+
+    this.setData({
+      exercises: t.exercises,
+      currentExIndex: t.currentExIndex,
+      currentEx: ex,
+      currentSet: t.currentSet,
+      nextEx,
+      isResting: t.isResting,
+      restRemaining: t.restRemaining,
+      restTotal: t.restTotal,
+      elapsed: `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`,
+      overallProgress: progress,
+      completedSets: t.completedSets
+    })
   },
 
   finishSet() {
-    const { exercises, currentExIndex, currentSet, currentEx, completedSets } = this.data
-    const newCompleted = completedSets + 1
-
-    if (currentSet < currentEx.sets) {
-      // 还有剩余组，开始休息
-      this.setData({
-        isResting: true,
-        restRemaining: currentEx.rest,
-        completedSets: newCompleted
-      })
-      this.drawRestRing(currentEx.rest)
-      this.startRestTimer(currentEx.rest)
-    } else {
-      // 当前动作完成，跳到下一个
-      this.setData({ completedSets: newCompleted })
-      this.goToNextExercise()
+    if (app.completeSet()) {
+      this._unsubscribe()
+      this._goToSummary()
     }
-  },
-
-  startRestTimer(totalSeconds) {
-    this.clearRestTimer()
-    let remaining = totalSeconds
-    this.restTimer = setInterval(() => {
-      remaining--
-      this.setData({ restRemaining: remaining })
-      this.drawRestRing(totalSeconds, remaining)
-      if (remaining <= 0) {
-        this.clearRestTimer()
-        this.endRest()
-      }
-    }, 1000)
-  },
-
-  clearRestTimer() {
-    if (this.restTimer) {
-      clearInterval(this.restTimer)
-      this.restTimer = null
-    }
-  },
-
-  endRest() {
-    const { currentSet, currentEx } = this.data
-    this.setData({
-      isResting: false,
-      currentSet: currentSet + 1
-    })
-    this.updateProgress()
-    wx.vibrateShort({ type: 'heavy' })
   },
 
   skipRest() {
-    this.clearRestTimer()
-    this.endRest()
-  },
-
-  goToNextExercise() {
-    const { exercises, currentExIndex } = this.data
-    const nextIndex = currentExIndex + 1
-
-    if (nextIndex >= exercises.length) {
-      // 全部完成
-      this.finishTraining()
-      return
+    if (app.skipRest()) {
+      this._unsubscribe()
+      this._goToSummary()
     }
-
-    const nextNext = nextIndex + 1 < exercises.length ? exercises[nextIndex + 1] : null
-    this.setData({
-      currentExIndex: nextIndex,
-      currentEx: exercises[nextIndex],
-      currentSet: 1,
-      nextEx: nextNext,
-      isResting: false
-    })
-    this.updateProgress()
-    wx.vibrateShort({ type: 'medium' })
   },
 
   prevExercise() {
-    const { exercises, currentExIndex } = this.data
-    if (currentExIndex <= 0) return
-    const prevIndex = currentExIndex - 1
-    this.setData({
-      currentExIndex: prevIndex,
-      currentEx: exercises[prevIndex],
-      currentSet: 1,
-      nextEx: exercises[prevIndex + 1] || null,
-      isResting: false
-    })
-    this.updateProgress()
+    const t = app.globalData.training
+    if (t.currentExIndex <= 0) return
+    t.currentExIndex--
+    t.currentSet = 1
+    t.isResting = false
+    t.restRemaining = 0
+    t.restTotal = 0
+    this._syncFromGlobal()
   },
 
   nextExercise() {
-    this.goToNextExercise()
-  },
-
-  updateProgress() {
-    const { completedSets } = this.data
-    const progress = this.totalSets > 0 ? Math.round((completedSets / this.totalSets) * 100) : 0
-    this.setData({ overallProgress: progress })
+    const t = app.globalData.training
+    if (t.currentExIndex + 1 >= t.exercises.length) return
+    t.currentExIndex++
+    t.currentSet = 1
+    t.isResting = false
+    t.restRemaining = 0
+    t.restTotal = 0
+    wx.vibrateShort({ type: 'medium' })
+    this._syncFromGlobal()
   },
 
   drawRestRing(total, remaining) {
@@ -152,14 +180,12 @@ Page({
       const radius = Math.min(cx, cy) - 10
       const lineWidth = 6
 
-      // 背景环
       ctx.setLineWidth(lineWidth)
       ctx.setStrokeStyle('#e8e8e8')
       ctx.beginPath()
       ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
       ctx.stroke()
 
-      // 进度环
       const progress = remaining / total
       ctx.setLineWidth(lineWidth)
       ctx.setStrokeStyle('#1a1a1a')
@@ -178,28 +204,37 @@ Page({
       content: '确定要结束当前训练吗？',
       success: res => {
         if (res.confirm) {
-          this.finishTraining()
+          this._unsubscribe()
+          this._goToSummary()
         }
       }
     })
   },
 
-  finishTraining() {
-    this.clearRestTimer()
-    const { exercises, startTime, completedSets } = this.data
-    const duration = Math.round((Date.now() - startTime) / 1000 / 60) // 分钟
+  _goToSummary() {
+    const result = app.finishTraining()
 
-    wx.redirectTo({
-      url: '/pages/timer/timer-summary/timer-summary',
-      success: (res) => {
-        res.eventChannel.emit('trainingResult', {
-          exercises: exercises.map(ex => ({ name: ex.name, sets: ex.sets, weight: ex.weight || 0 })),
-          totalSets: this.totalSets,
-          completedSets,
-          duration,
-          estimatedCalories: Math.round(duration * 6) // 粗略估算
-        })
-      }
+    // 构造热量估算请求
+    const exercises = result.exercises.map(ex => ({
+      name: ex.name,
+      sets: ex.sets,
+      weight: ex.weight || 0,
+      duration: Math.max(1, Math.round((result.durationSeconds / 60) / result.exercises.length))
+    }))
+
+    request({
+      url: '/api/v1/estimate-calories',
+      method: 'POST',
+      data: { exercises }
+    }).then(res => {
+      result.estimatedCalories = res.total_calories
+      result.calorieDetails = res.details
+      app.globalData.trainingResult = result
+      wx.redirectTo({ url: '/pages/timer/timer-summary/timer-summary' })
+    }).catch(() => {
+      // 接口失败时使用原有公式
+      app.globalData.trainingResult = result
+      wx.redirectTo({ url: '/pages/timer/timer-summary/timer-summary' })
     })
   }
 })

@@ -20,6 +20,7 @@ class User(Base):
     gender = Column(String, nullable=False, default="未知")
     target_weight = Column(Float, nullable=True)
     allergies = Column(String, nullable=True)
+    goal = Column(String, nullable=True)
     bmr = Column(Float, nullable=True)
     tdee = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -65,6 +66,15 @@ class ExerciseItem(Base):
     calories = Column(Float, nullable=False)
 
     log = relationship("DailyLog", back_populates="exercise_items")
+
+class ExerciseCalorie(Base):
+    __tablename__ = "exercise_calories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False, index=True)
+    calories_per_set = Column(Float, nullable=False)
+    category = Column(String, nullable=True)
+    aliases = Column(String, nullable=True)  # JSON 数组：["卧推", "平板卧推"]
 
 class ConversationLog(Base):
     __tablename__ = "conversation_logs"

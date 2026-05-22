@@ -1,4 +1,5 @@
 <view class="page">
+  <floating-timer />
   <!-- 快捷入口 -->
   <scroll-view class="shortcuts-bar" scroll-x enable-flex>
     <view class="chip" wx:for="{{shortcuts}}" wx:key="text" bindtap="useShortcut" data-text="{{item.text}}">

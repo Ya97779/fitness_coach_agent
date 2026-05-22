@@ -1,0 +1,25 @@
+<view class="timer-panel" wx:if="{{visible}}" bindtap="onTap">
+  <!-- 进度条 -->
+  <view class="panel-progress">
+    <view class="panel-progress-fill" style="width: {{progress}}%"></view>
+  </view>
+
+  <view class="panel-body">
+    <!-- 左侧：动作信息 -->
+    <view class="panel-left">
+      <text class="panel-ex-name">{{exName}}</text>
+      <text class="panel-set-info">第 {{setInfo}} 组 · {{progress}}%</text>
+    </view>
+
+    <!-- 右侧：休息倒计时 -->
+    <view class="panel-right" wx:if="{{isResting}}" catchtap="onSkipRest">
+      <text class="panel-rest-sec">{{restRemaining}}s</text>
+      <text class="panel-rest-label">跳过</text>
+    </view>
+
+    <!-- 右侧：继续箭头 -->
+    <view class="panel-right panel-arrow-wrap" wx:else>
+      <text class="panel-arrow">›</text>
+    </view>
+  </view>
+</view>
