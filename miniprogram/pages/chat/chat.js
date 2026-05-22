@@ -24,7 +24,15 @@ Page({
       { icon: '🔍', text: '查询热量' },
       { icon: '💪', text: '训练建议' },
       { icon: '🥦', text: '饮食计划' }
-    ]
+    ],
+    tagStyle: {
+      p: 'margin-bottom: 16rpx; line-height: 1.8;',
+      ul: 'margin-bottom: 16rpx; padding-left: 32rpx;',
+      ol: 'margin-bottom: 16rpx; padding-left: 32rpx;',
+      li: 'margin-bottom: 8rpx; line-height: 1.7;',
+      h2: 'margin-top: 24rpx; margin-bottom: 12rpx; font-weight: 700;',
+      h3: 'margin-top: 20rpx; margin-bottom: 10rpx; font-weight: 700;'
+    }
   },
 
   onInput(e) {

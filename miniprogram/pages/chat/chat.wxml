@@ -11,7 +11,7 @@
     <view class="msg-item {{msg.role}}" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
       <view class="msg-avatar" wx:if="{{item.role === 'ai'}}">AI</view>
       <view class="msg-bubble bubble-{{item.role}}">
-        <mp-html wx:if="{{item.role === 'ai' && item.content}}" content="{{item.htmlContent}}" selectable lazy-load />
+        <mp-html wx:if="{{item.role === 'ai' && item.content}}" content="{{item.htmlContent}}" selectable lazy-load container-style="white-space: pre-wrap; word-break: break-all;" tag-style="{{tagStyle}}" />
         <text wx:elif="{{item.role === 'user'}}" class="msg-text" user-select>{{item.content}}</text>
         <view class="msg-loading" wx:if="{{item.loading}}">
           <view class="loading-dot"></view>
