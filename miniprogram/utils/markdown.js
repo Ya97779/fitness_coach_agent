@@ -6,91 +6,148 @@
 function parseMarkdown(text) {
   if (!text) return ''
 
-  let html = text
+  // 统一换行符
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
-  // 转义 HTML 特殊字符
-  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // 预处理：在 markdown 语法前插入换行（处理 LLM 不换行的情况）
+  // 只在非行首的 # 前插入换行
+  text = text.replace(/([^\n])(#{1,4}\s)/g, '$1\n$2')
 
-  // 表格：容错处理，支持行首有无 | 的情况
-  html = html.replace(/^((?:(?:\|?)[^\n]*\|[^\n]*[\r\n]?)+)/gm, function(match) {
-    const lines = match.trim().split('\n').filter(line => line.trim() && line.includes('|'))
-    if (lines.length < 2) return match
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l)
+  const blocks = []
+  let tableLines = []
+  let listItems = []
 
-    // 检查第二行是否是分隔行 (---|---| 或 |---|---|)
-    const sepLine = lines[1].trim().replace(/^\||\|$/g, '')
-    const cells = sepLine.split('|').map(s => s.trim())
-    if (!cells.every(c => /^[\-:]+$/.test(c))) return match
-
-    let table = '<table>'
-
-    // 表头
-    const headers = parseTableRow(lines[0])
-    table += '<thead><tr>'
-    headers.forEach(h => { table += '<th>' + h.trim() + '</th>' })
-    table += '</tr></thead>'
-
-    // 表体
-    table += '<tbody>'
-    for (let i = 2; i < lines.length; i++) {
-      const cells = parseTableRow(lines[i])
+  function flushTable() {
+    if (tableLines.length < 2) {
+      tableLines.forEach(l => blocks.push('<p>' + inlineFormat(escapeHtml(l)) + '</p>'))
+      tableLines = []
+      return
+    }
+    const sepLine = tableLines[1].replace(/^\||\|$/g, '')
+    const sepCells = sepLine.split('|').map(s => s.trim())
+    if (!sepCells.every(c => /^[-:]+$/.test(c))) {
+      tableLines.forEach(l => blocks.push('<p>' + inlineFormat(escapeHtml(l)) + '</p>'))
+      tableLines = []
+      return
+    }
+    let table = '<table><thead><tr>'
+    parseTableRow(tableLines[0]).forEach(h => { table += '<th>' + escapeHtml(h.trim()) + '</th>' })
+    table += '</tr></thead><tbody>'
+    for (let i = 2; i < tableLines.length; i++) {
       table += '<tr>'
-      cells.forEach(c => { table += '<td>' + c.trim() + '</td>' })
+      parseTableRow(tableLines[i]).forEach(c => { table += '<td>' + escapeHtml(c.trim()) + '</td>' })
       table += '</tr>'
     }
     table += '</tbody></table>'
+    blocks.push(table)
+    tableLines = []
+  }
 
-    return table
-  })
+  function flushList() {
+    if (listItems.length === 0) return
+    blocks.push('<ul>' + listItems.map(item => '<li>' + item + '</li>').join('') + '</ul>')
+    listItems = []
+  }
 
-  // 标题：容错处理 # 后有无空格都行
-  html = html.replace(/^#{4}\s+(.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^#{3}\s+(.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^#{2}\s+(.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
-  // 处理 # 后无空格的情况（如 ###标题）
-  html = html.replace(/^#{4}(\S.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^#{3}(\S.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^#{2}(\S.+)$/gm, '<h2>$1</h2>')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
 
-  // 加粗：标准格式 **text**
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // 跳过纯分隔符行和单个 #
+    if (/^[-*·]{3,}$/.test(line) || /^={3,}$/.test(line) || /^#$/.test(line)) continue
 
-  // 斜体：标准格式 *text*
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // 表格行：包含 | 且有内容
+    if (line.includes('|') && line.replace(/\|/g, '').trim().length > 0) {
+      const stripped = line.replace(/^\||\|$/g, '')
+      const cells = stripped.split('|').map(s => s.trim())
+      // 检查是否是分隔行（只包含 -、:、空格）
+      const isSepRow = cells.every(c => /^[\s\-:]+$/.test(c)) && cells.some(c => c.includes('-'))
+      if (isSepRow) {
+        tableLines.push(line)
+        continue
+      }
+      flushList()
+      tableLines.push(line)
+      continue
+    }
 
-  // 无序列表：容错处理 - 后有无空格都行
-  html = html.replace(/^[-·]\s+(.+)$/gm, '<li>$1</li>')
-  html = html.replace(/^[-·](\S.+)$/gm, '<li>$1</li>')
-  // 连续 <li> 包裹成 <ul>
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+    if (tableLines.length > 0) {
+      flushTable()
+    }
 
-  // 有序列表：容错处理 1. 后有无空格都行
-  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
-  html = html.replace(/^\d+\.(\S.+)$/gm, '<li>$1</li>')
+    // 标题
+    const headerMatch = line.match(/^(#{1,4})\s*(.+)$/)
+    if (headerMatch) {
+      flushList()
+      const level = headerMatch[1].length
+      let headerText = headerMatch[2].trim()
 
-  // 换行：两个换行变段落，一个换行变 <br>
-  html = html.replace(/\n\n/g, '</p><p>')
-  html = html.replace(/\n/g, '<br>')
+      // 容错：标题后紧跟正文（超过20字符可能包含正文）
+      if (headerText.length > 20) {
+        const splitPatterns = [
+          /^(.{2,15}?[：:。！？\s])(.+)$/,
+          /^(.{2,15}?[。！？])(.+)$/,
+          /^(.{2,15}?[\s])(.+)$/
+        ]
+        let split = false
+        for (const pattern of splitPatterns) {
+          const match = headerText.match(pattern)
+          if (match && match[2].length > 5) {
+            blocks.push('<h' + level + '>' + inlineFormat(escapeHtml(match[1].trim())) + '</h' + level + '>')
+            blocks.push('<p>' + inlineFormat(escapeHtml(match[2].trim())) + '</p>')
+            split = true
+            break
+          }
+        }
+        if (!split) {
+          blocks.push('<h' + level + '>' + inlineFormat(escapeHtml(headerText)) + '</h' + level + '>')
+        }
+        continue
+      }
+      blocks.push('<h' + level + '>' + inlineFormat(escapeHtml(headerText)) + '</h' + level + '>')
+      continue
+    }
 
-  // 包裹段落
-  html = '<p>' + html + '</p>'
+    // 无序列表：- 或 * 开头（但不是 ** 加粗标记）
+    const listMatch = line.match(/^([-·]|\*(?!\*))\s*(.+)$/)
+    if (listMatch && !line.startsWith('**')) {
+      flushTable()
+      listItems.push(inlineFormat(escapeHtml(listMatch[2])))
+      continue
+    }
 
-  // 清理：把块级元素从 <p> 中释放，清理多余的 <br>
-  html = html.replace(/<p><\/p>/g, '')
-  html = html.replace(/<p>(<h[1-6]>)/g, '$1')
-  html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1')
-  html = html.replace(/<p>(<ul>)/g, '$1')
-  html = html.replace(/(<\/ul>)<\/p>/g, '$1')
-  html = html.replace(/<p>(<table>)/g, '$1')
-  html = html.replace(/(<\/table>)<\/p>/g, '$1')
-  html = html.replace(/<br>(<\/?(?:h[1-6]|ul|table|li)>)/g, '$1')
-  html = html.replace(/(<\/?(?:h[1-6]|ul|table|li)>)<br>/g, '$1')
+    // 有序列表：1. 开头
+    const orderedMatch = line.match(/^\d+\.\s*(.+)$/)
+    if (orderedMatch) {
+      flushTable()
+      listItems.push(inlineFormat(escapeHtml(orderedMatch[1])))
+      continue
+    }
 
-  return html
+    // 普通文本
+    flushList()
+    blocks.push('<p>' + inlineFormat(escapeHtml(line)) + '</p>')
+  }
+
+  flushTable()
+  flushList()
+
+  return blocks.join('')
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function inlineFormat(text) {
+  // 加粗：**text**
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  // 斜体：*text*（避免匹配列表标记和加粗标记）
+  text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+  return text
 }
 
 function parseTableRow(line) {
-  // 容错：去掉行首尾的 |，然后按 | 分割
   return line.trim().replace(/^\||\|$/g, '').split('|')
 }
 
