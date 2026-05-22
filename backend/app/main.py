@@ -451,7 +451,7 @@ def create_exercise_log(
         db.refresh(log)
 
     body_weight = current_user.weight or 60
-    calories = data.calories if data.calories else estimate_exercise_calories(data.type, data.duration, "medium", body_weight)
+    calories = data.calories if data.calories else estimate_exercise_calories.invoke({"exercise_type": data.type, "duration": data.duration, "intensity": "medium", "user_weight": body_weight}).get("calories", 0)
 
     item = models.ExerciseItem(
         log_id=log.id,
