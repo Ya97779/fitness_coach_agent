@@ -1,6 +1,6 @@
 const { streamRequest } = require('../../utils/request')
 const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
-const marked = require('../../utils/marked')
+const markdown = require('../../utils/markdown')
 
 let msgId = 0
 
@@ -84,9 +84,7 @@ Page({
   updateAiMessage(msgId, content) {
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        const htmlContent = marked.parse ? marked.parse(content) : content
-        console.log('[DEBUG] marked type:', typeof marked, 'parse type:', typeof marked.parse)
-        console.log('[DEBUG] htmlContent:', htmlContent.substring(0, 200))
+        const htmlContent = markdown.parse(content)
         return { ...m, content, htmlContent }
       }
       return m
