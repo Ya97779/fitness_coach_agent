@@ -1,14 +1,5 @@
 const { streamRequest } = require('../../utils/request')
 const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
-const showdown = require('../../utils/showdown')
-
-const converter = new showdown.Converter({
-  simplifiedAutoLink: true,
-  literalMidWordUnderscores: true,
-  tables: true,
-  tasklists: false,
-  simpleLineBreaks: true
-})
 
 let msgId = 0
 
@@ -24,15 +15,7 @@ Page({
       { icon: '🔍', text: '查询热量' },
       { icon: '💪', text: '训练建议' },
       { icon: '🥦', text: '饮食计划' }
-    ],
-    tagStyle: {
-      p: 'margin-bottom: 16rpx; line-height: 1.8;',
-      ul: 'margin-bottom: 16rpx; padding-left: 32rpx;',
-      ol: 'margin-bottom: 16rpx; padding-left: 32rpx;',
-      li: 'margin-bottom: 8rpx; line-height: 1.7;',
-      h2: 'margin-top: 24rpx; margin-bottom: 12rpx; font-weight: 700;',
-      h3: 'margin-top: 20rpx; margin-bottom: 10rpx; font-weight: 700;'
-    }
+    ]
   },
 
   onInput(e) {
@@ -64,14 +47,12 @@ Page({
 
     let fullContent = ''
     let lineBuffer = ''
-    let currentEventType = 'data'  // 默认 event type
+    let currentEventType = 'data'
     const requestTask = streamRequest(
       { url: '/api/v1/chat/stream', data: { message: text } },
       (chunk) => {
-        // 行缓冲：TCP 分包可能截断 SSE 行，需要拼接后再解析
         lineBuffer += chunk
         const parts = lineBuffer.split('\n')
-        // 最后一个元素可能是不完整的行，保留在 buffer 中
         lineBuffer = parts.pop() || ''
         for (const line of parts) {
           const trimmed = line.trim()
@@ -87,13 +68,12 @@ Page({
               this.updateAiMessage(aiMsg.id, fullContent)
               continue
             }
-            // status 事件只显示提示，不计入最终内容
             if (currentEventType === 'status') {
               this.updateAiMessage(aiMsg.id, data)
-              currentEventType = 'data'  // 重置
+              currentEventType = 'data'
               continue
             }
-            currentEventType = 'data'  // 重置
+            currentEventType = 'data'
             fullContent += data
             this.updateAiMessage(aiMsg.id, fullContent)
           }
@@ -112,8 +92,7 @@ Page({
   updateAiMessage(msgId, content) {
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        const htmlContent = converter.makeHtml(content)
-        return { ...m, content, htmlContent }
+        return { ...m, content }
       }
       return m
     })
