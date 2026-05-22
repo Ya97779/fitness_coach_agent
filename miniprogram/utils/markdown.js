@@ -1,6 +1,6 @@
 /**
- * 轻量 markdown 解析器
- * 支持：标题、加粗、斜体、列表、表格、换行
+ * 标准 markdown 解析器
+ * 只处理标准格式：标题、加粗、列表、表格、换行
  */
 
 function parseMarkdown(text) {
@@ -11,7 +11,7 @@ function parseMarkdown(text) {
   // 转义 HTML 特殊字符
   html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // 表格：解析 | header | header | 格式
+  // 表格：标准格式 | header | header |
   html = html.replace(/((?:\|.+\|[\r\n]?)+)/g, function(match) {
     const lines = match.trim().split('\n').filter(line => line.trim())
     if (lines.length < 2) return match
@@ -40,24 +40,24 @@ function parseMarkdown(text) {
     return table
   })
 
-  // 标题 #### / ### / ## / #
-  html = html.replace(/^#{4}\s*(.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^#{3}\s*(.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^#{2}\s*(.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^#\s*(.+)$/gm, '<h1>$1</h1>')
+  // 标题：标准格式 # ## ### ####（# 后有空格）
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
 
-  // 加粗 **text**
+  // 加粗：标准格式 **text**
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
 
-  // 斜体 *text*
+  // 斜体：标准格式 *text*
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
 
-  // 无序列表 - item 或 · item
-  html = html.replace(/^[\-\·] (.+)$/gm, '<li>$1</li>')
+  // 无序列表：标准格式 - item（减号后有空格）
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>')
   // 连续 <li> 包裹成 <ul>
   html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
 
-  // 有序列表 1. item
+  // 有序列表：标准格式 1. item
   html = html.replace(/^\d+\.\s(.+)$/gm, '<li>$1</li>')
 
   // 换行：两个换行变段落，一个换行变 <br>
@@ -75,14 +75,11 @@ function parseMarkdown(text) {
   html = html.replace(/(<\/ul>)<\/p>/g, '$1')
   html = html.replace(/<p>(<table>)/g, '$1')
   html = html.replace(/(<\/table>)<\/p>/g, '$1')
-  html = html.replace(/<br><(\/?)(h[1-6]|ul|table|li)>/g, '<$1$2>')
-  html = html.replace(/<(h[1-6]|ul|table)><br>/g, '<$1>')
 
   return html
 }
 
 function parseTableRow(line) {
-  // 去掉首尾的 |，然后按 | 分割
   return line.replace(/^\||\|$/g, '').split('|')
 }
 
