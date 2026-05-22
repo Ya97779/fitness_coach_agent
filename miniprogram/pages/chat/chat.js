@@ -1,5 +1,6 @@
 const { streamRequest } = require('../../utils/request')
 const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
+const marked = require('../../utils/marked')
 
 let msgId = 0
 
@@ -82,7 +83,10 @@ Page({
 
   updateAiMessage(msgId, content) {
     const messages = this.data.messages.map(m => {
-      if (m.id === msgId) return { ...m, content }
+      if (m.id === msgId) {
+        const htmlContent = marked.parse(content)
+        return { ...m, content, htmlContent }
+      }
       return m
     })
     this.setData({

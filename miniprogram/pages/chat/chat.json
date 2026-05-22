@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "AI 顾问"
+  "navigationBarTitleText": "AI 顾问",
+  "usingComponents": {
+    "mp-html": "/components/mp-html/index"
+  }
 }
