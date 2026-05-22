@@ -1,6 +1,14 @@
 const { streamRequest } = require('../../utils/request')
 const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
-const markdown = require('../../utils/markdown')
+const showdown = require('../../utils/showdown')
+
+const converter = new showdown.Converter({
+  simplifiedAutoLink: true,
+  literalMidWordUnderscores: true,
+  tables: true,
+  tasklists: false,
+  simpleLineBreaks: true
+})
 
 let msgId = 0
 
@@ -96,7 +104,7 @@ Page({
   updateAiMessage(msgId, content) {
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        const htmlContent = markdown.parse(content)
+        const htmlContent = converter.makeHtml(content)
         return { ...m, content, htmlContent }
       }
       return m
