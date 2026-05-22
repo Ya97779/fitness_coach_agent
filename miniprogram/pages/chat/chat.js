@@ -48,6 +48,7 @@ Page({
 
     let fullContent = ''
     let lineBuffer = ''
+    let currentEventType = 'data'  // 默认 event type
     const requestTask = streamRequest(
       { url: '/api/v1/chat/stream', data: { message: text } },
       (chunk) => {
@@ -58,6 +59,10 @@ Page({
         lineBuffer = parts.pop() || ''
         for (const line of parts) {
           const trimmed = line.trim()
+          if (trimmed.startsWith('event: ')) {
+            currentEventType = trimmed.slice(7).trim()
+            continue
+          }
           if (trimmed.startsWith('data: ')) {
             const data = trimmed.slice(6)
             if (data === '[DONE]') continue
@@ -66,6 +71,13 @@ Page({
               this.updateAiMessage(aiMsg.id, fullContent)
               continue
             }
+            // status 事件只显示提示，不计入最终内容
+            if (currentEventType === 'status') {
+              this.updateAiMessage(aiMsg.id, data)
+              currentEventType = 'data'  // 重置
+              continue
+            }
+            currentEventType = 'data'  // 重置
             fullContent += data
             this.updateAiMessage(aiMsg.id, fullContent)
           }

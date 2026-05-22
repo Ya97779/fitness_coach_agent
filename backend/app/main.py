@@ -466,10 +466,11 @@ async def chat_stream(
 
         def run():
             try:
-                for chunk in stream_user_message(
+                for item in stream_user_message(
                     user_message, current_user.id, user_profile, daily_stats
                 ):
-                    q.put(("chunk", chunk))
+                    # item 是 tuple: ("status", msg) 或 ("data", msg)
+                    q.put(("chunk", item))
                 q.put(("done", None))
             except Exception as e:
                 q.put(("error", str(e)))
@@ -483,7 +484,11 @@ async def chat_stream(
                     None, lambda: q.get(timeout=30)
                 )
                 if msg_type == "chunk":
-                    yield f"data: {data}\n\n"
+                    event_type, content = data
+                    if event_type == "status":
+                        yield f"event: status\ndata: {content}\n\n"
+                    else:
+                        yield f"data: {content}\n\n"
                 elif msg_type == "done":
                     yield "data: [DONE]\n\n"
                     break

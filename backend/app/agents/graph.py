@@ -569,7 +569,7 @@ def stream_user_message(
     user_message_clean = ' '.join(user_message_clean.split())
 
     if not user_message_clean.strip():
-        yield "你好，有什么我可以帮助你的吗？"
+        yield ("data", "你好，有什么我可以帮助你的吗？")
         return
 
     # 路由前置：先决定 agent，再只为它构建 prompt（省掉 2/3 的 prompt 构建开销）
@@ -609,7 +609,7 @@ def stream_user_message(
         "fitness": "正在搜索训练方案...",
     }
     if agent in _status_messages:
-        yield _status_messages[agent]
+        yield ("status", _status_messages[agent])
 
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
@@ -623,12 +623,12 @@ def stream_user_message(
     try:
         for chunk in response_generator:
             full_response += chunk
-            yield chunk
+            yield ("data", chunk)
     except Exception as e:
         error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
         print(f"[stream] 迭代异常: {e}")
         full_response += error_msg
-        yield error_msg
+        yield ("data", error_msg)
 
     # 流式完成后保存对话历史（错误回复也保存，便于排查）
     if full_response:
