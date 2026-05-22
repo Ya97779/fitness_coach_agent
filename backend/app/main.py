@@ -466,16 +466,16 @@ async def chat_stream(
 
         def run():
             try:
-                print(f"[stream] 开始处理用户 {current_user.id} 的消息: {user_message[:50]}...")
+                print(f"[stream] 开始处理用户 {current_user.id} 的消息: {user_message[:50]}...", flush=True)
                 for item in stream_user_message(
                     user_message, current_user.id, user_profile, daily_stats
                 ):
                     # item 是 tuple: ("status", msg) 或 ("data", msg)
                     q.put(("chunk", item))
                 q.put(("done", None))
-                print(f"[stream] 用户 {current_user.id} 的消息处理完成")
+                print(f"[stream] 用户 {current_user.id} 的消息处理完成", flush=True)
             except Exception as e:
-                print(f"[stream] 用户 {current_user.id} 的消息处理异常: {e}")
+                print(f"[stream] 用户 {current_user.id} 的消息处理异常: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
                 q.put(("error", str(e)))

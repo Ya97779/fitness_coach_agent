@@ -588,18 +588,18 @@ def stream_user_message(
         return
 
     # 路由前置：先决定 agent，再只为它构建 prompt（省掉 2/3 的 prompt 构建开销）
-    print(f"[stream] 路由分析中...")
+    print(f"[stream] 路由分析中...", flush=True)
     result = hybrid_route(user_message_clean, require_llm_confirm=False)
     agent = result["agent"]
     if agent not in ["nutrition", "fitness"]:
         agent = "chat"
-    print(f"[stream] 路由结果: {agent}")
+    print(f"[stream] 路由结果: {agent}", flush=True)
 
-    print(f"[stream] 加载用户记忆...")
+    print(f"[stream] 加载用户记忆...", flush=True)
     memory_manager = MemoryManager(user_id=user_id)
     memory_manager.load_all_memory()
     memory_summary = memory_manager.get_memory_summary()
-    print(f"[stream] 记忆加载完成")
+    print(f"[stream] 记忆加载完成", flush=True)
 
     conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
     memory_summary["conversation_history"] = conversation_history
@@ -630,7 +630,7 @@ def stream_user_message(
     if agent in _status_messages:
         yield ("status", _status_messages[agent])
 
-    print(f"[stream] 开始调用 {agent} agent...")
+    print(f"[stream] 开始调用 {agent} agent...", flush=True)
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
     elif agent == "fitness":
