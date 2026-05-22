@@ -84,7 +84,9 @@ Page({
   updateAiMessage(msgId, content) {
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        const htmlContent = marked.parse(content)
+        const htmlContent = marked.parse ? marked.parse(content) : content
+        console.log('[DEBUG] marked type:', typeof marked, 'parse type:', typeof marked.parse)
+        console.log('[DEBUG] htmlContent:', htmlContent.substring(0, 200))
         return { ...m, content, htmlContent }
       }
       return m
