@@ -40,10 +40,11 @@ function parseMarkdown(text) {
     return table
   })
 
-  // 标题 ### / ## / #
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+  // 标题 #### / ### / ## / #
+  html = html.replace(/^#{4}\s*(.+)$/gm, '<h4>$1</h4>')
+  html = html.replace(/^#{3}\s*(.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^#{2}\s*(.+)$/gm, '<h2>$1</h2>')
+  html = html.replace(/^#\s*(.+)$/gm, '<h1>$1</h1>')
 
   // 加粗 **text**
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -74,6 +75,8 @@ function parseMarkdown(text) {
   html = html.replace(/(<\/ul>)<\/p>/g, '$1')
   html = html.replace(/<p>(<table>)/g, '$1')
   html = html.replace(/(<\/table>)<\/p>/g, '$1')
+  html = html.replace(/<br><(\/?)(h[1-6]|ul|table|li)>/g, '<$1$2>')
+  html = html.replace(/<(h[1-6]|ul|table)><br>/g, '<$1>')
 
   return html
 }
