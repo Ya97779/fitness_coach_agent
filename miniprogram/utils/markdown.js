@@ -11,13 +11,15 @@ function parseMarkdown(text) {
   // 转义 HTML 特殊字符
   html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // 表格：标准格式 | header | header |
-  html = html.replace(/((?:\|.+\|[\r\n]?)+)/g, function(match) {
-    const lines = match.trim().split('\n').filter(line => line.trim())
+  // 表格：容错处理，支持行首有无 | 的情况
+  html = html.replace(/^((?:(?:\|?)[^\n]*\|[^\n]*[\r\n]?)+)/gm, function(match) {
+    const lines = match.trim().split('\n').filter(line => line.trim() && line.includes('|'))
     if (lines.length < 2) return match
 
-    // 检查第二行是否是分隔行 (|---|---|)
-    if (!/^\|[\s\-:|]+\|$/.test(lines[1].trim())) return match
+    // 检查第二行是否是分隔行 (---|---| 或 |---|---|)
+    const sepLine = lines[1].trim().replace(/^\||\|$/g, '')
+    const cells = sepLine.split('|').map(s => s.trim())
+    if (!cells.every(c => /^[\-:]+$/.test(c))) return match
 
     let table = '<table>'
 
@@ -88,7 +90,8 @@ function parseMarkdown(text) {
 }
 
 function parseTableRow(line) {
-  return line.replace(/^\||\|$/g, '').split('|')
+  // 容错：去掉行首尾的 |，然后按 | 分割
+  return line.trim().replace(/^\||\|$/g, '').split('|')
 }
 
 module.exports = { parse: parseMarkdown }
