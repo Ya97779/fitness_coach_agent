@@ -90,6 +90,6 @@
 
   <!-- 反馈入口 -->
   <view class="feedback-entry" wx:if="{{loggedIn}}" bindtap="goFeedback">
-    <text class="feedback-text">帮助改进 FitCoach</text>
+    <text class="feedback-text">提出你的改进建议</text>
   </view>
 </view>

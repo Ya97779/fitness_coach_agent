@@ -106,7 +106,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/杠铃卧推.gif',
       equipment: '杠铃、卧推凳',
       targetMuscles: ['胸大肌', '三角肌前束', '肱三头肌'],
-      video: 'https://cdn.example.com/guide/barbell-bench-press.mp4',
+      video: 'https://www.gettyimages.com/detail/video/bench-press-workout-stock-footage/621685380?adppopup=true',
       steps: [
         '仰卧在卧推凳上，双脚踩实地面',
         '双手握距略宽于肩，全握杠铃',

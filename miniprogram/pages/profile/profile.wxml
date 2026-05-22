@@ -45,11 +45,11 @@
     <view class="data-grid">
       <view class="data-item">
         <text class="data-val">{{userInfo.bmr ? Math.round(userInfo.bmr) : '--'}}</text>
-        <text class="data-unit">kcal · BMR</text>
+        <text class="data-unit">kcal · 基础代谢</text>
       </view>
       <view class="data-item">
         <text class="data-val">{{userInfo.tdee ? Math.round(userInfo.tdee) : '--'}}</text>
-        <text class="data-unit">kcal · TDEE</text>
+        <text class="data-unit">kcal · 每日总消耗</text>
       </view>
     </view>
   </view>

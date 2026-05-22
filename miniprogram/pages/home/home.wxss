@@ -258,7 +258,7 @@
 }
 
 .feedback-text {
-  font-size: 24rpx;
+  font-size: 40rpx;
   color: var(--text-hint);
   letter-spacing: 1rpx;
   text-decoration: underline;
