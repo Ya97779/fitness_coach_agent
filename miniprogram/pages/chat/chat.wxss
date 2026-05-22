@@ -93,35 +93,36 @@
 
 /* mp-html markdown 样式 */
 .bubble-ai mp-html {
-  font-size: 28rpx;
-  line-height: 1.7;
-  color: var(--text-primary);
+  font-size: 26rpx;
+  line-height: 1.8;
+  color: #333;
 }
 
 .bubble-ai mp-html h1,
 .bubble-ai mp-html h2,
 .bubble-ai mp-html h3 {
   font-weight: 700;
-  margin: 16rpx 0 8rpx;
+  color: var(--text-primary);
+  margin: 24rpx 0 12rpx;
   line-height: 1.4;
 }
 
-.bubble-ai mp-html h1 { font-size: 36rpx; }
-.bubble-ai mp-html h2 { font-size: 32rpx; }
-.bubble-ai mp-html h3 { font-size: 30rpx; }
+.bubble-ai mp-html h1 { font-size: 34rpx; }
+.bubble-ai mp-html h2 { font-size: 30rpx; }
+.bubble-ai mp-html h3 { font-size: 28rpx; }
 
 .bubble-ai mp-html p {
-  margin: 8rpx 0;
+  margin: 12rpx 0;
 }
 
 .bubble-ai mp-html ul,
 .bubble-ai mp-html ol {
   padding-left: 32rpx;
-  margin: 8rpx 0;
+  margin: 12rpx 0;
 }
 
 .bubble-ai mp-html li {
-  margin: 4rpx 0;
+  margin: 8rpx 0;
 }
 
 .bubble-ai mp-html code {
@@ -154,14 +155,14 @@
 
 .bubble-ai mp-html table {
   border-collapse: collapse;
-  margin: 12rpx 0;
+  margin: 16rpx 0;
   width: 100%;
 }
 
 .bubble-ai mp-html th,
 .bubble-ai mp-html td {
   border: 1rpx solid var(--border);
-  padding: 8rpx 12rpx;
+  padding: 10rpx 14rpx;
   text-align: left;
   font-size: 24rpx;
 }
