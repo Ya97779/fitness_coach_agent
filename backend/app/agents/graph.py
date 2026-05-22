@@ -48,6 +48,17 @@ def _collect(gen) -> str:
     """消费 agent generator，收集完整回复字符串"""
     return "".join(gen)
 
+
+def _postprocess_chunk(text: str) -> str:
+    """对 LLM 输出的 chunk 做后处理，确保 markdown 格式正确"""
+    # 在 # 标题前插入换行（如果前面不是换行）
+    text = re.sub(r'([^\n])(#{1,4}\s)', r'\1\n\2', text)
+    # 在 - 列表项前插入换行
+    text = re.sub(r'([^\n])(- )', r'\1\n\2', text)
+    # 在数字列表前插入换行
+    text = re.sub(r'([^\n])(\d+\. )', r'\1\n\2', text)
+    return text
+
 # 快速通道模式：匹配到这些模式的问题属于简单事实查询，跳过专家评审
 QUICK_PATTERNS = [
     r".*的热量[是为多少].*",
@@ -623,7 +634,7 @@ def stream_user_message(
     try:
         for chunk in response_generator:
             full_response += chunk
-            yield ("data", chunk)
+            yield ("data", _postprocess_chunk(chunk))
     except Exception as e:
         error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
         print(f"[stream] 迭代异常: {e}")
