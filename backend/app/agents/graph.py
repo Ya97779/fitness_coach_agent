@@ -51,8 +51,12 @@ def _collect(gen) -> str:
 
 def _postprocess_chunk(text: str) -> str:
     """对 LLM 输出的 chunk 做后处理，确保 markdown 格式正确"""
-    # 在 # 标题前插入换行（如果前面不是换行）
-    text = re.sub(r'([^\n])(#{1,4}\s)', r'\1\n\2', text)
+    # 在 ## 或 ### 标题前插入换行
+    text = re.sub(r'([^\n])(#{2,3}\s)', r'\1\n\2', text)
+    # 单个 # 后跟文本（非标题）转为列表项（LLM 常把列表项写成 #）
+    text = re.sub(r'(?<!\n)#\s*([^#\n]{2,})', r'\n- \1', text)
+    # * 列表项转为 -
+    text = re.sub(r'(?<!\n)\*\s+([^*\n]{2,})', r'\n- \1', text)
     # 在 - 列表项前插入换行
     text = re.sub(r'([^\n])(- )', r'\1\n\2', text)
     # 在数字列表前插入换行
