@@ -1,6 +1,6 @@
 /**
  * 轻量 markdown 解析器
- * 只处理常用语法：标题、加粗、斜体、列表、换行、代码
+ * 支持：标题、加粗、斜体、列表、表格、换行
  */
 
 function parseMarkdown(text) {
@@ -11,11 +11,34 @@ function parseMarkdown(text) {
   // 转义 HTML 特殊字符
   html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // 代码块 ```
-  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+  // 表格：解析 | header | header | 格式
+  html = html.replace(/((?:\|.+\|[\r\n]?)+)/g, function(match) {
+    const lines = match.trim().split('\n').filter(line => line.trim())
+    if (lines.length < 2) return match
 
-  // 行内代码 `code`
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
+    // 检查第二行是否是分隔行 (|---|---|)
+    if (!/^\|[\s\-:|]+\|$/.test(lines[1].trim())) return match
+
+    let table = '<table>'
+
+    // 表头
+    const headers = parseTableRow(lines[0])
+    table += '<thead><tr>'
+    headers.forEach(h => { table += '<th>' + h.trim() + '</th>' })
+    table += '</tr></thead>'
+
+    // 表体
+    table += '<tbody>'
+    for (let i = 2; i < lines.length; i++) {
+      const cells = parseTableRow(lines[i])
+      table += '<tr>'
+      cells.forEach(c => { table += '<td>' + c.trim() + '</td>' })
+      table += '</tr>'
+    }
+    table += '</tbody></table>'
+
+    return table
+  })
 
   // 标题 ### / ## / #
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
@@ -43,16 +66,21 @@ function parseMarkdown(text) {
   // 包裹段落
   html = '<p>' + html + '</p>'
 
-  // 清理空段落
+  // 清理：把块级元素从 <p> 中释放
   html = html.replace(/<p><\/p>/g, '')
   html = html.replace(/<p>(<h[1-6]>)/g, '$1')
   html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1')
   html = html.replace(/<p>(<ul>)/g, '$1')
   html = html.replace(/(<\/ul>)<\/p>/g, '$1')
-  html = html.replace(/<p>(<pre>)/g, '$1')
-  html = html.replace(/(<\/pre>)<\/p>/g, '$1')
+  html = html.replace(/<p>(<table>)/g, '$1')
+  html = html.replace(/(<\/table>)<\/p>/g, '$1')
 
   return html
+}
+
+function parseTableRow(line) {
+  // 去掉首尾的 |，然后按 | 分割
+  return line.replace(/^\||\|$/g, '').split('|')
 }
 
 module.exports = { parse: parseMarkdown }
