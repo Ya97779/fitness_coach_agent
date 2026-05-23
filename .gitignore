@@ -53,6 +53,8 @@ venv.bak/
 .vscode/
 .idea/
 .claude/
+.agent/
+.Trae/
 .DS_Store
 Thumbs.db
 miniprogram/project.private.config.json
