@@ -16,8 +16,16 @@ import asyncio
 import os
 import threading
 import uuid
+import logging
 from datetime import date
 from langchain_core.messages import HumanMessage
+
+logger = logging.getLogger("food_estimate")
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(_handler)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -432,6 +440,7 @@ def create_food_log(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
+    logger.info(f"[food-log] 收到请求: name='{data.name}', calories={data.calories}, qty={data.portion_qty}, unit={data.portion_unit}, meal={data.meal_type}")
     today = date.today()
     log = db.query(models.DailyLog).filter(
         models.DailyLog.user_id == current_user.id,
@@ -469,6 +478,9 @@ def create_food_log(
 
     if need_llm:
         calories = 0  # 先存 0，后台 LLM 算完再更新
+        logger.info(f"[food-log] 需要 LLM 估算: '{data.name}'")
+    else:
+        logger.info(f"[food-log] 直接计算热量: '{data.name}' → {calories} kcal")
 
     item = models.FoodItem(
         log_id=log.id,
@@ -483,13 +495,19 @@ def create_food_log(
 
     if need_llm:
         # 后台线程调 LLM 估算，算完更新记录
+        _item_id = item.id
+        _food_name = data.name
+        logger.info(f"[食物热量估算] 启动后台线程: item_id={_item_id}, name='{_food_name}', qty={qty}, unit={unit}")
+
         def _bg_estimate():
             try:
-                estimated = _estimate_food_calories_via_llm(data.name, qty, unit)
+                logger.info(f"[食物热量估算] 开始 LLM 调用: '{_food_name}'")
+                estimated = _estimate_food_calories_via_llm(_food_name, qty, unit)
+                logger.info(f"[食物热量估算] LLM 返回: '{_food_name}' → {estimated} kcal")
                 if estimated:
                     _db = database.SessionLocal()
                     try:
-                        _item = _db.query(models.FoodItem).get(item.id)
+                        _item = _db.query(models.FoodItem).get(_item_id)
                         if _item:
                             _log = _db.query(models.DailyLog).get(_item.log_id)
                             _old = _item.calories or 0
@@ -497,11 +515,15 @@ def create_food_log(
                             if _log:
                                 _log.intake_calories = (_log.intake_calories or 0) - _old + estimated
                             _db.commit()
-                            print(f"[食物热量估算] 后台更新 '{data.name}': {estimated} kcal")
+                            logger.info(f"[食物热量估算] DB 更新成功: '{_food_name}' → {estimated} kcal (旧值: {_old})")
+                        else:
+                            logger.warning(f"[食物热量估算] item_id={_item_id} 不存在，可能已被删除")
                     finally:
                         _db.close()
+                else:
+                    logger.warning(f"[食物热量估算] LLM 返回 0，跳过更新: '{_food_name}'")
             except Exception as e:
-                print(f"[食物热量估算] 后台估算失败: {e}")
+                logger.error(f"[食物热量估算] 后台估算失败: '{_food_name}' → {e}", exc_info=True)
         threading.Thread(target=_bg_estimate, daemon=True).start()
 
     return FoodLogResponse(
@@ -872,7 +894,7 @@ def _estimate_via_llm(exercises: list, user_weight: float) -> dict:
         return None
 
 def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, portion_unit: str = None) -> float:
-    """调用 LLM 估算食物总热量"""
+    """调用 LLM 估算食物总热量（带超时保护）"""
     if portion_qty and portion_unit:
         desc = f"{portion_qty}{portion_unit}{food_name}"
     else:
@@ -894,15 +916,22 @@ def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, p
 1个苹果 → 95
 1碗米饭 → 230"""
     try:
+        logger.info(f"[LLM] 获取 LLM 实例 (temperature=0.1)")
         llm = LLMManager.get_llm(temperature=0.1)
+        logger.info(f"[LLM] 开始调用 invoke, prompt 长度={len(prompt)}")
         resp = llm.invoke(prompt)
         text = resp.content.strip()
+        logger.info(f"[LLM] 原始返回: '{text}'")
         import re
         match = re.search(r'[\d.]+', text)
         if match:
-            return float(match.group())
+            result = float(match.group())
+            logger.info(f"[LLM] 解析结果: {result}")
+            return result
+        else:
+            logger.warning(f"[LLM] 无法从返回中解析数字: '{text}'")
     except Exception as e:
-        print(f"[食物热量估算] LLM 调用失败: {e}")
+        logger.error(f"[LLM] 调用异常: {e}", exc_info=True)
     return 0
 
 class CalorieEstimateRequest(BaseModel):

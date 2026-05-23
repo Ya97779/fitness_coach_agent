@@ -39,7 +39,9 @@ class LLMManager:
                 model=os.getenv("LLM_MODEL", "glm-4.7"),
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE"),
-                temperature=temperature
+                temperature=temperature,
+                request_timeout=30,
+                max_retries=2
             )
         return cls._instances[temperature]
 
