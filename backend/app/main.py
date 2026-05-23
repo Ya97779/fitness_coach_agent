@@ -67,11 +67,10 @@ os.makedirs(_feedback_dir, exist_ok=True)
 rag_initialized = False
 
 def init_exercise_calories():
-    """初始化预置动作热量数据"""
+    """初始化预置动作热量数据（补缺）"""
     db = database.SessionLocal()
     try:
-        if db.query(models.ExerciseCalorie).count() > 0:
-            return
+        existing = {item.name for item in db.query(models.ExerciseCalorie.name).all()}
         presets = [
             # 胸
             ("平板卧推", 8, "胸", ["卧推", "杠铃卧推", "平板杠铃卧推"]),
@@ -81,6 +80,7 @@ def init_exercise_calories():
             ("龙门架夹胸", 6, "胸", ["夹胸", "绳索夹胸", "飞鸟"]),
             ("蝴蝶机夹胸", 5.5, "胸", ["蝴蝶机"]),
             ("俯卧撑", 5, "胸", []),
+            ("双杠臂屈伸", 8, "胸", ["双杠", "臂屈伸"]),
             # 背
             ("引体向上", 10, "背", ["引体", "引体向上", "正手引体"]),
             ("杠铃划船", 8, "背", ["俯身划船", "俯身杠铃划船"]),
@@ -117,15 +117,28 @@ def init_exercise_calories():
             ("悬垂举腿", 5, "核心", ["举腿"]),
             ("俄罗斯转体", 3.5, "核心", []),
         ]
+        added = 0
         for name, cal, cat, aliases in presets:
-            db.add(models.ExerciseCalorie(
-                name=name,
-                calories_per_set=cal,
-                category=cat,
-                aliases=_json.dumps(aliases, ensure_ascii=False)
-            ))
-        db.commit()
-        print(f"[热量表] 初始化 {len(presets)} 个预置动作")
+            if name not in existing:
+                db.add(models.ExerciseCalorie(
+                    name=name,
+                    calories_per_set=cal,
+                    category=cat,
+                    aliases=_json.dumps(aliases, ensure_ascii=False)
+                ))
+                added += 1
+            else:
+                # 预设优先：覆盖 LLM 缓存的空别名条目
+                item = db.query(models.ExerciseCalorie).filter(
+                    models.ExerciseCalorie.name == name
+                ).first()
+                if item and (not item.aliases or item.aliases == '[]'):
+                    item.calories_per_set = cal
+                    item.aliases = _json.dumps(aliases, ensure_ascii=False)
+                    added += 1
+        if added:
+            db.commit()
+            print(f"[热量表] 补充 {added} 个预置动作")
     finally:
         db.close()
 
@@ -242,6 +255,8 @@ class FoodLogCreate(BaseModel):
     name: str
     calories: Optional[float] = None
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
+    portion_qty: Optional[float] = None
+    portion_unit: Optional[str] = None
 
 class ExerciseLogCreate(BaseModel):
     type: str
@@ -415,8 +430,30 @@ def create_food_log(
 
     calories = data.calories
     if calories is None:
-        result = search_food_nutrient(data.name)
-        calories = result["calories"] if result else 0
+        qty = data.portion_qty
+        unit = data.portion_unit
+        if unit == '克' and qty:
+            # 克模式：查 API 每100g热量，按克数换算
+            result = search_food_nutrient(data.name)
+            if result:
+                calories = round(result["calories"] * qty / 100)
+            else:
+                # API 查不到，LLM 估算
+                calories = _estimate_food_calories_via_llm(data.name, qty, unit)
+        elif qty and unit:
+            # 非克单位：直接用 LLM 按份量估算
+            calories = _estimate_food_calories_via_llm(data.name, qty, unit)
+        else:
+            # 没填份量：走原有逻辑
+            result = search_food_nutrient(data.name)
+            if result:
+                calories = result["calories"]
+            else:
+                calories = _estimate_food_calories_via_llm(data.name)
+        if calories:
+            print(f"[食物热量估算] '{data.name}' {qty or ''}{unit or ''}: {calories} kcal")
+        else:
+            print(f"[食物热量估算] 无法估算 '{data.name}'，默认 0")
 
     item = models.FoodItem(
         log_id=log.id,
@@ -680,6 +717,40 @@ def _estimate_via_llm(exercises: list, user_weight: float) -> dict:
     except Exception as e:
         print(f"[热量估算] LLM 调用失败: {e}")
         return None
+
+def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, portion_unit: str = None) -> float:
+    """调用 LLM 估算食物总热量"""
+    if portion_qty and portion_unit:
+        desc = f"{portion_qty}{portion_unit}{food_name}"
+    else:
+        desc = food_name
+    prompt = f"""你是食物营养专家。估算以下食物的总热量（kcal）。
+
+食物："{desc}"
+
+规则：
+- 根据食物名称和份量估算总热量
+- 如果是具体份量（如2份、200克、1碗），按该份量估算
+- 如果没有明确份量，默认估算1份的热量
+- 只返回一个整数数字，不要其他内容
+
+示例：
+鸡腿拌面 → 650
+2份鸡腿拌面 → 1300
+200克鸡胸肉 → 330
+1个苹果 → 95
+1碗米饭 → 230"""
+    try:
+        llm = LLMManager.get_llm(temperature=0.1)
+        resp = llm.invoke(prompt)
+        text = resp.content.strip()
+        import re
+        match = re.search(r'[\d.]+', text)
+        if match:
+            return float(match.group())
+    except Exception as e:
+        print(f"[食物热量估算] LLM 调用失败: {e}")
+    return 0
 
 class CalorieEstimateRequest(BaseModel):
     exercises: List[dict]

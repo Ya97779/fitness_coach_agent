@@ -78,7 +78,8 @@
       <view class="record-dot dot-exercise"></view>
       <view class="record-info">
         <text class="record-name">{{item.type}}</text>
-        <text class="record-meta">{{item.duration}} 分钟</text>
+        <text class="record-meta" wx:if="{{item.sets}}">{{item.sets}} 组{{item.weight ? ' · ' + item.weight + 'kg' : ''}}</text>
+        <text class="record-meta" wx:else>{{item.duration}} 分钟</text>
       </view>
       <text class="record-val">-{{item.calories}} kcal</text>
     </view>

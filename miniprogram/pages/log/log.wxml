@@ -20,11 +20,27 @@
     <view class="card">
       <view class="form-group">
         <text class="form-label">食物名称</text>
-        <input class="form-input" placeholder="如：鸡蛋、苹果" value="{{foodName}}" bindinput="onFoodNameInput" />
+        <input class="form-input" placeholder="如：鸡腿拌面、苹果" value="{{foodName}}" bindinput="onFoodNameInput" />
       </view>
       <view class="form-group">
-        <text class="form-label">卡路里（选填，留空自动查询）</text>
-        <input class="form-input" type="digit" placeholder="kcal" value="{{foodCalories}}" bindinput="onFoodCaloriesInput" />
+        <text class="form-label">份量</text>
+        <view class="portion-row">
+          <view class="qty-stepper">
+            <view class="stepper-btn" bindtap="adjustQty" data-delta="-1">
+              <text class="stepper-icon">-</text>
+            </view>
+            <input class="qty-input" type="number" value="{{portionQty}}" bindinput="onQtyInput" />
+            <view class="stepper-btn" bindtap="adjustQty" data-delta="1">
+              <text class="stepper-icon">+</text>
+            </view>
+          </view>
+          <picker class="unit-picker" bindchange="bindUnitChange" value="{{portionUnit}}" range="{{portions}}">
+            <view class="unit-display">
+              <text class="unit-text">{{portionUnit}}</text>
+              <text class="unit-arrow">▾</text>
+            </view>
+          </picker>
+        </view>
       </view>
       <view class="form-group">
         <text class="form-label">餐次</text>

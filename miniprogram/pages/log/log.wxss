@@ -157,3 +157,71 @@
   color: #ffffff;
   letter-spacing: 2rpx;
 }
+
+/* 份量选择器 */
+.portion-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.qty-stepper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.stepper-btn {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-icon {
+  font-size: 32rpx;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.qty-input {
+  flex: 1;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  height: 72rpx;
+  background: transparent;
+  border: none;
+}
+
+.unit-picker {
+  flex-shrink: 0;
+}
+
+.unit-display {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 24rpx;
+  height: 72rpx;
+}
+
+.unit-text {
+  font-size: 28rpx;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.unit-arrow {
+  font-size: 22rpx;
+  color: var(--text-hint);
+}

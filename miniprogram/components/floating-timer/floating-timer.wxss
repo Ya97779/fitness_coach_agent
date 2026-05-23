@@ -1,12 +1,14 @@
 .timer-panel {
   background: #1a1a1a;
-  border-radius: 12rpx;
-  margin: 0 0 16rpx;
+  border-radius: 0;
+  margin: 0 -28rpx 16rpx;
+  padding: 0 28rpx;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .panel-progress {
-  height: 4rpx;
+  height: 6rpx;
   background: rgba(255, 255, 255, 0.15);
 }
 
@@ -19,7 +21,7 @@
 .panel-body {
   display: flex;
   align-items: center;
-  padding: 16rpx 24rpx;
+  padding: 22rpx 24rpx;
 }
 
 .panel-left {
@@ -30,13 +32,13 @@
 }
 
 .panel-ex-name {
-  font-size: 24rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: #ffffff;
 }
 
 .panel-set-info {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -44,19 +46,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2rpx;
-  padding: 8rpx 16rpx;
+  gap: 4rpx;
+  padding: 10rpx 20rpx;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8rpx;
 }
 
 .panel-rest-label {
-  font-size: 16rpx;
+  font-size: 20rpx;
   color: rgba(255, 255, 255, 0.5);
 }
 
 .panel-rest-sec {
-  font-size: 28rpx;
+  font-size: 34rpx;
   font-weight: 600;
   color: #ff9800;
   font-variant-numeric: tabular-nums;
@@ -68,7 +70,7 @@
 }
 
 .panel-arrow {
-  font-size: 32rpx;
+  font-size: 40rpx;
   color: rgba(255, 255, 255, 0.5);
   font-weight: 300;
 }
