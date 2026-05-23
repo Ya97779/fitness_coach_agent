@@ -1,5 +1,5 @@
 .page {
-  padding-bottom: 40rpx;
+  padding: 0 28rpx 40rpx;
 }
 
 /* 登录提示卡片 */
