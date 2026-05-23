@@ -251,6 +251,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.record-estimating {
+  font-size: 22rpx;
+  font-weight: 400;
+  color: var(--text-hint);
+}
+
 /* 反馈入口 */
 .feedback-entry {
   text-align: center;

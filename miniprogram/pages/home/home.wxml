@@ -68,7 +68,8 @@
         <text class="record-name">{{item.name}}</text>
         <text class="record-meta">{{item.meal_type_text}}</text>
       </view>
-      <text class="record-val">{{item.calories}} kcal</text>
+      <text class="record-val" wx:if="{{item.calories > 0}}">{{item.calories}} kcal</text>
+      <text class="record-val record-estimating" wx:else>计算中...</text>
     </view>
   </view>
 

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Literal
 import asyncio
 import os
+import threading
 import uuid
 from datetime import date
 from langchain_core.messages import HumanMessage
@@ -202,6 +203,7 @@ class FoodLogResponse(BaseModel):
     calories: float
     meal_type: Optional[str] = None
     log_id: int
+    estimating: bool = False
     class Config:
         from_attributes = True
 
@@ -429,31 +431,31 @@ def create_food_log(
         db.refresh(log)
 
     calories = data.calories
+    need_llm = False
+    qty = data.portion_qty
+    unit = data.portion_unit
+
     if calories is None:
-        qty = data.portion_qty
-        unit = data.portion_unit
         if unit == '克' and qty:
             # 克模式：查 API 每100g热量，按克数换算
             result = search_food_nutrient(data.name)
             if result:
                 calories = round(result["calories"] * qty / 100)
             else:
-                # API 查不到，LLM 估算
-                calories = _estimate_food_calories_via_llm(data.name, qty, unit)
+                need_llm = True
         elif qty and unit:
-            # 非克单位：直接用 LLM 按份量估算
-            calories = _estimate_food_calories_via_llm(data.name, qty, unit)
+            # 非克单位（份/碗/个）：API 返回的是每100g，无法换算，直接 LLM
+            need_llm = True
         else:
             # 没填份量：走原有逻辑
             result = search_food_nutrient(data.name)
             if result:
                 calories = result["calories"]
             else:
-                calories = _estimate_food_calories_via_llm(data.name)
-        if calories:
-            print(f"[食物热量估算] '{data.name}' {qty or ''}{unit or ''}: {calories} kcal")
-        else:
-            print(f"[食物热量估算] 无法估算 '{data.name}'，默认 0")
+                need_llm = True
+
+    if need_llm:
+        calories = 0  # 先存 0，后台 LLM 算完再更新
 
     item = models.FoodItem(
         log_id=log.id,
@@ -465,9 +467,34 @@ def create_food_log(
     log.intake_calories = (log.intake_calories or 0) + calories
     db.commit()
     db.refresh(item)
+
+    if need_llm:
+        # 后台线程调 LLM 估算，算完更新记录
+        def _bg_estimate():
+            try:
+                estimated = _estimate_food_calories_via_llm(data.name, qty, unit)
+                if estimated:
+                    _db = database.SessionLocal()
+                    try:
+                        _item = _db.query(models.FoodItem).get(item.id)
+                        if _item:
+                            _log = _db.query(models.DailyLog).get(_item.log_id)
+                            _old = _item.calories or 0
+                            _item.calories = estimated
+                            if _log:
+                                _log.intake_calories = (_log.intake_calories or 0) - _old + estimated
+                            _db.commit()
+                            print(f"[食物热量估算] 后台更新 '{data.name}': {estimated} kcal")
+                    finally:
+                        _db.close()
+            except Exception as e:
+                print(f"[食物热量估算] 后台估算失败: {e}")
+        threading.Thread(target=_bg_estimate, daemon=True).start()
+
     return FoodLogResponse(
         id=item.id, name=item.name, calories=item.calories,
         meal_type=item.meal_type, log_id=item.log_id,
+        estimating=need_llm,
     )
 
 @router.post("/exercise-log", response_model=ExerciseLogResponse)
