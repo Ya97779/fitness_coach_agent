@@ -454,15 +454,55 @@ def create_food_log(
 
     calories = data.calories
     need_llm = False
+    need_cache_save = False
     qty = data.portion_qty
     unit = data.portion_unit
 
+    def _find_cached(name, q, u):
+        """查食物热量缓存：优先精确匹配，其次同单位按比例换算"""
+        # 精确匹配：同名 + 同份量
+        if q and u:
+            cached = db.query(models.FoodCalorieCache).filter(
+                models.FoodCalorieCache.name == name,
+                models.FoodCalorieCache.portion_qty == q,
+                models.FoodCalorieCache.portion_unit == u,
+            ).first()
+            if cached:
+                return cached.calories
+            # 同单位不同数量：按比例换算
+            cached = db.query(models.FoodCalorieCache).filter(
+                models.FoodCalorieCache.name == name,
+                models.FoodCalorieCache.portion_unit == u,
+                models.FoodCalorieCache.portion_qty != None,
+            ).first()
+            if cached and cached.portion_qty:
+                return round(cached.calories * q / cached.portion_qty)
+        # 模糊匹配：同名 + 无份量（默认1份）
+        cached = db.query(models.FoodCalorieCache).filter(
+            models.FoodCalorieCache.name == name,
+            models.FoodCalorieCache.portion_qty == None,
+            models.FoodCalorieCache.portion_unit == None,
+        ).first()
+        if cached:
+            return cached.calories
+        return None
+
     if calories is None:
-        if unit == '克' and qty:
+        # 先查缓存
+        cached = _find_cached(data.name, qty, unit)
+        if cached is not None:
+            # 缓存命中（_find_cached 已按份量换算）
+            calories = round(cached)
+            logger.info(f"[food-log] 缓存命中: '{data.name}' → {calories} kcal")
+        elif unit == '克' and qty:
             # 克模式：查 API 每100g热量，按克数换算
             result = search_food_nutrient(data.name)
             if result:
-                calories = round(result["calories"] * qty / 100)
+                per100g = result["calories"]
+                calories = round(per100g * qty / 100)
+                # 缓存每100g热量
+                db.add(models.FoodCalorieCache(name=data.name, portion_qty=100, portion_unit="克", calories=per100g, source="api"))
+                logger.info(f"[food-log] API 查到 + 缓存: '{data.name}' 每100g={per100g}kcal")
             else:
                 need_llm = True
         elif qty and unit:
@@ -473,6 +513,9 @@ def create_food_log(
             result = search_food_nutrient(data.name)
             if result:
                 calories = result["calories"]
+                # 缓存默认1份热量
+                db.add(models.FoodCalorieCache(name=data.name, calories=calories, source="api"))
+                logger.info(f"[food-log] API 查到 + 缓存: '{data.name}' → {calories}kcal")
             else:
                 need_llm = True
 
@@ -514,8 +557,17 @@ def create_food_log(
                             _item.calories = estimated
                             if _log:
                                 _log.intake_calories = (_log.intake_calories or 0) - _old + estimated
+                            # 保存到食物热量缓存
+                            cache = models.FoodCalorieCache(
+                                name=_food_name,
+                                portion_qty=qty,
+                                portion_unit=unit,
+                                calories=estimated,
+                                source="llm",
+                            )
+                            _db.add(cache)
                             _db.commit()
-                            logger.info(f"[食物热量估算] DB 更新成功: '{_food_name}' → {estimated} kcal (旧值: {_old})")
+                            logger.info(f"[食物热量估算] DB 更新成功 + 已缓存: '{_food_name}' → {estimated} kcal")
                         else:
                             logger.warning(f"[食物热量估算] item_id={_item_id} 不存在，可能已被删除")
                     finally:

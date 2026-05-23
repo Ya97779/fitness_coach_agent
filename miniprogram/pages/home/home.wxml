@@ -67,7 +67,7 @@
       data-type="food" data-index="{{index}}"
       bindtouchstart="onItemTouchStart" bindtouchend="onItemTouchEnd">
       <view class="record-item record-item-swipe {{swipeIndex === 'food-' + index ? 'record-item-swiped' : ''}}"
-        data-type="food" data-item="{{item}}" bindtap="onItemTap" catchtap="resetSwipe">
+        data-type="food" data-item="{{item}}" bindtap="onItemTap">
         <view class="record-dot dot-food"></view>
         <view class="record-info">
           <text class="record-name">{{item.name}}</text>
@@ -90,7 +90,7 @@
       data-type="exercise" data-index="{{index}}"
       bindtouchstart="onItemTouchStart" bindtouchend="onItemTouchEnd">
       <view class="record-item record-item-swipe {{swipeIndex === 'exercise-' + index ? 'record-item-swiped' : ''}}"
-        data-type="exercise" data-item="{{item}}" bindtap="onItemTap" catchtap="resetSwipe">
+        data-type="exercise" data-item="{{item}}" bindtap="onItemTap">
         <view class="record-dot dot-exercise"></view>
         <view class="record-info">
           <text class="record-name">{{item.type}}</text>

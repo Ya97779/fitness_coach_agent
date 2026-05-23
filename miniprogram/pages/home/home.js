@@ -165,7 +165,7 @@ Page({
     const editForm = type === 'food'
       ? { name: item.name, calories: item.calories, meal_type: item.meal_type }
       : { type: item.type, name: item.name || '', sets: item.sets || 1, weight: item.weight || '', duration: item.duration, calories: item.calories }
-    this.setData({ editModalVisible: true, editType: type, editItem: item, editForm })
+    this.setData({ editModalVisible: true, editType: type, editItem: item, editForm, swipeIndex: -1 })
   },
 
   closeEditModal() {

@@ -88,3 +88,14 @@ class ConversationLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
+
+class FoodCalorieCache(Base):
+    __tablename__ = "food_calorie_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    portion_qty = Column(Float, nullable=True)
+    portion_unit = Column(String, nullable=True)
+    calories = Column(Float, nullable=False)
+    source = Column(String, nullable=False, default="llm")  # "api" or "llm"
+    created_at = Column(DateTime, default=datetime.utcnow)
