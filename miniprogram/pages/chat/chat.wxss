@@ -3,6 +3,9 @@
   flex-direction: column;
   height: 100vh;
   background: var(--bg-base);
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* 快捷入口 */
@@ -33,6 +36,9 @@
 .msg-list {
   flex: 1;
   padding: 24rpx 28rpx;
+  overflow-x: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .msg-item {
@@ -77,10 +83,11 @@
 
 /* 气泡 */
 .msg-bubble {
-  max-width: 75%;
+  max-width: calc(100% - 80rpx);
   padding: 20rpx 24rpx;
   border-radius: var(--radius-md);
   word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .bubble-user {
