@@ -328,6 +328,18 @@
 }
 
 /* 退出登录 */
+.clear-data-btn {
+  text-align: center;
+  padding: 24rpx;
+  margin-top: 16rpx;
+}
+
+.clear-data-text {
+  font-size: 24rpx;
+  color: var(--text-hint);
+  text-decoration: underline;
+}
+
 .logout-btn {
   text-align: center;
   color: var(--danger);

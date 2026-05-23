@@ -117,6 +117,26 @@ Page({
     })
   },
 
+  clearAllData() {
+    wx.showModal({
+      title: '清除全部数据',
+      content: '将删除所有饮食记录、运动记录和对话历史，账户信息保留。此操作不可恢复。',
+      confirmColor: '#c47a6c',
+      success: (res) => {
+        if (res.confirm) {
+          wx.showLoading({ title: '清除中...' })
+          request({ url: '/api/v1/user/me/data', method: 'DELETE' }).then(() => {
+            wx.hideLoading()
+            wx.showToast({ title: '已清除', icon: 'success' })
+          }).catch(err => {
+            wx.hideLoading()
+            wx.showToast({ title: err.message || '清除失败', icon: 'none' })
+          })
+        }
+      }
+    })
+  },
+
   logout() {
     wx.showModal({
       title: '确认退出',

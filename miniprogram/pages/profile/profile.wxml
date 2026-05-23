@@ -130,6 +130,11 @@
     </view>
   </view>
 
+  <!-- 清除数据 -->
+  <view class="clear-data-btn" wx:if="{{loggedIn}}" bindtap="clearAllData">
+    <text class="clear-data-text">清除全部数据</text>
+  </view>
+
   <!-- 退出登录 -->
   <view class="logout-btn" wx:if="{{loggedIn}}" bindtap="logout">退出登录</view>
 </view>

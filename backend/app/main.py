@@ -684,6 +684,28 @@ def delete_exercise_log(
     db.delete(item)
     db.commit()
 
+@router.delete("/user/me/data", status_code=204)
+def clear_user_data(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    logger.info(f"[清除数据] user_id={current_user.id} 开始清除全部数据")
+    # 按依赖顺序删除：FoodItem → ExerciseItem → DailyLog → ConversationLog
+    food_count = db.query(models.FoodItem).join(models.DailyLog).filter(
+        models.DailyLog.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    exercise_count = db.query(models.ExerciseItem).join(models.DailyLog).filter(
+        models.DailyLog.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    log_count = db.query(models.DailyLog).filter(
+        models.DailyLog.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    conv_count = db.query(models.ConversationLog).filter(
+        models.ConversationLog.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    db.commit()
+    logger.info(f"[清除数据] user_id={current_user.id} 完成: 食物{food_count}条, 运动{exercise_count}条, 日志{log_count}条, 对话{conv_count}条")
+
 # ----- 对话 -----
 def _build_user_context(user: models.User, db: Session):
     # 只包含用户实际填写的字段，跳过零值和默认值
