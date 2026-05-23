@@ -281,7 +281,7 @@ class MemoryManager:
             # today_stats
             if today_log:
                 food_items = [{"name": i.name, "calories": i.calories} for i in today_log.food_items]
-                exercise_items = [{"type": i.type, "duration": i.duration, "calories": i.calories, "notes": i.notes} for i in today_log.exercise_items]
+                exercise_items = [{"type": i.type, "duration": i.duration, "calories": i.calories} for i in today_log.exercise_items]
                 net = today_log.intake_calories - today_log.burn_calories
                 self._today_stats = {
                     "date": today.isoformat(),

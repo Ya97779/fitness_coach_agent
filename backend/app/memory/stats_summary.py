@@ -59,7 +59,6 @@ class StatsSummarizer:
                 "type": item.type,
                 "duration": item.duration,
                 "calories": item.calories,
-                "notes": item.notes
             } for item in log.exercise_items]
 
             net = log.intake_calories - log.burn_calories
@@ -223,7 +222,6 @@ class StatsSummarizer:
                     "type": item.type,
                     "duration": item.duration,
                     "calories": item.calories,
-                    "notes": item.notes
                 } for item in log.exercise_items]
 
                 result.append({
