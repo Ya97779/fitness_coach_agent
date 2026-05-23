@@ -67,80 +67,106 @@
   background: var(--bg-card);
   border: 1rpx solid var(--border);
   border-radius: var(--radius-md);
-  padding: 32rpx;
+  padding: 28rpx 32rpx;
+}
+
+.cal-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.cal-top-label {
+  font-size: 22rpx;
+  color: var(--text-hint);
+  letter-spacing: 1rpx;
+}
+
+.cal-top-val {
+  font-size: 40rpx;
+  font-weight: 200;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-top-unit {
+  font-size: 22rpx;
+  color: var(--text-hint);
+  font-weight: 400;
+}
+
+.cal-bar-wrap {
+  margin-bottom: 20rpx;
+}
+
+.cal-bar-bg {
+  height: 14rpx;
+  background: var(--border-light);
+  border-radius: 7rpx;
+  overflow: hidden;
+}
+
+.cal-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 7rpx;
+  transition: width 0.5s ease;
+}
+
+.cal-bar-over {
+  background: var(--danger);
+}
+
+.cal-bar-target {
+  text-align: right;
+  margin-top: 6rpx;
+}
+
+.cal-bar-target-text {
+  font-size: 20rpx;
+  color: var(--text-hint);
+}
+
+.cal-bottom {
   display: flex;
   align-items: center;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--border-light);
 }
 
-.ring-wrap {
-  position: relative;
-  width: 220rpx;
-  height: 220rpx;
-  flex-shrink: 0;
-}
-
-.ring-canvas {
-  width: 220rpx;
-  height: 220rpx;
-}
-
-.ring-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+.cal-bottom-item {
+  flex: 1;
   text-align: center;
 }
 
-.ring-val {
-  font-size: 44rpx;
+.cal-bottom-num {
+  font-size: 30rpx;
   font-weight: 200;
   color: var(--text-primary);
-  line-height: 1;
   display: block;
   font-variant-numeric: tabular-nums;
 }
 
-.ring-label {
-  font-size: 18rpx;
+.cal-bottom-num.deficit {
+  color: var(--accent);
+}
+
+.cal-bottom-num.surplus {
+  color: var(--danger);
+}
+
+.cal-bottom-label {
+  font-size: 20rpx;
   color: var(--text-hint);
   margin-top: 4rpx;
   display: block;
-  letter-spacing: 2rpx;
+  letter-spacing: 1rpx;
 }
 
-.calorie-stats {
-  margin-left: 36rpx;
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.cal-stat {
-  flex: 1;
-  text-align: center;
-}
-
-.cal-num {
-  font-size: 36rpx;
-  font-weight: 200;
-  color: var(--text-primary);
-  display: block;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.cal-label {
-  font-size: 20rpx;
-  color: var(--text-hint);
-  margin-top: 6rpx;
-  display: block;
-  letter-spacing: 2rpx;
-}
-
-.cal-divider {
+.cal-bottom-divider {
   width: 1rpx;
-  height: 56rpx;
+  height: 48rpx;
   background: var(--border);
 }
 

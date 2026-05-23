@@ -76,61 +76,21 @@ Page({
       }))
       const exerciseItems = today.exercise_items || []
 
+      // 进度条和热量差
+      const barPercent = tdee ? Math.min(Math.round(intake / tdee * 100), 100) : 0
+      const gap = tdee ? Math.round(tdee + burn - intake) : 0
+      const isDeficit = gap >= 0
+      const gapText = isDeficit ? gap : '+' + Math.abs(gap)
+
       this.setData({
         tdee, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
         remaining: remaining > 0 ? remaining : 0,
+        barPercent, gapText, isDeficit,
         foodItems, exerciseItems,
         loading: false
       })
-      this.drawRing(intake, burn, tdee || 1)
     }).catch(() => {
       this.setData({ loading: false })
-    })
-  },
-
-  drawRing(intake, burn, tdee) {
-    const query = wx.createSelectorQuery()
-    query.select('#calorieRing').boundingClientRect()
-    query.exec(res => {
-      if (!res || !res[0]) return
-      const { width, height } = res[0]
-      const ctx = wx.createCanvasContext('calorieRing', this)
-      const cx = width / 2
-      const cy = height / 2
-      const radius = Math.min(cx, cy) - 12
-      const lineWidth = 14
-
-      // 背景环
-      ctx.setLineWidth(lineWidth)
-      ctx.setStrokeStyle('#e8e8e8')
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius, 0, 2 * Math.PI)
-      ctx.stroke()
-
-      // 摄入环
-      const intakeAngle = Math.min(intake / tdee, 1) * 2 * Math.PI
-      if (intakeAngle > 0) {
-        ctx.setLineWidth(lineWidth)
-        ctx.setStrokeStyle('#1a1a1a')
-        ctx.setLineCap('butt')
-        ctx.beginPath()
-        ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + intakeAngle)
-        ctx.stroke()
-      }
-
-      // 消耗环（外圈）
-      const burnAngle = Math.min(burn / tdee, 1) * 2 * Math.PI
-      if (burnAngle > 0) {
-        const outerRadius = radius + lineWidth + 4
-        ctx.setLineWidth(6)
-        ctx.setStrokeStyle('#999')
-        ctx.setLineCap('butt')
-        ctx.beginPath()
-        ctx.arc(cx, cy, outerRadius, -Math.PI / 2, -Math.PI / 2 + burnAngle)
-        ctx.stroke()
-      }
-
-      ctx.draw()
     })
   },
 

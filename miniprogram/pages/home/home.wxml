@@ -17,24 +17,27 @@
 
   <!-- 卡路里 -->
   <view class="calorie-card" wx:if="{{loggedIn}}">
-    <view class="ring-wrap">
-      <canvas canvas-id="calorieRing" id="calorieRing" class="ring-canvas" />
-      <view class="ring-center">
-        <text class="ring-val" wx:if="{{hasTdee}}">{{remaining}}</text>
-        <text class="ring-val" wx:else>--</text>
-        <text class="ring-label" wx:if="{{hasTdee}}">剩余</text>
-        <text class="ring-label" wx:else>未设目标</text>
+    <view class="cal-top">
+      <text class="cal-top-label">今日摄入</text>
+      <text class="cal-top-val">{{intake}}<text class="cal-top-unit"> kcal</text></text>
+    </view>
+    <view class="cal-bar-wrap" wx:if="{{hasTdee}}">
+      <view class="cal-bar-bg">
+        <view class="cal-bar-fill {{intake > tdee ? 'cal-bar-over' : ''}}" style="width: {{barPercent}}%"></view>
+      </view>
+      <view class="cal-bar-target">
+        <text class="cal-bar-target-text">目标 {{tdee}}</text>
       </view>
     </view>
-    <view class="calorie-stats">
-      <view class="cal-stat">
-        <text class="cal-num">{{intake}}</text>
-        <text class="cal-label">摄入</text>
+    <view class="cal-bottom">
+      <view class="cal-bottom-item">
+        <text class="cal-bottom-num">{{burn}}</text>
+        <text class="cal-bottom-label">运动消耗</text>
       </view>
-      <view class="cal-divider"></view>
-      <view class="cal-stat">
-        <text class="cal-num">{{burn}}</text>
-        <text class="cal-label">消耗</text>
+      <view class="cal-bottom-divider"></view>
+      <view class="cal-bottom-item">
+        <text class="cal-bottom-num {{isDeficit ? 'deficit' : 'surplus'}}">{{gapText}}</text>
+        <text class="cal-bottom-label">{{isDeficit ? '热量缺口' : '热量盈余'}}</text>
       </view>
     </view>
   </view>
