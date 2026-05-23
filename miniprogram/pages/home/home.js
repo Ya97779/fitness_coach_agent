@@ -20,7 +20,15 @@ Page({
     foodItems: [],
     exerciseItems: [],
     loading: true,
-    loggedIn: false
+    loggedIn: false,
+    // 编辑弹窗
+    editModalVisible: false,
+    editType: '', // 'food' or 'exercise'
+    editItem: null,
+    editForm: {},
+    // 左滑
+    swipeIndex: -1,
+    touchStartX: 0
   },
 
   onShow() {
@@ -147,6 +155,118 @@ Page({
       if (loggedIn) {
         this.setData({ loggedIn: true })
         this.loadData()
+      }
+    })
+  },
+
+  // === 编辑 ===
+  onItemTap(e) {
+    const { type, item } = e.currentTarget.dataset
+    const editForm = type === 'food'
+      ? { name: item.name, calories: item.calories, meal_type: item.meal_type }
+      : { type: item.type, name: item.name || '', sets: item.sets || 1, weight: item.weight || '', duration: item.duration, calories: item.calories }
+    this.setData({ editModalVisible: true, editType: type, editItem: item, editForm })
+  },
+
+  closeEditModal() {
+    this.setData({ editModalVisible: false, editItem: null })
+  },
+
+  onEditInput(e) {
+    const field = e.currentTarget.dataset.field
+    let value = e.detail.value
+    if (['calories', 'sets', 'weight', 'duration'].includes(field)) {
+      value = parseFloat(value) || 0
+    }
+    this.setData({ [`editForm.${field}`]: value })
+  },
+
+  selectEditMeal(e) {
+    this.setData({ 'editForm.meal_type': e.currentTarget.dataset.meal })
+  },
+
+  adjustEditSets(e) {
+    const delta = parseInt(e.currentTarget.dataset.delta)
+    let sets = (this.data.editForm.sets || 1) + delta
+    if (sets < 1) sets = 1
+    this.setData({ 'editForm.sets': sets })
+  },
+
+  saveEdit() {
+    const { editType, editItem, editForm } = this.data
+    const url = editType === 'food'
+      ? `/api/v1/food-log/${editItem.id}`
+      : `/api/v1/exercise-log/${editItem.id}`
+
+    wx.showLoading({ title: '保存中...' })
+    request({ url, method: 'PATCH', data: editForm }).then(() => {
+      wx.hideLoading()
+      wx.showToast({ title: '已更新', icon: 'success' })
+      this.closeEditModal()
+      this.loadData()
+    }).catch(err => {
+      wx.hideLoading()
+      wx.showToast({ title: err.message || '更新失败', icon: 'none' })
+    })
+  },
+
+  deleteFromEdit() {
+    const { editType, editItem } = this.data
+    wx.showModal({
+      title: '确认删除',
+      content: '删除后不可恢复',
+      confirmColor: '#c47a6c',
+      success: (res) => {
+        if (res.confirm) {
+          const url = editType === 'food'
+            ? `/api/v1/food-log/${editItem.id}`
+            : `/api/v1/exercise-log/${editItem.id}`
+          request({ url, method: 'DELETE' }).then(() => {
+            wx.showToast({ title: '已删除', icon: 'success' })
+            this.closeEditModal()
+            this.loadData()
+          })
+        }
+      }
+    })
+  },
+
+  // === 左滑删除 ===
+  onItemTouchStart(e) {
+    this.setData({ touchStartX: e.touches[0].clientX })
+  },
+
+  onItemTouchEnd(e) {
+    const startX = this.data.touchStartX || 0
+    const endX = e.changedTouches[0].clientX
+    const { type, index } = e.currentTarget.dataset
+    if (startX - endX > 60) {
+      this.setData({ swipeIndex: `${type}-${index}` })
+    } else {
+      this.setData({ swipeIndex: -1 })
+    }
+  },
+
+  resetSwipe() {
+    this.setData({ swipeIndex: -1 })
+  },
+
+  deleteItem(e) {
+    const { type, item } = e.currentTarget.dataset
+    wx.showModal({
+      title: '确认删除',
+      content: '删除后不可恢复',
+      confirmColor: '#c47a6c',
+      success: (res) => {
+        if (res.confirm) {
+          const url = type === 'food'
+            ? `/api/v1/food-log/${item.id}`
+            : `/api/v1/exercise-log/${item.id}`
+          request({ url, method: 'DELETE' }).then(() => {
+            wx.showToast({ title: '已删除', icon: 'success' })
+            this.loadData()
+          })
+        }
       }
     })
   }

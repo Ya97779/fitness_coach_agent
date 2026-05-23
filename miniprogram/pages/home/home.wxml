@@ -60,29 +60,49 @@
     <text class="section-title">今日记录</text>
   </view>
 
+  <!-- 饮食记录 -->
   <view class="card" wx:if="{{loggedIn && foodItems.length > 0}}">
     <text class="record-group-label">饮食</text>
-    <view class="record-item" wx:for="{{foodItems}}" wx:key="id">
-      <view class="record-dot dot-food"></view>
-      <view class="record-info">
-        <text class="record-name">{{item.name}}</text>
-        <text class="record-meta">{{item.meal_type_text}}</text>
+    <view class="record-item-wrap" wx:for="{{foodItems}}" wx:key="id"
+      data-type="food" data-index="{{index}}"
+      bindtouchstart="onItemTouchStart" bindtouchend="onItemTouchEnd">
+      <view class="record-item record-item-swipe {{swipeIndex === 'food-' + index ? 'record-item-swiped' : ''}}"
+        data-type="food" data-item="{{item}}" bindtap="onItemTap" catchtap="resetSwipe">
+        <view class="record-dot dot-food"></view>
+        <view class="record-info">
+          <text class="record-name">{{item.name}}</text>
+          <text class="record-meta">{{item.meal_type_text}}</text>
+        </view>
+        <text class="record-val" wx:if="{{item.calories > 0}}">{{item.calories}} kcal</text>
+        <text class="record-val record-estimating" wx:else>计算中...</text>
       </view>
-      <text class="record-val" wx:if="{{item.calories > 0}}">{{item.calories}} kcal</text>
-      <text class="record-val record-estimating" wx:else>计算中...</text>
+      <view class="record-delete-btn" wx:if="{{swipeIndex === 'food-' + index}}"
+        data-type="food" data-item="{{item}}" catchtap="deleteItem">
+        <text class="record-delete-text">删除</text>
+      </view>
     </view>
   </view>
 
+  <!-- 运动记录 -->
   <view class="card" wx:if="{{loggedIn && exerciseItems.length > 0}}">
     <text class="record-group-label">运动</text>
-    <view class="record-item" wx:for="{{exerciseItems}}" wx:key="id">
-      <view class="record-dot dot-exercise"></view>
-      <view class="record-info">
-        <text class="record-name">{{item.type}}</text>
-        <text class="record-meta" wx:if="{{item.sets}}">{{item.sets}} 组{{item.weight ? ' · ' + item.weight + 'kg' : ''}}</text>
-        <text class="record-meta" wx:else>{{item.duration}} 分钟</text>
+    <view class="record-item-wrap" wx:for="{{exerciseItems}}" wx:key="id"
+      data-type="exercise" data-index="{{index}}"
+      bindtouchstart="onItemTouchStart" bindtouchend="onItemTouchEnd">
+      <view class="record-item record-item-swipe {{swipeIndex === 'exercise-' + index ? 'record-item-swiped' : ''}}"
+        data-type="exercise" data-item="{{item}}" bindtap="onItemTap" catchtap="resetSwipe">
+        <view class="record-dot dot-exercise"></view>
+        <view class="record-info">
+          <text class="record-name">{{item.type}}</text>
+          <text class="record-meta" wx:if="{{item.sets}}">{{item.sets}} 组{{item.weight ? ' · ' + item.weight + 'kg' : ''}}</text>
+          <text class="record-meta" wx:else>{{item.duration}} 分钟</text>
+        </view>
+        <text class="record-val">-{{item.calories}} kcal</text>
       </view>
-      <text class="record-val">-{{item.calories}} kcal</text>
+      <view class="record-delete-btn" wx:if="{{swipeIndex === 'exercise-' + index}}"
+        data-type="exercise" data-item="{{item}}" catchtap="deleteItem">
+        <text class="record-delete-text">删除</text>
+      </view>
     </view>
   </view>
 
@@ -94,5 +114,70 @@
   <!-- 反馈入口 -->
   <view class="feedback-entry" wx:if="{{loggedIn}}" bindtap="goFeedback">
     <text class="feedback-text">提出你的改进建议</text>
+  </view>
+
+  <!-- 编辑弹窗 -->
+  <view class="edit-mask {{editModalVisible ? 'edit-mask-show' : ''}}" bindtap="closeEditModal">
+    <view class="edit-sheet {{editModalVisible ? 'edit-sheet-show' : ''}}" catchtap="">
+      <!-- 食物编辑 -->
+      <block wx:if="{{editType === 'food'}}">
+        <view class="edit-field">
+          <text class="edit-label">食物名称</text>
+          <input class="edit-input" value="{{editForm.name}}" data-field="name" bindinput="onEditInput" />
+        </view>
+        <view class="edit-field">
+          <text class="edit-label">热量 (kcal)</text>
+          <input class="edit-input" type="digit" value="{{editForm.calories}}" data-field="calories" bindinput="onEditInput" />
+        </view>
+        <view class="edit-field">
+          <text class="edit-label">餐次</text>
+          <view class="meal-types">
+            <view class="meal-btn {{editForm.meal_type === 'breakfast' ? 'meal-active' : ''}}" bindtap="selectEditMeal" data-meal="breakfast">早餐</view>
+            <view class="meal-btn {{editForm.meal_type === 'lunch' ? 'meal-active' : ''}}" bindtap="selectEditMeal" data-meal="lunch">午餐</view>
+            <view class="meal-btn {{editForm.meal_type === 'dinner' ? 'meal-active' : ''}}" bindtap="selectEditMeal" data-meal="dinner">晚餐</view>
+            <view class="meal-btn {{editForm.meal_type === 'snack' ? 'meal-active' : ''}}" bindtap="selectEditMeal" data-meal="snack">加餐</view>
+          </view>
+        </view>
+      </block>
+
+      <!-- 运动编辑 -->
+      <block wx:if="{{editType === 'exercise'}}">
+        <view class="edit-field">
+          <text class="edit-label">运动类型</text>
+          <input class="edit-input" value="{{editForm.type}}" data-field="type" bindinput="onEditInput" />
+        </view>
+        <view class="edit-field">
+          <text class="edit-label">动作名称</text>
+          <input class="edit-input" value="{{editForm.name}}" data-field="name" bindinput="onEditInput" />
+        </view>
+        <view class="edit-field">
+          <text class="edit-label">组数</text>
+          <view class="qty-stepper">
+            <view class="stepper-btn" bindtap="adjustEditSets" data-delta="-1"><text class="stepper-icon">-</text></view>
+            <input class="qty-input" type="number" value="{{editForm.sets}}" data-field="sets" bindinput="onEditInput" />
+            <view class="stepper-btn" bindtap="adjustEditSets" data-delta="1"><text class="stepper-icon">+</text></view>
+          </view>
+        </view>
+        <view class="edit-row">
+          <view class="edit-field edit-field-half">
+            <text class="edit-label">重量 (kg)</text>
+            <input class="edit-input" type="digit" value="{{editForm.weight}}" data-field="weight" bindinput="onEditInput" />
+          </view>
+          <view class="edit-field edit-field-half">
+            <text class="edit-label">时长 (分钟)</text>
+            <input class="edit-input" type="number" value="{{editForm.duration}}" data-field="duration" bindinput="onEditInput" />
+          </view>
+        </view>
+        <view class="edit-field">
+          <text class="edit-label">热量 (kcal)</text>
+          <input class="edit-input" type="digit" value="{{editForm.calories}}" data-field="calories" bindinput="onEditInput" />
+        </view>
+      </block>
+
+      <view class="edit-actions">
+        <view class="edit-save-btn" bindtap="saveEdit"><text class="edit-save-text">保存</text></view>
+        <view class="edit-delete-link" bindtap="deleteFromEdit"><text class="edit-delete-link-text">删除此记录</text></view>
+      </view>
+    </view>
   </view>
 </view>

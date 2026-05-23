@@ -268,6 +268,19 @@ class ExerciseLogCreate(BaseModel):
     weight: Optional[float] = None
     calories: Optional[float] = None
 
+class FoodLogUpdate(BaseModel):
+    name: Optional[str] = None
+    calories: Optional[float] = None
+    meal_type: Optional[str] = None
+
+class ExerciseLogUpdate(BaseModel):
+    type: Optional[str] = None
+    name: Optional[str] = None
+    sets: Optional[int] = None
+    weight: Optional[float] = None
+    duration: Optional[int] = None
+    calories: Optional[float] = None
+
 class FeedbackCreate(BaseModel):
     content: str
     contact: Optional[str] = None
@@ -497,6 +510,59 @@ def create_food_log(
         estimating=need_llm,
     )
 
+@router.patch("/food-log/{item_id}", response_model=FoodLogResponse)
+def update_food_log(
+    item_id: int,
+    data: FoodLogUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    item = db.query(models.FoodItem).join(models.DailyLog).filter(
+        models.FoodItem.id == item_id,
+        models.DailyLog.user_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    old_calories = item.calories or 0
+    if data.name is not None:
+        item.name = data.name
+    if data.calories is not None:
+        item.calories = data.calories
+    if data.meal_type is not None:
+        item.meal_type = data.meal_type
+
+    log = db.query(models.DailyLog).get(item.log_id)
+    if log and data.calories is not None:
+        log.intake_calories = (log.intake_calories or 0) - old_calories + data.calories
+
+    db.commit()
+    db.refresh(item)
+    return FoodLogResponse(
+        id=item.id, name=item.name, calories=item.calories,
+        meal_type=item.meal_type, log_id=item.log_id,
+    )
+
+@router.delete("/food-log/{item_id}", status_code=204)
+def delete_food_log(
+    item_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    item = db.query(models.FoodItem).join(models.DailyLog).filter(
+        models.FoodItem.id == item_id,
+        models.DailyLog.user_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    log = db.query(models.DailyLog).get(item.log_id)
+    if log:
+        log.intake_calories = (log.intake_calories or 0) - (item.calories or 0)
+
+    db.delete(item)
+    db.commit()
+
 @router.post("/exercise-log", response_model=ExerciseLogResponse)
 def create_exercise_log(
     data: ExerciseLogCreate,
@@ -535,6 +601,66 @@ def create_exercise_log(
         weight=item.weight, duration=item.duration,
         calories=item.calories, log_id=item.log_id,
     )
+
+@router.patch("/exercise-log/{item_id}", response_model=ExerciseLogResponse)
+def update_exercise_log(
+    item_id: int,
+    data: ExerciseLogUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    item = db.query(models.ExerciseItem).join(models.DailyLog).filter(
+        models.ExerciseItem.id == item_id,
+        models.DailyLog.user_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    old_calories = item.calories or 0
+    if data.type is not None:
+        item.type = data.type
+    if data.name is not None:
+        item.name = data.name
+    if data.sets is not None:
+        item.sets = data.sets
+    if data.weight is not None:
+        item.weight = data.weight
+    if data.duration is not None:
+        item.duration = data.duration
+    if data.calories is not None:
+        item.calories = data.calories
+
+    log = db.query(models.DailyLog).get(item.log_id)
+    if log and data.calories is not None:
+        log.burn_calories = (log.burn_calories or 0) - old_calories + data.calories
+
+    db.commit()
+    db.refresh(item)
+    return ExerciseLogResponse(
+        id=item.id, type=item.type, name=item.name, sets=item.sets,
+        weight=item.weight, duration=item.duration,
+        calories=item.calories, log_id=item.log_id,
+    )
+
+@router.delete("/exercise-log/{item_id}", status_code=204)
+def delete_exercise_log(
+    item_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    item = db.query(models.ExerciseItem).join(models.DailyLog).filter(
+        models.ExerciseItem.id == item_id,
+        models.DailyLog.user_id == current_user.id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="记录不存在")
+
+    log = db.query(models.DailyLog).get(item.log_id)
+    if log:
+        log.burn_calories = (log.burn_calories or 0) - (item.calories or 0)
+
+    db.delete(item)
+    db.commit()
 
 # ----- 对话 -----
 def _build_user_context(user: models.User, db: Session):

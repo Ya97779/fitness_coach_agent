@@ -288,3 +288,186 @@
   margin-top: 8rpx;
   display: block;
 }
+
+/* 左滑删除 */
+.record-item-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.record-item-swipe {
+  transition: transform 0.2s;
+}
+
+.record-item-swiped {
+  transform: translateX(-140rpx);
+}
+
+.record-delete-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 140rpx;
+  background: #c47a6c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.record-delete-text {
+  font-size: 26rpx;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 编辑弹窗 */
+.edit-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s;
+}
+
+.edit-mask-show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.edit-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--bg-card);
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 40rpx 32rpx;
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: 1001;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.edit-sheet-show {
+  transform: translateY(0);
+}
+
+.edit-field {
+  margin-bottom: 24rpx;
+}
+
+.edit-label {
+  font-size: 22rpx;
+  color: var(--text-hint);
+  margin-bottom: 10rpx;
+  display: block;
+}
+
+.edit-input {
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18rpx 22rpx;
+  font-size: 28rpx;
+  color: var(--text-primary);
+}
+
+.edit-row {
+  display: flex;
+  gap: 16rpx;
+}
+
+.edit-field-half {
+  flex: 1;
+}
+
+/* 步进器（复用 log 页样式） */
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  background: var(--bg-input);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.stepper-btn {
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-icon {
+  font-size: 32rpx;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.qty-input {
+  flex: 1;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  height: 72rpx;
+  background: transparent;
+  border: none;
+}
+
+/* 餐次选择（复用 log 页样式） */
+.meal-types {
+  display: flex;
+  gap: 12rpx;
+}
+
+.meal-btn {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  font-size: 24rpx;
+  color: var(--text-hint);
+  background: var(--bg-card);
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.meal-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* 弹窗操作按钮 */
+.edit-actions {
+  margin-top: 32rpx;
+}
+
+.edit-save-btn {
+  background: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 22rpx;
+  text-align: center;
+}
+
+.edit-save-text {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 2rpx;
+}
+
+.edit-delete-link {
+  text-align: center;
+  padding: 24rpx 0 0;
+}
+
+.edit-delete-link-text {
+  font-size: 24rpx;
+  color: var(--danger);
+}
