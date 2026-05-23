@@ -742,13 +742,19 @@ def clear_user_data(
     db: Session = Depends(database.get_db),
 ):
     logger.info(f"[清除数据] user_id={current_user.id} 开始清除全部数据")
-    # 按依赖顺序删除：FoodItem → ExerciseItem → DailyLog → ConversationLog
-    food_count = db.query(models.FoodItem).join(models.DailyLog).filter(
+    # 先查出该用户所有日志 ID，再按 log_id 删除子表
+    log_ids = [r.id for r in db.query(models.DailyLog.id).filter(
         models.DailyLog.user_id == current_user.id
-    ).delete(synchronize_session=False)
-    exercise_count = db.query(models.ExerciseItem).join(models.DailyLog).filter(
-        models.DailyLog.user_id == current_user.id
-    ).delete(synchronize_session=False)
+    ).all()]
+    food_count = 0
+    exercise_count = 0
+    if log_ids:
+        food_count = db.query(models.FoodItem).filter(
+            models.FoodItem.log_id.in_(log_ids)
+        ).delete(synchronize_session=False)
+        exercise_count = db.query(models.ExerciseItem).filter(
+            models.ExerciseItem.log_id.in_(log_ids)
+        ).delete(synchronize_session=False)
     log_count = db.query(models.DailyLog).filter(
         models.DailyLog.user_id == current_user.id
     ).delete(synchronize_session=False)
