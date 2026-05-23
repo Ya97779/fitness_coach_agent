@@ -116,6 +116,11 @@
         </view>
       </view>
       <view class="form-group">
+        <text class="form-label">每日热量调整 (kcal)</text>
+        <text class="form-hint">负数=缺口（减脂），正数=盈余（增肌），0=维持</text>
+        <input class="form-input" type="number" value="{{editForm.calorie_adjustment}}" bindinput="onEditInput" data-field="calorie_adjustment" placeholder="如 -500 或 +300" />
+      </view>
+      <view class="form-group">
         <text class="form-label">目标体重 (kg)</text>
         <input class="form-input" type="digit" value="{{editForm.target_weight}}" bindinput="onEditInput" data-field="target_weight" />
       </view>

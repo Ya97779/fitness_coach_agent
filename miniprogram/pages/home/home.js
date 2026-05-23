@@ -65,10 +65,12 @@ Page({
       request({ url: '/api/v1/user/me/today' })
     ]).then(([user, today]) => {
       const tdee = user.tdee || null
-      const hasTdee = !!tdee
+      const adj = user.calorie_adjustment || 0
+      const target = tdee ? Math.round(tdee + adj) : null
+      const hasTdee = !!target
       const intake = today.intake_calories || 0
       const burn = today.burn_calories || 0
-      const remaining = tdee ? Math.round(tdee - intake + burn) : 0
+      const remaining = target ? Math.round(target - intake + burn) : 0
 
       const foodItems = (today.food_items || []).map(item => ({
         ...item,
@@ -77,13 +79,13 @@ Page({
       const exerciseItems = today.exercise_items || []
 
       // 进度条和热量差
-      const barPercent = tdee ? Math.min(Math.round(intake / tdee * 100), 100) : 0
-      const gap = tdee ? Math.round(tdee + burn - intake) : 0
+      const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
+      const gap = target ? Math.round(target + burn - intake) : 0
       const isDeficit = gap >= 0
       const gapText = isDeficit ? gap : '+' + Math.abs(gap)
 
       this.setData({
-        tdee, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
+        tdee, target, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
         remaining: remaining > 0 ? remaining : 0,
         barPercent, gapText, isDeficit,
         foodItems, exerciseItems,

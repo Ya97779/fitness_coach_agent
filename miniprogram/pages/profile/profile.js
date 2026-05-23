@@ -67,7 +67,8 @@ Page({
         gender: userInfo.gender || '男',
         target_weight: userInfo.target_weight ? String(userInfo.target_weight) : '',
         allergies: userInfo.allergies || '',
-        goal: userInfo.goal || ''
+        goal: userInfo.goal || '',
+        calorie_adjustment: userInfo.calorie_adjustment ? String(userInfo.calorie_adjustment) : '0'
       }
     })
   },
@@ -100,7 +101,8 @@ Page({
       gender: form.gender,
       target_weight: form.target_weight ? parseFloat(form.target_weight) : null,
       allergies: form.allergies || null,
-      goal: form.goal || null
+      goal: form.goal || null,
+      calorie_adjustment: form.calorie_adjustment ? parseFloat(form.calorie_adjustment) : 0
     }
 
     wx.showLoading({ title: '保存中...' })

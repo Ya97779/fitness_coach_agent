@@ -21,6 +21,7 @@ class User(Base):
     target_weight = Column(Float, nullable=True)
     allergies = Column(String, nullable=True)
     goal = Column(String, nullable=True)
+    calorie_adjustment = Column(Float, nullable=True)  # 热量缺口(负)或盈余(正)
     bmr = Column(Float, nullable=True)
     tdee = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

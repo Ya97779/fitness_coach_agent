@@ -183,6 +183,7 @@ class UserCreate(BaseModel):
     target_weight: Optional[float] = None
     allergies: Optional[str] = None
     goal: Optional[str] = None
+    calorie_adjustment: Optional[float] = None
 
 class ProfileUpdate(BaseModel):
     nickname: Optional[str] = None
@@ -200,6 +201,7 @@ class UserResponse(BaseModel):
     target_weight: Optional[float] = None
     allergies: Optional[str] = None
     goal: Optional[str] = None
+    calorie_adjustment: Optional[float] = None
     bmr: Optional[float] = None
     tdee: Optional[float] = None
     class Config:
@@ -352,6 +354,8 @@ def create_or_update_user(
     current_user.target_weight = user_data.target_weight
     current_user.allergies = user_data.allergies
     current_user.goal = user_data.goal
+    if user_data.calorie_adjustment is not None:
+        current_user.calorie_adjustment = user_data.calorie_adjustment
     current_user.bmr = bmr
     current_user.tdee = tdee
     db.commit()

@@ -264,6 +264,14 @@
   letter-spacing: 1rpx;
 }
 
+.form-hint {
+  font-size: 20rpx;
+  color: var(--text-hint);
+  margin-bottom: 10rpx;
+  display: block;
+  opacity: 0.7;
+}
+
 .form-input {
   background: var(--bg-input);
   border: 1rpx solid var(--border);
