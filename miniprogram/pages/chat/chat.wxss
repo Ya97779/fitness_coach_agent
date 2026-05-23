@@ -67,6 +67,14 @@
   margin-left: 14rpx;
 }
 
+.msg-avatar-img {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  margin-left: 14rpx;
+}
+
 /* 气泡 */
 .msg-bubble {
   max-width: 75%;

@@ -1,4 +1,4 @@
-const { streamRequest } = require('../../utils/request')
+const { request, streamRequest } = require('../../utils/request')
 const { isLoggedIn, showLoginPrompt } = require('../../utils/auth')
 
 let msgId = 0
@@ -9,6 +9,7 @@ Page({
     inputValue: '',
     scrollToId: '',
     sending: false,
+    userAvatar: '',
     shortcuts: [
       { icon: '🍚', text: '记录早餐' },
       { icon: '🏋️', text: '记录运动' },
@@ -16,6 +17,16 @@ Page({
       { icon: '💪', text: '训练建议' },
       { icon: '🥦', text: '饮食计划' }
     ]
+  },
+
+  onShow() {
+    if (isLoggedIn() && !this.data.userAvatar) {
+      request({ url: '/api/v1/user/me' }).then(user => {
+        if (user.avatar_url) {
+          this.setData({ userAvatar: user.avatar_url })
+        }
+      }).catch(() => {})
+    }
   },
 
   onInput(e) {
