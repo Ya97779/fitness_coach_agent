@@ -172,6 +172,8 @@ Page({
     this.setData({ editModalVisible: false, editItem: null })
   },
 
+  preventBubble() {},
+
   onEditInput(e) {
     const field = e.currentTarget.dataset.field
     let value = e.detail.value

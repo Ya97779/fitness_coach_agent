@@ -117,8 +117,8 @@
   </view>
 
   <!-- 编辑弹窗 -->
-  <view class="edit-mask {{editModalVisible ? 'edit-mask-show' : ''}}" bindtap="closeEditModal">
-    <view class="edit-sheet {{editModalVisible ? 'edit-sheet-show' : ''}}" catchtap="">
+  <view class="edit-mask {{editModalVisible ? 'edit-mask-show' : ''}}" catchtap="closeEditModal" catchtouchmove="preventBubble">
+    <view class="edit-sheet {{editModalVisible ? 'edit-sheet-show' : ''}}" catchtap="preventBubble" catchtouchmove="preventBubble">
       <!-- 食物编辑 -->
       <block wx:if="{{editType === 'food'}}">
         <view class="edit-field">
