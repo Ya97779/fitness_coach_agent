@@ -250,6 +250,7 @@ class ChatResponse(BaseModel):
     agent: str
     nutrition_response: Optional[str] = None
     fitness_response: Optional[str] = None
+    intent: Optional[dict] = None
 
 class StreamChatRequest(BaseModel):
     message: str
@@ -864,6 +865,7 @@ def chat(
         agent=result["agent"],
         nutrition_response=result.get("nutrition_response"),
         fitness_response=result.get("fitness_response"),
+        intent=result.get("intent"),
     )
 
 @router.post("/chat/stream")
@@ -910,6 +912,9 @@ async def chat_stream(
                     event_type, content = data
                     if event_type == "status":
                         yield f"event: status\ndata: {content}\n\n"
+                    elif event_type == "intent":
+                        import json as _json
+                        yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"
                     else:
                         yield f"data: {content}\n\n"
                 elif msg_type == "done":

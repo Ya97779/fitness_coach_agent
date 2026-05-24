@@ -223,6 +223,50 @@
   40% { opacity: 1; }
 }
 
+/* 意图记录按钮 */
+.intent-bar {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 28rpx;
+  border-top: 1rpx solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
+
+.intent-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18rpx 24rpx;
+  background: var(--accent-dim);
+  border: 1rpx solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.intent-text {
+  font-size: 24rpx;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.intent-close {
+  margin-left: 12rpx;
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.intent-close-text {
+  font-size: 24rpx;
+  color: var(--text-hint);
+}
+
 /* 输入区 */
 .input-bar {
   display: flex;

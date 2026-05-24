@@ -31,7 +31,7 @@ import re
 from dotenv import load_dotenv
 
 from .base import AGENT_SYSTEM_PROMPTS
-from .chat_agent import chat_with_user
+from .chat_agent import chat_with_user, parse_intent
 from .nutrition_agent import nutrition_tools, nutrition_with_user
 from .fitness_agent import fitness_tools, fitness_with_user
 from .expert_agent import review_output
@@ -466,6 +466,11 @@ def process_user_message(
 
     last_review = review_history[-1] if review_history else {}
 
+    # 解析意图标记
+    intent = None
+    if current_agent == "chat":
+        response, intent = parse_intent(response)
+
     memory_manager.save_conversation(
         user_message=user_message,
         agent_response=response,
@@ -473,7 +478,7 @@ def process_user_message(
         session_id=session_id
     )
 
-    return {
+    result = {
         "response": response,
         "agent": current_agent,
         "expert_review": {
@@ -484,10 +489,13 @@ def process_user_message(
             "review_history": review_history
         }
     }
+    if intent:
+        result["intent"] = intent
+    return result
 
 
 def chat_stream(state: AgentState):
-    """流式闲聊节点
+    """流式闲聊节点（带意图检测）
 
     Args:
         state: AgentState
@@ -502,8 +510,22 @@ def chat_stream(state: AgentState):
 
     response_generator = chat_with_user(messages, user_id, memory_summary, enhanced_prompt, stream=True)
 
+    # 缓存完整回复用于意图检测
+    full_text = ""
     for chunk in response_generator:
-        yield chunk
+        full_text += chunk
+
+    # 解析意图标记并移除
+    clean_text, intent = parse_intent(full_text)
+
+    # 输出清理后的文本
+    if clean_text:
+        yield clean_text
+
+    # 输出意图信息（如果有）
+    if intent:
+        import json
+        yield f"\n[INTENT_JSON]{json.dumps(intent, ensure_ascii=False)}[/INTENT_JSON]"
 
 
 def nutrition_stream(state: AgentState):
@@ -634,6 +656,19 @@ def stream_user_message(
         print(f"[stream] 迭代异常: {e}")
         full_response += error_msg
         yield ("data", error_msg)
+
+    # 检测意图标记并发送独立 SSE 事件
+    intent_match = re.search(r'\[INTENT_JSON\](.*?)\[/INTENT_JSON\]', full_response)
+    if intent_match:
+        import json as _json
+        intent_str = intent_match.group(1)
+        try:
+            intent_data = _json.loads(intent_str)
+            yield ("intent", intent_data)
+        except Exception:
+            pass
+        # 从保存的回复中移除意图标记
+        full_response = full_response[:intent_match.start()].rstrip()
 
     # 流式完成后保存对话历史（错误回复也保存，便于排查）
     if full_response:

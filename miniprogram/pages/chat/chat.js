@@ -10,6 +10,8 @@ Page({
     scrollToId: '',
     sending: false,
     userAvatar: '',
+    pendingIntent: null,
+    intentButtonText: '',
     shortcuts: [
       { icon: '🍚', text: '记录早餐' },
       { icon: '🏋️', text: '记录运动' },
@@ -45,6 +47,8 @@ Page({
       showLoginPrompt()
       return
     }
+
+    this.setData({ pendingIntent: null, intentButtonText: '' })
 
     const userMsg = { id: `m${++msgId}`, role: 'user', content: text }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
@@ -84,6 +88,19 @@ Page({
               currentEventType = 'data'
               continue
             }
+            if (currentEventType === 'intent') {
+              try {
+                const intentData = JSON.parse(data)
+                const btnText = intentData.type === 'food'
+                  ? `记录${intentData.data.food_name}到饮食日志 (${intentData.data.calories} kcal)`
+                  : `记录${intentData.data.exercise_name}运动 (${intentData.data.duration}分钟)`
+                this.setData({ pendingIntent: intentData, intentButtonText: btnText })
+              } catch (e) {
+                console.warn('解析意图数据失败:', e)
+              }
+              currentEventType = 'data'
+              continue
+            }
             currentEventType = 'data'
             fullContent += data
             this.updateAiMessage(aiMsg.id, fullContent)
@@ -119,5 +136,49 @@ Page({
       return m
     })
     this.setData({ messages, sending: false })
+  },
+
+  recordFromIntent() {
+    const intent = this.data.pendingIntent
+    if (!intent) return
+
+    if (intent.type === 'food') {
+      const d = intent.data
+      request({
+        url: '/api/v1/food-log',
+        method: 'POST',
+        data: {
+          name: d.food_name,
+          calories: d.calories,
+          meal_type: d.meal_type || 'dinner'
+        }
+      }).then(() => {
+        wx.showToast({ title: '已记录饮食', icon: 'success' })
+        this.setData({ pendingIntent: null, intentButtonText: '' })
+      }).catch(() => {
+        wx.showToast({ title: '记录失败', icon: 'none' })
+      })
+    } else if (intent.type === 'exercise') {
+      const d = intent.data
+      request({
+        url: '/api/v1/exercise-log',
+        method: 'POST',
+        data: {
+          name: d.exercise_name,
+          type: d.exercise_name,
+          duration: d.duration || 0,
+          calories: d.calories
+        }
+      }).then(() => {
+        wx.showToast({ title: '已记录运动', icon: 'success' })
+        this.setData({ pendingIntent: null, intentButtonText: '' })
+      }).catch(() => {
+        wx.showToast({ title: '记录失败', icon: 'none' })
+      })
+    }
+  },
+
+  clearIntent() {
+    this.setData({ pendingIntent: null, intentButtonText: '' })
   }
 })

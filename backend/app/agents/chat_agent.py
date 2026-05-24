@@ -1,13 +1,17 @@
-"""闲聊 Agent - 处理日常对话"""
+"""闲聊 Agent - 处理日常对话，支持记录意图检测"""
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import Dict, Any, Iterator
+import re
 import os
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
 
 load_dotenv()
+
+# 意图检测正则
+_INTENT_PATTERN = re.compile(r'\n?\[INTENT:(food|exercise)\](.+?)(?:\n|$)')
 
 
 def format_memory_context(memory_summary: Dict[str, Any], agent_type: str = "chat") -> str:
@@ -81,6 +85,31 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
                 base_prompt += memory_context
         system_content = base_prompt
 
+    # 添加意图检测指令
+    system_content += """
+
+## 记录意图检测
+当你检测到用户有记录饮食或运动的意图时，在回复末尾单独一行输出意图标记：
+- 饮食：[INTENT:food]食物名|餐次|估算热量kcal
+- 运动：[INTENT:exercise]运动名|时长分钟|估算热量kcal
+
+示例：
+用户: "我晚餐吃了一份鸡腿饭"
+你的回复: 鸡腿饭是经典快餐，味道不错！
+[INTENT:food]鸡腿饭|dinner|650
+
+用户: "今天跑步30分钟"
+你的回复: 跑步是很好的有氧运动！
+[INTENT:exercise]跑步|30|300
+
+规则：
+- 只在用户明确提到"吃了/喝了/做了运动"时才输出标记
+- 闲聊、提问、咨询、计划讨论等不输出标记
+- 热量用常识估算，不需要精确
+- 餐次：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐/零食→snack
+- 标记必须在回复末尾单独一行
+"""
+
     system_msg = SystemMessage(content=system_content)
 
     def generate_response():
@@ -100,3 +129,53 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
                 yield f"抱歉，处理您的请求时出现问题: {error_msg[:200]}"
 
     return generate_response()
+
+
+def parse_intent(response_text: str) -> tuple:
+    """从 chat agent 回复中解析意图标记
+
+    Args:
+        response_text: LLM 原始回复
+
+    Returns:
+        (clean_text, intent_dict): 清理后的文本和意图信息（无意图时 intent_dict 为 None）
+    """
+    match = _INTENT_PATTERN.search(response_text)
+    if not match:
+        return response_text, None
+
+    intent_type = match.group(1)  # "food" or "exercise"
+    raw_data = match.group(2).strip()
+    clean_text = response_text[:match.start()].rstrip()
+
+    parts = raw_data.split("|")
+    intent = {"type": intent_type}
+
+    if intent_type == "food" and len(parts) >= 3:
+        intent["data"] = {
+            "food_name": parts[0].strip(),
+            "meal_type": parts[1].strip(),
+            "calories": _parse_calories(parts[2])
+        }
+    elif intent_type == "exercise" and len(parts) >= 3:
+        intent["data"] = {
+            "exercise_name": parts[0].strip(),
+            "duration": _parse_int(parts[1]),
+            "calories": _parse_calories(parts[2])
+        }
+    else:
+        return response_text, None
+
+    return clean_text, intent
+
+
+def _parse_calories(s: str) -> int:
+    """提取热量数值"""
+    m = re.search(r'(\d+)', s)
+    return int(m.group(1)) if m else 0
+
+
+def _parse_int(s: str) -> int:
+    """提取整数"""
+    m = re.search(r'(\d+)', s)
+    return int(m.group(1)) if m else 0

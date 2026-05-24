@@ -25,6 +25,16 @@
     <view id="msg-bottom" style="height: 20rpx;"></view>
   </scroll-view>
 
+  <!-- 意图记录按钮 -->
+  <view class="intent-bar" wx:if="{{pendingIntent}}">
+    <view class="intent-btn" bindtap="recordFromIntent">
+      <text class="intent-text">{{intentButtonText}}</text>
+    </view>
+    <view class="intent-close" bindtap="clearIntent">
+      <text class="intent-close-text">✕</text>
+    </view>
+  </view>
+
   <!-- 输入区 -->
   <view class="input-bar">
     <input class="input-field" placeholder="问我任何健身或营养问题..." value="{{inputValue}}" bindinput="onInput" bindconfirm="sendMessage" confirm-type="send" />

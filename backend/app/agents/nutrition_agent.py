@@ -1,10 +1,11 @@
 """营养师 Agent - 负责饮食计划、热量计算"""
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
+import re
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
 from .. import models, database
@@ -14,6 +15,99 @@ from datetime import date
 load_dotenv()
 
 _rag_instance = None
+
+# 记录意图关键词
+_FOOD_RECORD_PATTERNS = [
+    r"帮我记录", r"记录一下", r"记到", r"记一下",
+    r"吃了", r"喝了", r"吃了一个", r"喝了一杯", r"吃了一碗",
+    r"早餐吃了", r"午餐吃了", r"晚餐吃了", r"加餐吃了",
+]
+
+# 常见食物热量估算（kcal/份）
+_FOOD_CALORIE_ESTIMATES = {
+    "苹果": 95, "香蕉": 105, "鸡蛋": 78, "牛奶": 150,
+    "面包": 120, "米饭": 200, "面条": 220, "馒头": 220,
+    "包子": 200, "饺子": 250, "粥": 100, "豆浆": 80,
+    "鸡胸肉": 165, "鸡腿": 180, "鸡翅": 100, "鸡排": 350,
+    "猪肉": 250, "牛肉": 200, "鱼": 150, "虾": 100,
+    "蔬菜沙拉": 80, "炒菜": 200, "汤": 80,
+    "酸奶": 120, "橙子": 70, "葡萄": 100,
+    "拉面": 550, "牛肉面": 550, "兰州拉面": 550, "兰州牛肉拉面": 600,
+    "炒饭": 450, "炒面": 400, "汉堡": 550, "薯条": 400,
+    "可乐": 140, "咖啡": 5, "奶茶": 350,
+    "鸭腿饭": 650, "鸭腿": 300,  "拌面": 400,
+    "盖饭": 600, "便当": 550, "披萨": 700, "沙拉": 150,
+}
+
+
+def _detect_food_record_intent(user_message: str) -> bool:
+    """检测用户是否有食物记录意图"""
+    for pattern in _FOOD_RECORD_PATTERNS:
+        if pattern in user_message:
+            return True
+    return False
+
+
+def _extract_food_names(user_message: str) -> list:
+    """从用户消息中提取食物名称（支持多种食物）
+
+    Returns:
+        list: [(food_name, meal_type), ...]
+    """
+    results = []
+
+    # 先尝试匹配已知食物（按长度降序，优先匹配长的）
+    matched_foods = []
+    for food_name in sorted(_FOOD_CALORIE_ESTIMATES.keys(), key=len, reverse=True):
+        if food_name in user_message and food_name not in [r[0] for r in matched_foods]:
+            matched_foods.append(food_name)
+
+    if matched_foods:
+        for food_name in matched_foods:
+            # 尝试从上下文推断餐次
+            # 找到食物名在原文中的位置，看前面的上下文
+            idx = user_message.find(food_name)
+            context_before = user_message[max(0, idx-10):idx]
+            meal_type = _detect_meal_type(context_before + food_name)
+            results.append((food_name, meal_type))
+        return results
+
+    # 正则提取：按逗号/句号分割后逐段提取
+    segments = re.split(r'[，。,;；]', user_message)
+    for seg in segments:
+        m = re.search(r'[吃喝]了?(?:一份?|一个|一碗|一杯|一盘|一块|一根)?(.+?)(?:$)', seg)
+        if m:
+            name = m.group(1).strip()
+            if 1 <= len(name) <= 20:
+                meal_type = _detect_meal_type(seg)
+                results.append((name, meal_type))
+
+    return results if results else [("食物", _detect_meal_type(user_message))]
+
+
+def _estimate_calories(food_name: str) -> int:
+    """估算食物热量（本地查找表）"""
+    if food_name in _FOOD_CALORIE_ESTIMATES:
+        return _FOOD_CALORIE_ESTIMATES[food_name]
+    # 模糊匹配
+    for name, cal in _FOOD_CALORIE_ESTIMATES.items():
+        if name in food_name or food_name in name:
+            return cal
+    return 300  # 默认估算
+
+
+def _detect_meal_type(user_message: str) -> str:
+    """从用户消息中检测餐次"""
+    if any(kw in user_message for kw in ["早餐", "早上", "早饭"]):
+        return "breakfast"
+    if any(kw in user_message for kw in ["午餐", "中午", "午饭"]):
+        return "lunch"
+    if any(kw in user_message for kw in ["晚餐", "晚上", "晚饭"]):
+        return "dinner"
+    if any(kw in user_message for kw in ["加餐", "零食", "下午茶"]):
+        return "snack"
+    return "lunch"  # 默认午餐
+
 
 def get_rag():
     """获取 RAG 实例（懒加载）"""
@@ -249,19 +343,27 @@ def nutrition_with_user(
 
     system_content += f"""
 
-重要：
-1. 当前用户 ID 为 {user_id}，调用任何工具时必须传入此 user_id
-2. 当用户要求记录饮食时，必须调用 log_food_intake 工具记录，user_id={user_id}
-3. 先用 search_food_nutrition 查询食物热量，如果 API 返回空或未找到，你必须根据自身营养知识估算热量，然后调用 log_food_intake 记录
-4. 绝对不要只回复"查不到"而不记录——用户要求记录时，一定要调用 log_food_intake
-5. 根据用户提到的餐次推断 meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐/零食→snack。未明确提到餐次时根据时间推断
-6. 当用户询问营养原理、饮食策略等专业知识时，使用 search_nutrition_knowledge 工具
-7. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
+## 关键规则
+- 当前用户 ID = {user_id}，调用工具时必须传入
+- 用户要求记录饮食时，必须调用 log_food_intake（user_id={user_id}）
+- search_food_nutrition 返回空时，根据营养知识估算热量后调用 log_food_intake 记录
+- meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐→snack
+- 专业知识问题用 search_nutrition_knowledge 检索
 """
     system_msg = SystemMessage(content=system_content)
     chat_history = [system_msg] + list(messages)
 
+    # 获取用户原始消息用于意图检测
+    user_message = ""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            user_message = msg.content
+            break
+    want_record = _detect_food_record_intent(user_message)
+
     def generate_response():
+        called_tools = set()
+
         try:
             response = llm.bind_tools(nutrition_tools).invoke(chat_history)
         except Exception as e:
@@ -274,10 +376,30 @@ def nutrition_with_user(
             return
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
-            # 无工具调用，直接返回内容（不做第二次 LLM 调用）
             content = response.content if hasattr(response, 'content') else str(response)
-            if content:
-                yield content
+            # 兜底：用户要求记录但 LLM 没调用任何工具
+            if want_record:
+                food_items = _extract_food_names(user_message)
+                recorded = []
+                for food_name, meal_type in food_items:
+                    calories = _estimate_calories(food_name)
+                    print(f"[nutrition_agent] 兜底记录: {food_name}, {calories}kcal, {meal_type}")
+                    fallback_result = log_food_intake.invoke({
+                        "user_id": user_id,
+                        "food_name": food_name,
+                        "calories": float(calories),
+                        "meal_type": meal_type
+                    })
+                    print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
+                    recorded.append(f"{food_name} {calories}kcal({meal_type})")
+                if content:
+                    yield content
+                    yield f"\n\n已自动记录：{', '.join(recorded)}"
+                else:
+                    yield f"已为你记录：{', '.join(recorded)}。"
+            else:
+                if content:
+                    yield content
             return
 
         tool_messages = []
@@ -285,6 +407,7 @@ def nutrition_with_user(
             tool_name = tool_call['name']
             tool_args = tool_call['args']
             tool_id = tool_call['id']
+            called_tools.add(tool_name)
             print(f"[nutrition_agent] 工具调用: {tool_name}({tool_args})")
 
             for t in nutrition_tools:
@@ -307,6 +430,28 @@ def nutrition_with_user(
 
         chat_history.append(response)
         chat_history.extend(tool_messages)
+
+        # 兜底：用户要求记录但 LLM 没调用 log_food_intake
+        if want_record and "log_food_intake" not in called_tools:
+            food_items = _extract_food_names(user_message)
+            recorded = []
+            for food_name, meal_type in food_items:
+                calories = _estimate_calories(food_name)
+                print(f"[nutrition_agent] 兜底记录: {food_name}, {calories}kcal, {meal_type}")
+                fallback_result = log_food_intake.invoke({
+                    "user_id": user_id,
+                    "food_name": food_name,
+                    "calories": float(calories),
+                    "meal_type": meal_type
+                })
+                print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
+                recorded.append(f"{food_name} {calories}kcal({meal_type})")
+            # 追加工具消息让 LLM 知道已记录
+            chat_history.append({
+                "role": "tool",
+                "content": f"已自动记录：{', '.join(recorded)}",
+                "tool_call_id": "fallback_log"
+            })
 
         try:
             if stream:

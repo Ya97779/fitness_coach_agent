@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
+import re
 from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
 from .. import models, database
@@ -12,6 +13,63 @@ from ..rag import get_rag_instance
 from datetime import date
 
 load_dotenv()
+
+# 记录意图关键词
+_EXERCISE_RECORD_PATTERNS = [
+    r"帮我记录", r"记录一下", r"记到", r"记一下",
+    r"跑了", r"游了", r"骑了", r"练了", r"做了",
+    r"今天运动", r"今天训练",
+]
+
+# 常见运动热量估算（kcal/30分钟，70kg体重）
+_EXERCISE_CALORIE_ESTIMATES = {
+    "跑步": 300, "慢跑": 220, "快走": 150, "游泳": 300,
+    "骑行": 200, "跳绳": 350, "瑜伽": 100, "HIIT": 350,
+    "力量训练": 180, "俯卧撑": 150, "深蹲": 200,
+    "引体向上": 180, "平板支撑": 80, "仰卧起坐": 120,
+    "篮球": 280, "足球": 300, "羽毛球": 250, "乒乓球": 180,
+}
+
+
+def _detect_exercise_record_intent(user_message: str) -> bool:
+    """检测用户是否有运动记录意图"""
+    for pattern in _EXERCISE_RECORD_PATTERNS:
+        if pattern in user_message:
+            return True
+    return False
+
+
+def _extract_exercise_info(user_message: str) -> tuple:
+    """从用户消息中提取运动名称和时长"""
+    # 尝试提取时长
+    duration = 30  # 默认30分钟
+    m = re.search(r'(\d+)\s*分钟', user_message)
+    if m:
+        duration = int(m.group(1))
+    m2 = re.search(r'(\d+)\s*小时', user_message)
+    if m2:
+        duration = int(m2.group(1)) * 60
+
+    # 匹配已知运动
+    for name in _EXERCISE_CALORIE_ESTIMATES:
+        if name in user_message:
+            return name, duration
+
+    # 正则提取
+    m3 = re.search(r'[做了练跑游骑]+了?(?:一下|一会)?(.+?)(?:\d+分钟|[，。,.]|$)', user_message)
+    if m3:
+        name = m3.group(1).strip()
+        if len(name) <= 10:
+            return name, duration
+
+    return "运动", duration
+
+
+def _estimate_exercise_calories(exercise_name: str, duration: int) -> int:
+    """估算运动热量"""
+    base = _EXERCISE_CALORIE_ESTIMATES.get(exercise_name, 200)
+    return int(base * duration / 30)
+
 
 def get_rag():
     """获取 RAG 实例（使用全局单例）"""
@@ -204,18 +262,26 @@ def fitness_with_user(
 
     system_content += f"""
 
-重要：
-1. 当前用户 ID 为 {user_id}，调用任何工具时必须传入此 user_id
-2. 当用户询问健身动作、训练计划等专业问题时，使用 search_fitness_knowledge 工具
-3. 当用户要求记录运动时，使用 log_exercise 工具记录，user_id={user_id}
-4. 工具返回【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
-5. 如果 RAG 检索未找到信息，请基于你自身的健身知识为用户提供专业回答
-6. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
+## 关键规则
+- 当前用户 ID = {user_id}，调用工具时必须传入
+- 用户要求记录运动时，必须调用 log_exercise（user_id={user_id}）
+- 专业问题用 search_fitness_knowledge 检索
+- 不要直接返回原始检索结果，整理后回答
 """
+    # 获取用户原始消息用于意图检测
+    user_message = ""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            user_message = msg.content
+            break
+    want_record = _detect_exercise_record_intent(user_message)
+
     system_msg = SystemMessage(content=system_content)
     chat_history = [system_msg] + list(messages)
 
     def generate_response():
+        called_tools = set()
+
         try:
             response = llm.bind_tools(fitness_tools).invoke(chat_history)
         except Exception as e:
@@ -227,10 +293,27 @@ def fitness_with_user(
             return
 
         if not hasattr(response, 'tool_calls') or not response.tool_calls:
-            # 无工具调用，直接返回内容（不做第二次 LLM 调用）
             content = response.content if hasattr(response, 'content') else str(response)
-            if content:
-                yield content
+            # 兜底：用户要求记录但 LLM 没调用任何工具
+            if want_record:
+                ex_name, duration = _extract_exercise_info(user_message)
+                calories = _estimate_exercise_calories(ex_name, duration)
+                print(f"[fitness_agent] 兜底记录: {ex_name}, {duration}分钟, {calories}kcal")
+                fallback_result = log_exercise.invoke({
+                    "user_id": user_id,
+                    "exercise_type": ex_name,
+                    "duration": duration,
+                    "calories": float(calories)
+                })
+                print(f"[fitness_agent] 兜底记录结果: {fallback_result}")
+                if content:
+                    yield content
+                    yield f"\n\n已自动记录：{ex_name} {duration}分钟，约消耗 {calories} kcal"
+                else:
+                    yield f"已为你记录 {ex_name} {duration}分钟，约消耗 {calories} kcal。"
+            else:
+                if content:
+                    yield content
             return
 
         tool_messages = []
@@ -238,6 +321,7 @@ def fitness_with_user(
             tool_name = tool_call['name']
             tool_args = tool_call['args']
             tool_id = tool_call['id']
+            called_tools.add(tool_name)
             print(f"[fitness_agent] 工具调用: {tool_name}({tool_args})")
 
             for t in fitness_tools:
@@ -260,6 +344,24 @@ def fitness_with_user(
 
         chat_history.append(response)
         chat_history.extend(tool_messages)
+
+        # 兜底：用户要求记录但 LLM 没调用 log_exercise
+        if want_record and "log_exercise" not in called_tools:
+            ex_name, duration = _extract_exercise_info(user_message)
+            calories = _estimate_exercise_calories(ex_name, duration)
+            print(f"[fitness_agent] 兜底记录: {ex_name}, {duration}分钟, {calories}kcal")
+            fallback_result = log_exercise.invoke({
+                "user_id": user_id,
+                "exercise_type": ex_name,
+                "duration": duration,
+                "calories": float(calories)
+            })
+            print(f"[fitness_agent] 兜底记录结果: {fallback_result}")
+            chat_history.append({
+                "role": "tool",
+                "content": fallback_result,
+                "tool_call_id": "fallback_log"
+            })
 
         try:
             if stream:
