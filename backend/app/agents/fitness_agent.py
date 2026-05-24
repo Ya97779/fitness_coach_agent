@@ -40,7 +40,11 @@ def _detect_exercise_record_intent(user_message: str) -> bool:
 
 
 def _extract_exercise_info(user_message: str) -> tuple:
-    """从用户消息中提取运动名称和时长"""
+    """从用户消息中提取运动名称和时长
+
+    Returns:
+        (exercise_name, duration_minutes)
+    """
     # 尝试提取时长
     duration = 30  # 默认30分钟
     m = re.search(r'(\d+)\s*分钟', user_message)
@@ -50,16 +54,23 @@ def _extract_exercise_info(user_message: str) -> tuple:
     if m2:
         duration = int(m2.group(1)) * 60
 
-    # 匹配已知运动
-    for name in _EXERCISE_CALORIE_ESTIMATES:
+    # 匹配已知运动（按长度降序）
+    for name in sorted(_EXERCISE_CALORIE_ESTIMATES.keys(), key=len, reverse=True):
         if name in user_message:
             return name, duration
 
-    # 正则提取
-    m3 = re.search(r'[做了练跑游骑]+了?(?:一下|一会)?(.+?)(?:\d+分钟|[，。,.]|$)', user_message)
+    # 正则：动词 + 数字组/次 + 运动名（如"练了5组卧推"）
+    m3 = re.search(r'[做了练跑游骑]+了?\d*[组次个]?(.+?)(?:\s*\d+[kKgGxX]|[\d ]*[分钟小时]|$)', user_message)
     if m3:
         name = m3.group(1).strip()
-        if len(name) <= 10:
+        if 1 <= len(name) <= 10:
+            return name, duration
+
+    # 正则：简单提取
+    m4 = re.search(r'[做了练跑游骑]+了?(?:一下|一会)?(.+?)(?:\d+分钟|[，。,.]|$)', user_message)
+    if m4:
+        name = m4.group(1).strip()
+        if 1 <= len(name) <= 10:
             return name, duration
 
     return "运动", duration
@@ -113,13 +124,11 @@ def log_exercise(user_id: int, exercise_type: str, duration: int, calories: floa
             db.commit()
             db.refresh(log)
 
-        notes = f"{sets}x{reps}" if sets and reps else f"{duration}分钟"
         exercise_item = models.ExerciseItem(
             log_id=log.id,
             type=exercise_type,
             duration=duration,
-            calories=calories,
-            notes=notes
+            calories=calories
         )
         log.burn_calories += calories
         db.add(exercise_item)
