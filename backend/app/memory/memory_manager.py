@@ -153,6 +153,11 @@ class MemoryManager:
             week_stats = self.format_week_stats_for_agent()
             enhanced_parts.append(f"\n{week_stats}")
 
+        # 注入最近的跨 Agent 对话历史，让 Agent 了解之前的上下文
+        recent_history = self.format_conversation_history_for_agent(days=1, limit=6)
+        if recent_history and recent_history != "（无历史对话）":
+            enhanced_parts.append(f"\n{recent_history}")
+
         if messages and len(messages) > 1:
             if self.summarizer.should_summarize(messages):
                 profile = self.load_profile()

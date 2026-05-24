@@ -238,13 +238,16 @@ def fitness_with_user(
             tool_name = tool_call['name']
             tool_args = tool_call['args']
             tool_id = tool_call['id']
+            print(f"[fitness_agent] 工具调用: {tool_name}({tool_args})")
 
             for t in fitness_tools:
                 if t.name == tool_name:
                     try:
                         tool_result = t.invoke(tool_args)
+                        print(f"[fitness_agent] 工具结果: {tool_name} → {tool_result}")
                     except Exception as e:
                         tool_result = f"工具执行错误: {e}"
+                        print(f"[fitness_agent] 工具异常: {tool_name} → {e}")
                     break
             else:
                 tool_result = f"未知工具: {tool_name}"
