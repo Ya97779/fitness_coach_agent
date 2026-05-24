@@ -46,8 +46,8 @@ def get_user_nutrition_info(user_id: int):
 
 
 @tool
-def log_food_intake(user_id: int, food_name: str, calories: float, protein: float = 0, fat: float = 0, carbs: float = 0):
-    """记录用户摄入的食物及其营养成分到数据库"""
+def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: str = "lunch", protein: float = 0, fat: float = 0, carbs: float = 0):
+    """记录用户摄入的食物及其营养成分到数据库。meal_type 可选值: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)"""
     db = database.SessionLocal()
     try:
         today = date.today()
@@ -62,12 +62,12 @@ def log_food_intake(user_id: int, food_name: str, calories: float, protein: floa
             db.commit()
             db.refresh(log)
 
-        food_item = models.FoodItem(log_id=log.id, name=food_name, calories=calories)
+        food_item = models.FoodItem(log_id=log.id, name=food_name, calories=calories, meal_type=meal_type)
         log.intake_calories += calories
         db.add(food_item)
         db.commit()
 
-        return f"已记录: {food_name}, {calories} kcal"
+        return f"已记录: {food_name}, {calories} kcal, 餐次: {meal_type}"
     finally:
         db.close()
 
@@ -251,11 +251,11 @@ def nutrition_with_user(
 
 重要：
 1. 当前用户 ID 为 {user_id}，调用任何工具时必须传入此 user_id
-2. 当用户询问食物热量、营养成分等问题时，使用 search_food_nutrition 工具查询 API
-3. 当用户询问营养原理、饮食策略、膳食搭配、营养素功能等专业知识时，使用 search_nutrition_knowledge 工具从知识库检索
-4. 当用户要求记录饮食时，使用 log_food_intake 工具记录，user_id={user_id}
-5. 工具返回【API检索】或【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
-6. 如果检索工具未找到信息，请基于你自身的营养知识为用户提供专业回答
+2. 当用户要求记录饮食时，必须调用 log_food_intake 工具记录，user_id={user_id}
+3. 先用 search_food_nutrition 查询食物热量，如果 API 返回空或未找到，你必须根据自身营养知识估算热量，然后调用 log_food_intake 记录
+4. 绝对不要只回复"查不到"而不记录——用户要求记录时，一定要调用 log_food_intake
+5. 根据用户提到的餐次推断 meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐/零食→snack。未明确提到餐次时根据时间推断
+6. 当用户询问营养原理、饮食策略等专业知识时，使用 search_nutrition_knowledge 工具
 7. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
 """
     system_msg = SystemMessage(content=system_content)
