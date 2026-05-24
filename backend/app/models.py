@@ -51,6 +51,8 @@ class FoodItem(Base):
     name = Column(String, nullable=False)
     calories = Column(Float, nullable=False)
     meal_type = Column(String, nullable=True)  # breakfast/lunch/dinner/snack
+    portion_qty = Column(Float, nullable=True)
+    portion_unit = Column(String, nullable=True)
 
     log = relationship("DailyLog", back_populates="food_items")
 

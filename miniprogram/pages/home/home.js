@@ -14,7 +14,6 @@ Page({
     todayStr: '',
     intake: 0,
     burn: 0,
-    remaining: 0,
     tdee: null,
     hasTdee: false,
     foodItems: [],
@@ -26,9 +25,13 @@ Page({
     editType: '', // 'food' or 'exercise'
     editItem: null,
     editForm: {},
+    // 份量
+    portionUnits: ['克', '份', '碗', '个', '杯', '盘', '块', '片', '条'],
+    editUnitIndex: 1,
     // 左滑
     swipeIndex: -1,
-    touchStartX: 0
+    touchStartX: 0,
+    _pollTimer: null
   },
 
   onShow() {
@@ -39,6 +42,14 @@ Page({
     }
     this.setData({ loggedIn: true })
     this.loadData()
+  },
+
+  onHide() {
+    this._stopPoll()
+  },
+
+  onUnload() {
+    this._stopPoll()
   },
 
   setGreeting() {
@@ -70,7 +81,6 @@ Page({
       const hasTdee = !!target
       const intake = today.intake_calories || 0
       const burn = today.burn_calories || 0
-      const remaining = target ? Math.round(target - intake + burn) : 0
 
       const foodItems = (today.food_items || []).map(item => ({
         ...item,
@@ -86,14 +96,64 @@ Page({
 
       this.setData({
         tdee, target, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
-        remaining: remaining > 0 ? remaining : 0,
         barPercent, gapText, isDeficit,
         foodItems, exerciseItems,
         loading: false
       })
+
+      // 有"计算中..."的食物时启动轮询
+      const hasEstimating = foodItems.some(item => !item.calories || item.calories <= 0)
+      if (hasEstimating) {
+        this._startPoll()
+      } else {
+        this._stopPoll()
+      }
     }).catch(() => {
       this.setData({ loading: false })
     })
+  },
+
+  _startPoll() {
+    this._stopPoll()
+    this._pollCount = 0
+    this._pollTimer = setInterval(() => {
+      this._pollCount++
+      if (this._pollCount > 10) {
+        this._stopPoll()
+        return
+      }
+      request({ url: '/api/v1/user/me/today' }).then(today => {
+        const foodItems = (today.food_items || []).map(item => ({
+          ...item,
+          meal_type_text: MEAL_TYPE_MAP[item.meal_type] || item.meal_type
+        }))
+        const hasEstimating = foodItems.some(item => !item.calories || item.calories <= 0)
+        if (!hasEstimating || this._pollCount > 10) {
+          this._stopPoll()
+        }
+        // 重新计算汇总数据
+        const target = this.data.target
+        const intake = today.intake_calories || 0
+        const burn = today.burn_calories || 0
+        const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
+        const gap = target ? Math.round(target + burn - intake) : 0
+        const isDeficit = gap >= 0
+        const gapText = isDeficit ? gap : '+' + Math.abs(gap)
+        const exerciseItems = today.exercise_items || []
+        this.setData({
+          foodItems, exerciseItems,
+          intake: Math.round(intake), burn: Math.round(burn),
+          barPercent, gapText, isDeficit
+        })
+      }).catch(() => {})
+    }, 3000)
+  },
+
+  _stopPoll() {
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer)
+      this._pollTimer = null
+    }
   },
 
   goTimer() {
@@ -124,9 +184,20 @@ Page({
   // === 编辑 ===
   onItemTap(e) {
     const { type, item } = e.currentTarget.dataset
-    const editForm = type === 'food'
-      ? { name: item.name, calories: item.calories, meal_type: item.meal_type }
-      : { type: item.type, name: item.name || '', sets: item.sets || 1, weight: item.weight || '', duration: item.duration, calories: item.calories }
+    let editForm
+    if (type === 'food') {
+      const unitIdx = this.data.portionUnits.indexOf(item.portion_unit)
+      editForm = {
+        name: item.name,
+        calories: item.calories,
+        meal_type: item.meal_type,
+        portion_qty: item.portion_qty || 1,
+        portion_unit: item.portion_unit || '份'
+      }
+      this.setData({ editUnitIndex: unitIdx >= 0 ? unitIdx : 1 })
+    } else {
+      editForm = { type: item.type, name: item.name || '', sets: item.sets || 1, weight: item.weight || '', duration: item.duration, calories: item.calories }
+    }
     this.setData({ editModalVisible: true, editType: type, editItem: item, editForm, swipeIndex: -1 })
   },
 
@@ -154,6 +225,32 @@ Page({
     let sets = (this.data.editForm.sets || 1) + delta
     if (sets < 1) sets = 1
     this.setData({ 'editForm.sets': sets })
+  },
+
+  adjustEditQty(e) {
+    const delta = parseFloat(e.currentTarget.dataset.delta)
+    const isGram = this.data.editForm.portion_unit === '克'
+    const step = isGram ? 50 : 1
+    let qty = (this.data.editForm.portion_qty || 1) + delta * step
+    if (isGram) {
+      qty = Math.max(50, Math.round(qty / 50) * 50)
+    } else {
+      qty = Math.max(1, Math.round(qty))
+    }
+    this.setData({ 'editForm.portion_qty': qty })
+  },
+
+  onEditUnitChange(e) {
+    const idx = e.detail.value
+    const unit = this.data.portionUnits[idx]
+    const prevUnit = this.data.editForm.portion_unit
+    let qty = this.data.editForm.portion_qty
+    if (unit === '克' && prevUnit !== '克') {
+      qty = 100
+    } else if (unit !== '克' && prevUnit === '克') {
+      qty = 1
+    }
+    this.setData({ editUnitIndex: idx, 'editForm.portion_unit': unit, 'editForm.portion_qty': qty })
   },
 
   saveEdit() {

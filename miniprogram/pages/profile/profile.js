@@ -130,6 +130,9 @@ Page({
           request({ url: '/api/v1/user/me/data', method: 'DELETE' }).then(() => {
             wx.hideLoading()
             wx.showToast({ title: '已清除', icon: 'success' })
+            setTimeout(() => {
+              wx.switchTab({ url: '/pages/home/home/home' })
+            }, 1500)
           }).catch(err => {
             wx.hideLoading()
             wx.showToast({ title: err.message || '清除失败', icon: 'none' })

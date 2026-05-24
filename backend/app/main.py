@@ -214,6 +214,8 @@ class FoodLogResponse(BaseModel):
     meal_type: Optional[str] = None
     log_id: int
     estimating: bool = False
+    portion_qty: Optional[float] = None
+    portion_unit: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -282,6 +284,8 @@ class FoodLogUpdate(BaseModel):
     name: Optional[str] = None
     calories: Optional[float] = None
     meal_type: Optional[str] = None
+    portion_qty: Optional[float] = None
+    portion_unit: Optional[str] = None
 
 class ExerciseLogUpdate(BaseModel):
     type: Optional[str] = None
@@ -534,6 +538,8 @@ def create_food_log(
         name=data.name,
         calories=calories,
         meal_type=data.meal_type,
+        portion_qty=qty,
+        portion_unit=unit,
     )
     db.add(item)
     log.intake_calories = (log.intake_calories or 0) + calories
@@ -586,6 +592,7 @@ def create_food_log(
         id=item.id, name=item.name, calories=item.calories,
         meal_type=item.meal_type, log_id=item.log_id,
         estimating=need_llm,
+        portion_qty=item.portion_qty, portion_unit=item.portion_unit,
     )
 
 @router.patch("/food-log/{item_id}", response_model=FoodLogResponse)
@@ -605,20 +612,65 @@ def update_food_log(
     old_calories = item.calories or 0
     if data.name is not None:
         item.name = data.name
-    if data.calories is not None:
-        item.calories = data.calories
     if data.meal_type is not None:
         item.meal_type = data.meal_type
 
+    # 份量变更或手动热量变更
+    portion_changed = data.portion_qty is not None or data.portion_unit is not None
+    if data.calories is not None:
+        item.calories = data.calories
+    elif portion_changed:
+        # 份量变更时重新估算热量
+        new_qty = data.portion_qty if data.portion_qty is not None else item.portion_qty
+        new_unit = data.portion_unit if data.portion_unit is not None else item.portion_unit
+        new_name = data.name if data.name is not None else item.name
+        # 查缓存
+        cached = None
+        if new_qty and new_unit:
+            cached = db.query(models.FoodCalorieCache).filter(
+                models.FoodCalorieCache.name == new_name,
+                models.FoodCalorieCache.portion_unit == new_unit,
+                models.FoodCalorieCache.portion_qty != None,
+            ).first()
+        if cached and cached.portion_qty:
+            item.calories = round(cached.calories * new_qty / cached.portion_qty)
+        else:
+            item.calories = 0
+            # 后台 LLM 估算
+            _item_id = item.id
+            def _bg():
+                try:
+                    est = _estimate_food_calories_via_llm(new_name, new_qty, new_unit)
+                    _db = database.SessionLocal()
+                    try:
+                        _it = _db.query(models.FoodItem).get(_item_id)
+                        if _it and est:
+                            _old = _it.calories or 0
+                            _it.calories = est
+                            _log = _db.query(models.DailyLog).get(_it.log_id)
+                            if _log:
+                                _log.intake_calories = (_log.intake_calories or 0) - _old + est
+                            _db.commit()
+                    finally:
+                        _db.close()
+                except Exception as e:
+                    logger.error(f"[编辑热量估算] 异常: {e}")
+            threading.Thread(target=_bg, daemon=True).start()
+    if data.portion_qty is not None:
+        item.portion_qty = data.portion_qty
+    if data.portion_unit is not None:
+        item.portion_unit = data.portion_unit
+
     log = db.query(models.DailyLog).get(item.log_id)
-    if log and data.calories is not None:
-        log.intake_calories = (log.intake_calories or 0) - old_calories + data.calories
+    if log:
+        log.intake_calories = (log.intake_calories or 0) - old_calories + (item.calories or 0)
 
     db.commit()
     db.refresh(item)
     return FoodLogResponse(
         id=item.id, name=item.name, calories=item.calories,
         meal_type=item.meal_type, log_id=item.log_id,
+        portion_qty=item.portion_qty, portion_unit=item.portion_unit,
     )
 
 @router.delete("/food-log/{item_id}", status_code=204)

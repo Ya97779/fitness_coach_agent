@@ -129,6 +129,17 @@
           <input class="edit-input" value="{{editForm.name}}" data-field="name" bindinput="onEditInput" />
         </view>
         <view class="edit-field">
+          <text class="edit-label">份量</text>
+          <view class="qty-stepper">
+            <view class="stepper-btn" bindtap="adjustEditQty" data-delta="-1"><text class="stepper-icon">-</text></view>
+            <input class="qty-input" type="digit" value="{{editForm.portion_qty}}" data-field="portion_qty" bindinput="onEditInput" />
+            <view class="stepper-btn" bindtap="adjustEditQty" data-delta="1"><text class="stepper-icon">+</text></view>
+            <picker bindchange="onEditUnitChange" value="{{editUnitIndex}}" range="{{portionUnits}}">
+              <view class="unit-picker">{{editForm.portion_unit}}</view>
+            </picker>
+          </view>
+        </view>
+        <view class="edit-field">
           <text class="edit-label">热量 (kcal)</text>
           <input class="edit-input" type="digit" value="{{editForm.calories}}" data-field="calories" bindinput="onEditInput" />
         </view>
