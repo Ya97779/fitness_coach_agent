@@ -224,6 +224,7 @@ class ExerciseLogResponse(BaseModel):
     type: str
     name: Optional[str] = None
     sets: Optional[int] = None
+    reps: Optional[int] = None
     weight: Optional[float] = None
     duration: int
     calories: float
@@ -278,6 +279,7 @@ class ExerciseLogCreate(BaseModel):
     duration: int  # 分钟
     name: Optional[str] = None
     sets: Optional[int] = None
+    reps: Optional[int] = None
     weight: Optional[float] = None
     calories: Optional[float] = None
 
@@ -292,6 +294,7 @@ class ExerciseLogUpdate(BaseModel):
     type: Optional[str] = None
     name: Optional[str] = None
     sets: Optional[int] = None
+    reps: Optional[int] = None
     weight: Optional[float] = None
     duration: Optional[int] = None
     calories: Optional[float] = None
@@ -719,6 +722,7 @@ def create_exercise_log(
         type=data.type,
         name=data.name,
         sets=data.sets,
+        reps=data.reps,
         weight=data.weight,
         duration=data.duration,
         calories=calories,
@@ -729,7 +733,7 @@ def create_exercise_log(
     db.refresh(item)
     return ExerciseLogResponse(
         id=item.id, type=item.type, name=item.name, sets=item.sets,
-        weight=item.weight, duration=item.duration,
+        reps=item.reps, weight=item.weight, duration=item.duration,
         calories=item.calories, log_id=item.log_id,
     )
 
@@ -754,6 +758,8 @@ def update_exercise_log(
         item.name = data.name
     if data.sets is not None:
         item.sets = data.sets
+    if data.reps is not None:
+        item.reps = data.reps
     if data.weight is not None:
         item.weight = data.weight
     if data.duration is not None:
@@ -769,7 +775,7 @@ def update_exercise_log(
     db.refresh(item)
     return ExerciseLogResponse(
         id=item.id, type=item.type, name=item.name, sets=item.sets,
-        weight=item.weight, duration=item.duration,
+        reps=item.reps, weight=item.weight, duration=item.duration,
         calories=item.calories, log_id=item.log_id,
     )
 

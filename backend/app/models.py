@@ -64,6 +64,7 @@ class ExerciseItem(Base):
     type = Column(String, nullable=False)
     name = Column(String, nullable=True)
     sets = Column(Integer, nullable=True)
+    reps = Column(Integer, nullable=True)
     weight = Column(Float, nullable=True)
     duration = Column(Integer, nullable=False)
     calories = Column(Float, nullable=False)

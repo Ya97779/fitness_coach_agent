@@ -196,7 +196,7 @@ Page({
       }
       this.setData({ editUnitIndex: unitIdx >= 0 ? unitIdx : 1 })
     } else {
-      editForm = { type: item.type, name: item.name || '', sets: item.sets || 1, weight: item.weight || '', duration: item.duration, calories: item.calories }
+      editForm = { name: item.name || item.type || '', sets: item.sets || 1, reps: item.reps || '', weight: item.weight || '', duration: item.duration, calories: item.calories }
     }
     this.setData({ editModalVisible: true, editType: type, editItem: item, editForm, swipeIndex: -1 })
   },
@@ -225,6 +225,13 @@ Page({
     let sets = (this.data.editForm.sets || 1) + delta
     if (sets < 1) sets = 1
     this.setData({ 'editForm.sets': sets })
+  },
+
+  adjustEditReps(e) {
+    const delta = parseInt(e.currentTarget.dataset.delta)
+    let reps = (this.data.editForm.reps || 0) + delta
+    if (reps < 0) reps = 0
+    this.setData({ 'editForm.reps': reps })
   },
 
   adjustEditQty(e) {

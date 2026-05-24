@@ -46,7 +46,7 @@
   <view class="shortcuts" wx:if="{{loggedIn}}">
     <view class="shortcut" bindtap="goLog">
       <text class="shortcut-icon">+</text>
-      <text class="shortcut-text">记录饮食</text>
+      <text class="shortcut-text">记录饮食和运动</text>
     </view>
     <view class="shortcut" bindtap="goTimer">
       <text class="shortcut-icon">></text>
@@ -96,8 +96,8 @@
         data-type="exercise" data-item="{{item}}" bindtap="onItemTap">
         <view class="record-dot dot-exercise"></view>
         <view class="record-info">
-          <text class="record-name">{{item.type}}</text>
-          <text class="record-meta" wx:if="{{item.sets}}">{{item.sets}} 组{{item.weight ? ' · ' + item.weight + 'kg' : ''}}</text>
+          <text class="record-name">{{item.name || item.type}}</text>
+          <text class="record-meta" wx:if="{{item.sets}}">{{item.sets}} 组{{item.reps ? ' x ' + item.reps + '个' : ''}}{{item.weight ? ' · ' + item.weight + 'kg' : ''}}</text>
           <text class="record-meta" wx:else>{{item.duration}} 分钟</text>
         </view>
         <text class="record-val">-{{item.calories}} kcal</text>
@@ -157,19 +157,25 @@
       <!-- 运动编辑 -->
       <block wx:if="{{editType === 'exercise'}}">
         <view class="edit-field">
-          <text class="edit-label">运动类型</text>
-          <input class="edit-input" value="{{editForm.type}}" data-field="type" bindinput="onEditInput" />
-        </view>
-        <view class="edit-field">
           <text class="edit-label">动作名称</text>
           <input class="edit-input" value="{{editForm.name}}" data-field="name" bindinput="onEditInput" />
         </view>
-        <view class="edit-field">
-          <text class="edit-label">组数</text>
-          <view class="qty-stepper">
-            <view class="stepper-btn" bindtap="adjustEditSets" data-delta="-1"><text class="stepper-icon">-</text></view>
-            <input class="qty-input" type="number" value="{{editForm.sets}}" data-field="sets" bindinput="onEditInput" />
-            <view class="stepper-btn" bindtap="adjustEditSets" data-delta="1"><text class="stepper-icon">+</text></view>
+        <view class="edit-row">
+          <view class="edit-field edit-field-half">
+            <text class="edit-label">组数</text>
+            <view class="qty-stepper">
+              <view class="stepper-btn" bindtap="adjustEditSets" data-delta="-1"><text class="stepper-icon">-</text></view>
+              <input class="qty-input" type="number" value="{{editForm.sets}}" data-field="sets" bindinput="onEditInput" />
+              <view class="stepper-btn" bindtap="adjustEditSets" data-delta="1"><text class="stepper-icon">+</text></view>
+            </view>
+          </view>
+          <view class="edit-field edit-field-half">
+            <text class="edit-label">每组个数</text>
+            <view class="qty-stepper">
+              <view class="stepper-btn" bindtap="adjustEditReps" data-delta="-1"><text class="stepper-icon">-</text></view>
+              <input class="qty-input" type="number" value="{{editForm.reps}}" data-field="reps" bindinput="onEditInput" />
+              <view class="stepper-btn" bindtap="adjustEditReps" data-delta="1"><text class="stepper-icon">+</text></view>
+            </view>
           </view>
         </view>
         <view class="edit-row">

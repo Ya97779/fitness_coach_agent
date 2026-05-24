@@ -127,6 +127,8 @@ def log_exercise(user_id: int, exercise_type: str, duration: int, calories: floa
         exercise_item = models.ExerciseItem(
             log_id=log.id,
             type=exercise_type,
+            sets=sets,
+            reps=reps,
             duration=duration,
             calories=calories
         )
