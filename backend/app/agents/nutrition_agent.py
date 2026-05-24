@@ -116,7 +116,7 @@ def search_food_nutrition(food_name: str):
     if result:
         return f"【API检索】{food_name}: 热量 {result['calories']} kcal, 蛋白质 {result['protein']}g, 脂肪 {result['fat']}g, 碳水 {result['carbs']}g"
     else:
-        return f"【API检索】未找到 {food_name} 的营养信息"
+        return f"【API检索】未找到 {food_name} 的营养信息。请根据你的营养知识估算该食物的热量，然后调用 log_food_intake 工具记录到用户日志中。"
 
 
 @tool
