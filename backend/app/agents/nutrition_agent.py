@@ -247,15 +247,16 @@ def nutrition_with_user(
         if memory_summary:
             system_content += format_nutrition_memory(memory_summary)
 
-    system_content += """
+    system_content += f"""
 
 重要：
-1. 当用户询问食物热量、营养成分等问题时，使用 search_food_nutrition 工具查询 API
-2. 当用户询问营养原理、饮食策略、膳食搭配、营养素功能等专业知识时，使用 search_nutrition_knowledge 工具从知识库检索
-3. 两个工具可以配合使用：先用 API 查具体食物数据，再用知识库查饮食建议
-4. 工具返回【API检索】或【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
-5. 如果检索工具未找到信息，请基于你自身的营养知识为用户提供专业回答
-6. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
+1. 当前用户 ID 为 {user_id}，调用任何工具时必须传入此 user_id
+2. 当用户询问食物热量、营养成分等问题时，使用 search_food_nutrition 工具查询 API
+3. 当用户询问营养原理、饮食策略、膳食搭配、营养素功能等专业知识时，使用 search_nutrition_knowledge 工具从知识库检索
+4. 当用户要求记录饮食时，使用 log_food_intake 工具记录，user_id={user_id}
+5. 工具返回【API检索】或【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
+6. 如果检索工具未找到信息，请基于你自身的营养知识为用户提供专业回答
+7. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
 """
     system_msg = SystemMessage(content=system_content)
     chat_history = [system_msg] + list(messages)

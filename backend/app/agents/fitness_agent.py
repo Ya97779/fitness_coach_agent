@@ -202,13 +202,15 @@ def fitness_with_user(
         if memory_summary:
             system_content += format_fitness_memory(memory_summary)
 
-    system_content += """
+    system_content += f"""
 
 重要：
-1. 当用户询问健身动作、训练计划等专业问题时，使用 search_fitness_knowledge 工具
-2. 工具返回【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
-3. 如果 RAG 检索未找到信息，请基于你自身的健身知识为用户提供专业回答
-4. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
+1. 当前用户 ID 为 {user_id}，调用任何工具时必须传入此 user_id
+2. 当用户询问健身动作、训练计划等专业问题时，使用 search_fitness_knowledge 工具
+3. 当用户要求记录运动时，使用 log_exercise 工具记录，user_id={user_id}
+4. 工具返回【RAG检索】后，将检索到的信息作为上下文，结合你的专业知识，生成优化后的回答
+5. 如果 RAG 检索未找到信息，请基于你自身的健身知识为用户提供专业回答
+6. 不要直接返回原始检索结果，要经过你的理解和整理后再回答用户
 """
     system_msg = SystemMessage(content=system_content)
     chat_history = [system_msg] + list(messages)
