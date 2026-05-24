@@ -90,7 +90,7 @@ Page({
 
       // 进度条和热量差
       const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
-      const gap = target ? Math.round(target - intake) : 0
+      const gap = tdee ? Math.round(tdee + burn - intake) : 0
       const isDeficit = gap >= 0
       const gapText = isDeficit ? gap : '+' + Math.abs(gap)
 
@@ -139,7 +139,7 @@ Page({
         const burn = today.burn_calories || 0
         const target = tdee ? Math.round(tdee + adj + burn) : null
         const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
-        const gap = target ? Math.round(target - intake) : 0
+        const gap = tdee ? Math.round(tdee + burn - intake) : 0
         const isDeficit = gap >= 0
         const gapText = isDeficit ? gap : '+' + Math.abs(gap)
         const exerciseItems = today.exercise_items || []
