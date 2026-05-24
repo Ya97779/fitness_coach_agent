@@ -134,7 +134,7 @@ def log_exercise(user_id: int, exercise_type: str, duration: int, calories: floa
         db.add(exercise_item)
         db.commit()
 
-        return f"已记录: {exercise_type}, {notes}, 消耗 {calories} kcal"
+        return f"已记录: {exercise_type}, {duration}分钟, 消耗 {calories} kcal"
     finally:
         db.close()
 
