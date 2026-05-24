@@ -77,10 +77,10 @@ Page({
     ]).then(([user, today]) => {
       const tdee = user.tdee || null
       const adj = user.calorie_adjustment || 0
-      const target = tdee ? Math.round(tdee + adj) : null
-      const hasTdee = !!target
       const intake = today.intake_calories || 0
       const burn = today.burn_calories || 0
+      const target = tdee ? Math.round(tdee + adj + burn) : null
+      const hasTdee = !!target
 
       const foodItems = (today.food_items || []).map(item => ({
         ...item,
@@ -90,12 +90,13 @@ Page({
 
       // 进度条和热量差
       const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
-      const gap = target ? Math.round(target + burn - intake) : 0
+      const gap = target ? Math.round(target - intake) : 0
       const isDeficit = gap >= 0
       const gapText = isDeficit ? gap : '+' + Math.abs(gap)
 
       this.setData({
         tdee, target, hasTdee, intake: Math.round(intake), burn: Math.round(burn),
+        calorie_adjustment: adj,
         barPercent, gapText, isDeficit,
         foodItems, exerciseItems,
         loading: false
@@ -132,11 +133,13 @@ Page({
           this._stopPoll()
         }
         // 重新计算汇总数据
-        const target = this.data.target
+        const tdee = this.data.tdee
+        const adj = this.data.calorie_adjustment || 0
         const intake = today.intake_calories || 0
         const burn = today.burn_calories || 0
+        const target = tdee ? Math.round(tdee + adj + burn) : null
         const barPercent = target ? Math.min(Math.round(intake / target * 100), 100) : 0
-        const gap = target ? Math.round(target + burn - intake) : 0
+        const gap = target ? Math.round(target - intake) : 0
         const isDeficit = gap >= 0
         const gapText = isDeficit ? gap : '+' + Math.abs(gap)
         const exerciseItems = today.exercise_items || []

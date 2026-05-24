@@ -26,7 +26,7 @@
         <view class="cal-bar-fill {{intake > target ? 'cal-bar-over' : ''}}" style="width: {{barPercent}}%"></view>
       </view>
       <view class="cal-bar-target">
-        <text class="cal-bar-target-text">目标 {{target}} kcal</text>
+        <text class="cal-bar-target-text">目标摄入 {{target}} kcal</text>
       </view>
     </view>
     <view class="cal-bottom">
