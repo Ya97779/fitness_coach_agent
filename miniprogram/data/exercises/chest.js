@@ -252,11 +252,11 @@ module.exports = {
     },
     {
       id: 'decline-bench-press',
-      name: '下斜卧推',
+      name: '下斜哑铃卧推',
       subRegion: 'lower',
       difficulty: 'intermediate',
       summary: '下斜角度推举，集中刺激下胸部',
-      cover: 'https://gzyapi.gzyhm.xyz/guide/下斜卧推.gif',
+      cover: 'https://gzyapi.gzyhm.xyz/guide/下斜哑铃卧推.gif',
       equipment: '杠铃、下斜卧推凳',
       targetMuscles: ['胸大肌下束', '肱三头肌'],
       video: '',

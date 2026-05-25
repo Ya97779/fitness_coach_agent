@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
 from .. import models, database
 from ..rag import get_rag_instance
+from ..calorie_calculator import estimate_calories as calc_calories, MET_VALUES, STRENGTH_CALORIES_PER_SET
 from datetime import date
 
 load_dotenv()
@@ -20,15 +21,6 @@ _EXERCISE_RECORD_PATTERNS = [
     r"跑了", r"游了", r"骑了", r"练了", r"做了",
     r"今天运动", r"今天训练",
 ]
-
-# 常见运动热量估算（kcal/30分钟，70kg体重）
-_EXERCISE_CALORIE_ESTIMATES = {
-    "跑步": 300, "慢跑": 220, "快走": 150, "游泳": 300,
-    "骑行": 200, "跳绳": 350, "瑜伽": 100, "HIIT": 350,
-    "力量训练": 180, "俯卧撑": 150, "深蹲": 200,
-    "引体向上": 180, "平板支撑": 80, "仰卧起坐": 120,
-    "篮球": 280, "足球": 300, "羽毛球": 250, "乒乓球": 180,
-}
 
 
 def _detect_exercise_record_intent(user_message: str) -> bool:
@@ -55,7 +47,8 @@ def _extract_exercise_info(user_message: str) -> tuple:
         duration = int(m2.group(1)) * 60
 
     # 匹配已知运动（按长度降序）
-    for name in sorted(_EXERCISE_CALORIE_ESTIMATES.keys(), key=len, reverse=True):
+    all_exercise_names = set(MET_VALUES.keys()) | set(STRENGTH_CALORIES_PER_SET.keys())
+    for name in sorted(all_exercise_names, key=len, reverse=True):
         if name in user_message:
             return name, duration
 
@@ -74,12 +67,6 @@ def _extract_exercise_info(user_message: str) -> tuple:
             return name, duration
 
     return "运动", duration
-
-
-def _estimate_exercise_calories(exercise_name: str, duration: int) -> int:
-    """估算运动热量"""
-    base = _EXERCISE_CALORIE_ESTIMATES.get(exercise_name, 200)
-    return int(base * duration / 30)
 
 
 def get_rag():
@@ -144,25 +131,11 @@ def log_exercise(user_id: int, exercise_type: str, duration: int, calories: floa
 @tool
 def estimate_exercise_calories(exercise_type: str, duration: int, intensity: str = "medium", user_weight: float = 70):
     """估算运动消耗的热量（使用MET值计算）"""
-    met_values = {
-        "跑步": {"light": 7, "medium": 10, "intense": 14},
-        "慢跑": {"light": 6, "medium": 9, "intense": 12},
-        "游泳": {"light": 6, "medium": 10, "intense": 14},
-        "快走": {"light": 4, "medium": 5, "intense": 7},
-        "骑行": {"light": 5, "medium": 8, "intense": 12},
-        "跳绳": {"light": 8, "medium": 12, "intense": 15},
-        "瑜伽": {"light": 2, "medium": 3, "intense": 5},
-        "HIIT": {"light": 8, "medium": 12, "intense": 17},
-        "力量训练": {"light": 4, "medium": 6, "intense": 8}
-    }
-
-    met = met_values.get(exercise_type, {}).get(intensity, 5)
-    calories = met * user_weight * (duration / 60)
-
+    calories = calc_calories(exercise_type, user_weight=user_weight, duration=duration, intensity=intensity)
     return {
         "exercise_type": exercise_type,
         "duration": duration,
-        "calories": round(calories, 1)
+        "calories": calories
     }
 
 
@@ -308,7 +281,7 @@ def fitness_with_user(
             # 兜底：用户要求记录但 LLM 没调用任何工具
             if want_record:
                 ex_name, duration = _extract_exercise_info(user_message)
-                calories = _estimate_exercise_calories(ex_name, duration)
+                calories = calc_calories(ex_name, duration=duration)
                 print(f"[fitness_agent] 兜底记录: {ex_name}, {duration}分钟, {calories}kcal")
                 fallback_result = log_exercise.invoke({
                     "user_id": user_id,

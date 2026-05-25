@@ -58,8 +58,9 @@ fitness_coach_agent/
 │   │   ├── main.py              # FastAPI 入口，路由注册，启动时增量索引
 │   │   ├── auth.py              # JWT 鉴权 + 微信 jscode2session 登录
 │   │   ├── database.py          # SQLAlchemy engine/session（PostgreSQL）
-│   │   ├── models.py            # 数据模型：User（含 goal）, DailyLog, FoodItem, ExerciseItem, ConversationLog
+│   │   ├── models.py            # 数据模型：User（含 goal）, DailyLog, FoodItem, ExerciseItem, ConversationLog, ExerciseCalorie
 │   │   ├── llm_manager.py       # ChatOpenAI 按 temperature 分桶缓存（单例）
+│   │   ├── calorie_calculator.py # 统一运动热量计算（MET + 每组热量双公式）
 │   │   ├── food_api.py          # 天行数据食物营养 API + 本地兜底数据
 │   │   ├── agents/
 │   │   │   ├── __init__.py      # 模块导出
@@ -104,7 +105,9 @@ fitness_coach_agent/
 │   ├── utils/
 │   │   ├── config.js            # API_BASE_URL 配置
 │   │   ├── request.js           # wx.request 封装 + SSE 流式请求
-│   │   └── auth.js              # 微信登录逻辑
+│   │   ├── auth.js              # 微信登录逻辑
+│   │   ├── markdown.js          # Markdown → HTML 解析器（LLM 输出容错）
+│   │   └── showdown.js          # Showdown markdown 库（备用）
 │   ├── components/              # 自定义组件
 │   │   ├── exercise-item/       # 运动记录组件
 │   │   ├── food-item/           # 食物记录组件
@@ -145,16 +148,17 @@ fitness_coach_agent/
 | 路由 | `backend/app/agents/router.py` | 混合路由：`_keyword_match()` 关键词预筛（40+ 中文关键词）→ `_llm_route()` LLM 兜底 |
 | 闲聊 Agent | `backend/app/agents/chat_agent.py` | 直接 LLM 对话，无工具调用，无评审 |
 | 营养师 Agent | `backend/app/agents/nutrition_agent.py` | 5 个工具：查用户信息、记录食物、查日统计、搜食物 API、搜营养知识 RAG |
-| 健身教练 Agent | `backend/app/agents/fitness_agent.py` | 4 个工具：查用户信息、记录运动、估算热量(MET)、搜健身知识 RAG |
-| 专家评审 | `backend/app/agents/expert_agent.py` | 1-5 分评分（专业性/个性化/实用性/安全性），评分 < 3 重试，最多 3 次 |
+| 健身教练 Agent | `backend/app/agents/fitness_agent.py` | 4 个工具：查用户信息、记录运动、估算热量、搜健身知识 RAG；兜底记录机制 |
+| 专家评审 | `backend/app/agents/expert_agent.py` | 1-5 分评分（专业性/个性化/实用性/安全性），评分 < 3 重试，最多 3 次；简洁回复不扣分 |
+| 热量计算 | `backend/app/calorie_calculator.py` | 统一运动热量计算模块，有氧用 MET 公式，力量用每组热量公式，所有路径共用 |
 | RAG | `backend/app/rag/__init__.py` | ModernRAG 主类，支持 hybrid/vector/bm25/query_expansion/hyde 五种检索模式 |
 | RAG 模块 | `backend/app/rag/modules/` | BM25(jieba)、混合检索(RRF)、HyDE、Self-RAG、Agentic RAG、语义分块 |
 | 记忆系统 | `backend/app/memory/` | MemoryManager 整合 3 个子模块：UserProfileLoader、ConversationSummarizer、StatsSummarizer |
 | LLM 管理 | `backend/app/llm_manager.py` | ChatOpenAI 实例按 temperature 分桶缓存（单例），避免重复创建 |
-| 数据模型 | `backend/app/models.py` | SQLAlchemy 5 张表：User（含 goal）、DailyLog、FoodItem、ExerciseItem、ConversationLog |
+| 数据模型 | `backend/app/models.py` | SQLAlchemy 6 张表：User（含 goal）、DailyLog、FoodItem、ExerciseItem、ConversationLog、ExerciseCalorie（动作热量缓存） |
 | 食物 API | `backend/app/food_api.py` | 天行数据 API 查询食物营养，API 不可用时回退到本地 8 条兜底数据 |
 | Streamlit 前端 | `frontend/app.py` | 单文件，三模式：chat(SSE 流式)、profile(登录/档案)、stats(图表) |
-| 微信小程序 | `miniprogram/` | 6 个 tabBar 页面 + 训练计时器 + 动作指导，SSE 流式对话 |
+| 微信小程序 | `miniprogram/` | 6 个 tabBar 页面 + 训练计时器 + 动作指导，SSE 流式对话，markdown 渲染，运动/饮食记录编辑删除，意图检测记录按钮 |
 
 ### 关键设计模式
 
@@ -167,6 +171,10 @@ fitness_coach_agent/
 - **记忆注入**：MemoryManager 在 graph 入口处加载，通过 `enhance_system_prompt()` 将用户画像/统计/对话历史注入各 Agent 的 system prompt
 - **快速通道**：`should_skip_review()` 匹配简单事实查询模式（热量查询等）或短回复（< 150 字符），跳过 expert review
 - **鉴权**：HTTPBearer 方案，微信 code → openid → JWT token，`get_current_user` 依赖注入
+- **热量计算统一**：`calorie_calculator.py` 为唯一真相源，有氧运动用 `MET × 体重 × (时长/60)`，力量训练用 `每组kcal × 组数 × (体重/70)`；所有路径（手动记录、Agent、计时器）调用同一函数
+- **未知运动 LLM 兜底**：`POST /exercise-log` 和 `POST /estimate-calories` 对未命中共享表的运动，先查 DB 缓存，再调 LLM 估算，结果缓存到 `exercise_calories` 表
+- **前端 markdown 渲染**：小程序 chat 页面用 `mp-html` 组件 + `utils/markdown.js` 解析器渲染 AI 回复的 markdown 格式（标题、列表、表格、加粗等）
+- **Agent 响应精简**：健身教练 prompt 限制 500 字以内，专家评审不因简洁扣分
 
 ## 技术栈
 

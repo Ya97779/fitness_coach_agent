@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 from . import models, database, auth
 from .agents.graph import process_user_message, stream_user_message
 from .agents.fitness_agent import estimate_exercise_calories
+from .calorie_calculator import (
+    STRENGTH_CALORIES_PER_SET, STRENGTH_ALIASES, MET_VALUES,
+    estimate_calories as calc_calories, get_calories_per_set,
+    classify_exercise,
+)
 from .llm_manager import LLMManager
 import json as _json
 from .food_api import search_food_nutrient
@@ -76,68 +81,26 @@ os.makedirs(_feedback_dir, exist_ok=True)
 rag_initialized = False
 
 def init_exercise_calories():
-    """初始化预置动作热量数据（补缺）"""
+    """初始化预置动作热量数据（补缺），数据源自 calorie_calculator 模块"""
     db = database.SessionLocal()
     try:
         existing = {item.name for item in db.query(models.ExerciseCalorie.name).all()}
-        presets = [
-            # 胸
-            ("平板卧推", 8, "胸", ["卧推", "杠铃卧推", "平板杠铃卧推"]),
-            ("上斜卧推", 8, "胸", ["上斜杠铃卧推"]),
-            ("哑铃卧推", 7.5, "胸", ["平板哑铃卧推"]),
-            ("上斜哑铃卧推", 8, "胸", []),
-            ("龙门架夹胸", 6, "胸", ["夹胸", "绳索夹胸", "飞鸟"]),
-            ("蝴蝶机夹胸", 5.5, "胸", ["蝴蝶机"]),
-            ("俯卧撑", 5, "胸", []),
-            ("双杠臂屈伸", 8, "胸", ["双杠", "臂屈伸"]),
-            # 背
-            ("引体向上", 10, "背", ["引体", "引体向上", "正手引体"]),
-            ("杠铃划船", 8, "背", ["俯身划船", "俯身杠铃划船"]),
-            ("哑铃划船", 7, "背", ["单臂哑铃划船"]),
-            ("坐姿划船", 6.5, "背", ["绳索坐姿划船", "坐姿绳索划船", "器械坐姿划船"]),
-            ("高位下拉", 6, "背", ["下拉", "引体下拉"]),
-            ("硬拉", 10, "背", ["传统硬拉", "杠铃硬拉"]),
-            ("罗马尼亚硬拉", 9, "背", ["罗拉"]),
-            # 肩
-            ("杠铃推举", 8, "肩", ["推举", "站姿推举", "肩推"]),
-            ("哑铃推举", 7, "肩", ["坐姿哑铃推举", "肩推"]),
-            ("侧平举", 5, "肩", ["哑铃侧平举"]),
-            ("前平举", 4.5, "肩", ["哑铃前平举"]),
-            ("俯身飞鸟", 5, "肩", ["俯身侧平举", "反向飞鸟"]),
-            ("面拉", 5, "肩", ["绳索面拉"]),
-            # 腿
-            ("深蹲", 10, "腿", ["杠铃深蹲", "杠铃深蹲", "颈后深蹲"]),
-            ("前蹲", 9.5, "腿", ["杠铃前蹲"]),
-            ("腿举", 7, "腿", ["腿举机"]),
-            ("箭步蹲", 8, "腿", ["弓步蹲", "保加利亚深蹲"]),
-            ("腿弯举", 5, "腿", ["俯卧腿弯举"]),
-            ("腿屈伸", 5, "腿", ["坐姿腿屈伸", "腿举"]),
-            ("小腿提踵", 4, "腿", ["提踵", "站姿提踵"]),
-            # 手臂
-            ("杠铃弯举", 5, "手臂", ["弯举", "二头弯举"]),
-            ("哑铃弯举", 4.5, "手臂", ["交替弯举"]),
-            ("锤式弯举", 4.5, "手臂", ["锤式"]),
-            ("三头下压", 4.5, "手臂", ["绳索下压", "三头绳索下压"]),
-            ("窄距卧推", 7, "手臂", ["窄握卧推"]),
-            ("仰卧臂屈伸", 5, "手臂", ["碎颅者"]),
-            # 核心
-            ("平板支撑", 3, "核心", ["plank"]),
-            ("卷腹", 3, "核心", ["仰卧起坐"]),
-            ("悬垂举腿", 5, "核心", ["举腿"]),
-            ("俄罗斯转体", 3.5, "核心", []),
-        ]
+        # 从共享模块的别名表反向构建：标准名称 → [别名列表]
+        alias_map = {}
+        for alias, standard in STRENGTH_ALIASES.items():
+            alias_map.setdefault(standard, []).append(alias)
+
         added = 0
-        for name, cal, cat, aliases in presets:
+        for name, cal in STRENGTH_CALORIES_PER_SET.items():
+            aliases = alias_map.get(name, [])
             if name not in existing:
                 db.add(models.ExerciseCalorie(
                     name=name,
                     calories_per_set=cal,
-                    category=cat,
                     aliases=_json.dumps(aliases, ensure_ascii=False)
                 ))
                 added += 1
             else:
-                # 预设优先：覆盖 LLM 缓存的空别名条目
                 item = db.query(models.ExerciseCalorie).filter(
                     models.ExerciseCalorie.name == name
                 ).first()
@@ -714,8 +677,43 @@ def create_exercise_log(
         db.commit()
         db.refresh(log)
 
-    body_weight = current_user.weight or 60
-    calories = data.calories if data.calories else estimate_exercise_calories.invoke({"exercise_type": data.type, "duration": data.duration, "intensity": "medium", "user_weight": body_weight}).get("calories", 0)
+    body_weight = current_user.weight or 70
+    if data.calories:
+        calories = data.calories
+    elif classify_exercise(data.type) != "unknown":
+        # 命中共享模块的有氧/力量表
+        calories = calc_calories(
+            data.type, user_weight=body_weight, duration=data.duration,
+            sets=data.sets, intensity="medium",
+        )
+    else:
+        # 未知运动：查 DB 缓存 → LLM 估算 → 硬编码兜底
+        db_item = _find_exercise(db, data.type)
+        if db_item and data.sets:
+            calories = round(db_item.calories_per_set * data.sets * (body_weight / 70))
+        elif db_item and data.duration:
+            calories = round(db_item.calories_per_set * max(data.duration // 5, 1) * (body_weight / 70))
+        else:
+            llm_cal = _estimate_exercise_via_llm(
+                data.type, user_weight=body_weight,
+                duration=data.duration, sets=data.sets, weight_kg=data.weight,
+            )
+            if llm_cal > 0:
+                calories = llm_cal
+                # 缓存到 DB：反推每组热量（基于 70kg 标准化）
+                cal_per_set = round(llm_cal / max(data.sets or max(data.duration // 5, 1), 1) / (body_weight / 70), 1)
+                existing = db.query(models.ExerciseCalorie).filter(models.ExerciseCalorie.name == data.type).first()
+                if not existing:
+                    db.add(models.ExerciseCalorie(
+                        name=data.type, calories_per_set=cal_per_set,
+                        aliases=_json.dumps([], ensure_ascii=False)
+                    ))
+                    db.commit()
+            else:
+                calories = calc_calories(
+                    data.type, user_weight=body_weight, duration=data.duration,
+                    sets=data.sets, intensity="medium",
+                )
 
     item = models.ExerciseItem(
         log_id=log.id,
@@ -1040,6 +1038,34 @@ def _estimate_via_llm(exercises: list, user_weight: float) -> dict:
         print(f"[热量估算] LLM 调用失败: {e}")
         return None
 
+
+def _estimate_exercise_via_llm(exercise_name: str, user_weight: float, duration: int = None, sets: int = None, weight_kg: float = None) -> float:
+    """调用 LLM 估算运动热量（支持组数/时长两种模式，用于手动记录兜底）"""
+    parts = [f"运动：{exercise_name}"]
+    if sets:
+        parts.append(f"组数：{sets}组")
+    if weight_kg:
+        parts.append(f"负重：{weight_kg}kg")
+    if duration:
+        parts.append(f"时长：{duration}分钟")
+    parts.append(f"用户体重：{user_weight}kg")
+    desc = "\n".join(parts)
+
+    prompt = f"""你是运动热量估算专家。估算以下运动消耗的热量（kcal）。
+{desc}
+
+只返回一个整数数字，不要其他内容。"""
+    try:
+        llm = LLMManager.get_llm(temperature=0.1)
+        resp = llm.invoke(prompt)
+        import re
+        match = re.search(r'[\d.]+', resp.content.strip())
+        if match:
+            return float(match.group())
+    except Exception as e:
+        print(f"[热量估算] LLM 调用失败: {e}")
+    return 0
+
 def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, portion_unit: str = None) -> float:
     """调用 LLM 估算食物总热量（带超时保护）"""
     if portion_qty and portion_unit:
@@ -1103,18 +1129,25 @@ def estimate_calories(
     unknown_exercises = []
     unknown_indices = []
 
-    # 第一轮：查表
+    # 第一轮：查共享模块 + DB 缓存
     for i, ex in enumerate(data.exercises):
         name = ex.get("name", "")
         sets = ex.get("sets", 1)
-        item = _find_exercise(db, name)
-        if item:
-            cal = round(item.calories_per_set * sets * (user_weight / 70))
+        # 优先查共享模块
+        resolved = STRENGTH_ALIASES.get(name, name)
+        if resolved in STRENGTH_CALORIES_PER_SET:
+            cal = round(STRENGTH_CALORIES_PER_SET[resolved] * sets * (user_weight / 70))
             details.append({"name": name, "calories": cal})
         else:
-            details.append({"name": name, "calories": 0})
-            unknown_exercises.append(ex)
-            unknown_indices.append(i)
+            # 回退到 DB（LLM 缓存的条目）
+            item = _find_exercise(db, name)
+            if item:
+                cal = round(item.calories_per_set * sets * (user_weight / 70))
+                details.append({"name": name, "calories": cal})
+            else:
+                details.append({"name": name, "calories": 0})
+                unknown_exercises.append(ex)
+                unknown_indices.append(i)
 
     # 第二轮：LLM 估算未命中动作
     if unknown_exercises:
@@ -1122,7 +1155,7 @@ def estimate_calories(
         if llm_result and "details" in llm_result:
             llm_map = {d["name"]: d["calories"] for d in llm_result["details"]}
             for idx, ex in zip(unknown_indices, unknown_exercises):
-                cal = llm_map.get(ex["name"], round(ex.get("sets", 1) * 5 * (user_weight / 70)))
+                cal = llm_map.get(ex["name"], round(ex.get("sets", 1) * get_calories_per_set(ex["name"]) * (user_weight / 70)))
                 details[idx]["calories"] = cal
                 # 缓存到 DB
                 existing = db.query(models.ExerciseCalorie).filter(
@@ -1139,7 +1172,7 @@ def estimate_calories(
         else:
             # LLM 失败，用通用公式兜底
             for idx, ex in zip(unknown_indices, unknown_exercises):
-                details[idx]["calories"] = round(ex.get("sets", 1) * 5 * (user_weight / 70))
+                details[idx]["calories"] = round(ex.get("sets", 1) * get_calories_per_set(ex["name"]) * (user_weight / 70))
 
     total = sum(d["calories"] for d in details)
     return CalorieEstimateResponse(total_calories=total, details=details)

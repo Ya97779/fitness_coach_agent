@@ -48,14 +48,23 @@ Page({
       calorieDetails.forEach(d => { calMap[d.name] = d.calories })
     }
 
+    // API 未返回详情时，按组数比例分配总热量
+    const hasDetails = Object.keys(calMap).length > 0
+    const totalSets = exercises.reduce((s, ex) => s + (ex.sets || 1), 0) || 1
+
     wx.showLoading({ title: '保存中...' })
     const requests = exercises.map(ex => {
+      let cal = calMap[ex.name] || 0
+      // API 未返回详情时，按组数比例分配总热量
+      if (!hasDetails && this.data.estimatedCalories) {
+        cal = Math.round(this.data.estimatedCalories * (ex.sets || 1) / totalSets)
+      }
       const data = {
         type: ex.name || '力量训练',
         name: ex.name,
         sets: ex.sets,
         duration: perExerciseDuration,
-        calories: calMap[ex.name] || 0
+        calories: cal
       }
       if (ex.weight) data.weight = ex.weight
       return request({ url: '/api/v1/exercise-log', method: 'POST', data })

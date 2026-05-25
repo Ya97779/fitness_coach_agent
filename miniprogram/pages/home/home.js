@@ -269,8 +269,15 @@ Page({
       ? `/api/v1/food-log/${editItem.id}`
       : `/api/v1/exercise-log/${editItem.id}`
 
+    // 清理空字符串，避免后端 Pydantic 校验失败
+    const cleaned = {}
+    Object.keys(editForm).forEach(k => {
+      const v = editForm[k]
+      if (v !== '' && v !== null && v !== undefined) cleaned[k] = v
+    })
+
     wx.showLoading({ title: '保存中...' })
-    request({ url, method: 'PATCH', data: editForm }).then(() => {
+    request({ url, method: 'PATCH', data: cleaned }).then(() => {
       wx.hideLoading()
       wx.showToast({ title: '已更新', icon: 'success' })
       this.closeEditModal()
