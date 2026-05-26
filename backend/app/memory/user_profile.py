@@ -48,6 +48,10 @@ class UserProfileLoader:
                 "constraints": {
                     "allergies": user.allergies or "无",
                 },
+                "preferences": {
+                    "training": user.training_preference or None,
+                    "dietary": user.dietary_preference or None,
+                },
                 "created_at": user.created_at.isoformat() if user.created_at else None
             }
 
@@ -88,6 +92,8 @@ class UserProfileLoader:
             if user.target_weight: result["目标体重"] = f"{user.target_weight} kg"
             if user.goal: result["健身目标"] = user.goal
             if user.allergies: result["过敏史"] = user.allergies
+            if user.training_preference: result["训练偏好"] = user.training_preference
+            if user.dietary_preference: result["饮食偏好"] = user.dietary_preference
             return result
         finally:
             db.close()
@@ -169,6 +175,17 @@ class UserProfileLoader:
                 lines.append(f"- 目标体重: {target_w} kg")
             if allergies and allergies != "无":
                 lines.append(f"- 过敏史: {allergies}")
+
+        # 偏好设置
+        preferences = profile.get("preferences", {})
+        training_pref = preferences.get("training")
+        dietary_pref = preferences.get("dietary")
+        if training_pref or dietary_pref:
+            lines.append("【偏好设置】")
+            if training_pref:
+                lines.append(f"- 训练偏好: {training_pref}")
+            if dietary_pref:
+                lines.append(f"- 饮食偏好: {dietary_pref}")
 
         return "\n".join(lines) if lines else "【用户状态】新用户，尚未填写身体数据"
 

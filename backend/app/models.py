@@ -20,6 +20,8 @@ class User(Base):
     gender = Column(String, nullable=False, default="未知")
     target_weight = Column(Float, nullable=True)
     allergies = Column(String, nullable=True)
+    training_preference = Column(String, nullable=True)  # 训练偏好
+    dietary_preference = Column(String, nullable=True)  # 饮食偏好
     goal = Column(String, nullable=True)
     calorie_adjustment = Column(Float, nullable=True)  # 热量缺口(负)或盈余(正)
     bmr = Column(Float, nullable=True)

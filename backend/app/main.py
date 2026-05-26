@@ -145,6 +145,8 @@ class UserCreate(BaseModel):
     gender: str
     target_weight: Optional[float] = None
     allergies: Optional[str] = None
+    training_preference: Optional[str] = None
+    dietary_preference: Optional[str] = None
     goal: Optional[str] = None
     calorie_adjustment: Optional[float] = None
 
@@ -163,6 +165,8 @@ class UserResponse(BaseModel):
     gender: str
     target_weight: Optional[float] = None
     allergies: Optional[str] = None
+    training_preference: Optional[str] = None
+    dietary_preference: Optional[str] = None
     goal: Optional[str] = None
     calorie_adjustment: Optional[float] = None
     bmr: Optional[float] = None
@@ -324,6 +328,8 @@ def create_or_update_user(
     current_user.gender = user_data.gender
     current_user.target_weight = user_data.target_weight
     current_user.allergies = user_data.allergies
+    current_user.training_preference = user_data.training_preference
+    current_user.dietary_preference = user_data.dietary_preference
     current_user.goal = user_data.goal
     if user_data.calorie_adjustment is not None:
         current_user.calorie_adjustment = user_data.calorie_adjustment
@@ -836,6 +842,8 @@ def _build_user_context(user: models.User, db: Session):
     if user.bmr: user_profile["bmr"] = user.bmr
     if user.tdee: user_profile["tdee"] = user.tdee
     if user.allergies: user_profile["allergies"] = user.allergies
+    if user.training_preference: user_profile["training_preference"] = user.training_preference
+    if user.dietary_preference: user_profile["dietary_preference"] = user.dietary_preference
 
     today = date.today()
     log = db.query(models.DailyLog).filter(
