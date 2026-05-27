@@ -629,13 +629,13 @@ def stream_user_message(
         "enhanced_prompts": enhanced_prompts
     }
 
-    # 工具调用型 agent 需要先决策再生成，给用户即时反馈降低感知等待
+    # 统一状态消息，给用户即时反馈降低感知等待
     _status_messages = {
-        "nutrition": "正在查询营养数据...",
-        "fitness": "正在搜索训练方案...",
+        "nutrition": "Agent正在思考...",
+        "fitness": "Agent正在思考...",
+        "chat": "Agent正在思考...",
     }
-    if agent in _status_messages:
-        yield ("status", _status_messages[agent])
+    yield ("status", _status_messages.get(agent, "Agent正在思考..."))
 
     print(f"[stream] 开始调用 {agent} agent...", flush=True)
     if agent == "nutrition":
