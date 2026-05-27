@@ -96,6 +96,27 @@ def _estimate_calories(food_name: str) -> int:
     return 300  # 默认估算
 
 
+def _get_food_nutrition(food_name: str) -> dict:
+    """获取食物营养数据：优先 API，API 查不到再用本地估算
+
+    Returns:
+        dict: {"calories": float, "protein": float, "fat": float, "carbs": float}
+    """
+    from ..food_api import search_food_nutrient
+    api_result = search_food_nutrient(food_name)
+    if api_result:
+        return {
+            "calories": float(api_result['calories']),
+            "protein": float(api_result.get('protein', 0)),
+            "fat": float(api_result.get('fat', 0)),
+            "carbs": float(api_result.get('carbs', 0)),
+        }
+    return {
+        "calories": float(_estimate_calories(food_name)),
+        "protein": 0, "fat": 0, "carbs": 0,
+    }
+
+
 def _detect_meal_type(user_message: str) -> str:
     """从用户消息中检测餐次"""
     if any(kw in user_message for kw in ["早餐", "早上", "早饭"]):
@@ -382,16 +403,19 @@ def nutrition_with_user(
                 food_items = _extract_food_names(user_message)
                 recorded = []
                 for food_name, meal_type in food_items:
-                    calories = _estimate_calories(food_name)
-                    print(f"[nutrition_agent] 兜底记录: {food_name}, {calories}kcal, {meal_type}")
+                    nutrition = _get_food_nutrition(food_name)
+                    print(f"[nutrition_agent] 兜底记录: {food_name}, {nutrition['calories']}kcal, {meal_type}")
                     fallback_result = log_food_intake.invoke({
                         "user_id": user_id,
                         "food_name": food_name,
-                        "calories": float(calories),
-                        "meal_type": meal_type
+                        "calories": nutrition['calories'],
+                        "meal_type": meal_type,
+                        "protein": nutrition['protein'],
+                        "fat": nutrition['fat'],
+                        "carbs": nutrition['carbs'],
                     })
                     print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                    recorded.append(f"{food_name} {calories}kcal({meal_type})")
+                    recorded.append(f"{food_name} {nutrition['calories']:.0f}kcal({meal_type})")
                 if content:
                     yield content
                     yield f"\n\n已自动记录：{', '.join(recorded)}"
@@ -436,16 +460,19 @@ def nutrition_with_user(
             food_items = _extract_food_names(user_message)
             recorded = []
             for food_name, meal_type in food_items:
-                calories = _estimate_calories(food_name)
-                print(f"[nutrition_agent] 兜底记录: {food_name}, {calories}kcal, {meal_type}")
+                nutrition = _get_food_nutrition(food_name)
+                print(f"[nutrition_agent] 兜底记录: {food_name}, {nutrition['calories']}kcal, {meal_type}")
                 fallback_result = log_food_intake.invoke({
                     "user_id": user_id,
                     "food_name": food_name,
-                    "calories": float(calories),
-                    "meal_type": meal_type
+                    "calories": nutrition['calories'],
+                    "meal_type": meal_type,
+                    "protein": nutrition['protein'],
+                    "fat": nutrition['fat'],
+                    "carbs": nutrition['carbs'],
                 })
                 print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                recorded.append(f"{food_name} {calories}kcal({meal_type})")
+                recorded.append(f"{food_name} {nutrition['calories']:.0f}kcal({meal_type})")
             # 追加工具消息让 LLM 知道已记录
             chat_history.append({
                 "role": "tool",

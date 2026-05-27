@@ -26,6 +26,24 @@ FALLBACK_DATA = {
 }
 
 
+def _select_best_match(food_list: list, query: str) -> dict:
+    """从 API 返回的食物列表中选择最匹配的结果
+
+    匹配优先级：精确匹配 > 包含匹配（最短优先）> 第一条
+    """
+    # 1. 精确匹配（name 去掉方括号后缀后等于 query）
+    for item in food_list:
+        clean_name = item['name'].split('[')[0].strip()
+        if clean_name == query or item['name'] == query:
+            return item
+    # 2. 包含匹配（query 在 name 中，选最短的 = 最精确的）
+    candidates = [i for i in food_list if query in i['name']]
+    if candidates:
+        return min(candidates, key=lambda x: len(x['name']))
+    # 3. 兜底取第一条
+    return food_list[0]
+
+
 def search_food_nutrient(food_name: str) -> dict:
     """调用天行数据API查询食物营养信息
     
@@ -73,7 +91,8 @@ def search_food_nutrient(food_name: str) -> dict:
             food_list = result_data.get("list", [])
             
             if food_list and len(food_list) > 0:
-                nutrient = food_list[0]
+                nutrient = _select_best_match(food_list, food_name)
+                print(f"[food_api] 匹配结果: '{food_name}' → '{nutrient.get('name')}' (共{len(food_list)}条候选)")
                 
                 # API字段映射
                 # rl = 热量, dbz = 蛋白质, zf = 脂肪, shhf = 碳水化合物
