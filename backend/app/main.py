@@ -270,6 +270,13 @@ class FeedbackCreate(BaseModel):
     content: str
     contact: Optional[str] = None
 
+class ChatHistoryItem(BaseModel):
+    id: int
+    role: str  # "user" 或 "assistant"
+    content: str
+    agent_type: str
+    timestamp: Optional[str] = None
+
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
     if not height or not weight or not age:
@@ -949,6 +956,38 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+@router.get("/chat/history", response_model=List[ChatHistoryItem])
+def get_chat_history(
+    limit: int = 20,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    """获取最近的对话历史"""
+    logs = db.query(models.ConversationLog).filter(
+        models.ConversationLog.user_id == current_user.id
+    ).order_by(
+        models.ConversationLog.created_at.desc()
+    ).limit(limit).all()
+
+    result = []
+    for log in reversed(logs):
+        result.append(ChatHistoryItem(
+            id=log.id,
+            role="user",
+            content=log.user_message,
+            agent_type=log.agent_type,
+            timestamp=log.created_at.isoformat() if log.created_at else None,
+        ))
+        result.append(ChatHistoryItem(
+            id=log.id,
+            role="assistant",
+            content=log.agent_response,
+            agent_type=log.agent_type,
+            timestamp=log.created_at.isoformat() if log.created_at else None,
+        ))
+
+    return result
 
 # ----- 反馈 -----
 @router.post("/feedback")
