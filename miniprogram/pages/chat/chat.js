@@ -256,7 +256,7 @@ Page({
         ...m,
         html: m.role !== 'user' ? parseMarkdown(m.content) : ''
       }))
-      this.setData({ messages })
+      this.setData({ messages, scrollToId: 'msg-bottom' })
       return true
     }
     return false
@@ -287,7 +287,7 @@ Page({
             html: role !== 'user' ? parseMarkdown(m.content) : ''
           }
         })
-        this.setData({ messages: formatted })
+        this.setData({ messages: formatted, scrollToId: 'msg-bottom' })
         wx.setStorageSync('chat_messages', formatted)
       }
     }).catch(() => {})
@@ -300,7 +300,7 @@ Page({
 
     // 恢复消息列表
     if (stream.messages.length > 0) {
-      this.setData({ messages: stream.messages })
+      this.setData({ messages: stream.messages, scrollToId: 'msg-bottom' })
     }
 
     // 补全 pendingContent
