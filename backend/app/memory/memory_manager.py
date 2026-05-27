@@ -450,7 +450,7 @@ class MemoryManager:
 
         Args:
             days: 加载最近 N 天的对话
-            limit: 最多加载 N 轮对话
+            limit: 最多加载 N 轮对话（默认10）
 
         Returns:
             str: 格式化的对话历史
@@ -460,17 +460,24 @@ class MemoryManager:
         if not history:
             return "（无历史对话）"
 
+        agent_names = {
+            "chat": "闲聊",
+            "nutrition": "营养师",
+            "fitness": "健身教练"
+        }
+
         parts = ["【近期对话历史】"]
         for i, msg in enumerate(history):
             role = "用户" if msg["role"] == "user" else "AI"
             agent = msg.get("agent_type", "")
+            agent_label = agent_names.get(agent, agent)
             content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
             time = msg.get("created_at", "")[:16] if msg.get("created_at") else ""
 
             if i % 2 == 0:
                 parts.append(f"\n[{time}] {role}: {content}")
             else:
-                parts.append(f"→ {agent}回复: {content}")
+                parts.append(f"→ {agent_label}回复: {content}")
 
         return "\n".join(parts)
 

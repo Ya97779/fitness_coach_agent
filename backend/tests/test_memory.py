@@ -426,6 +426,34 @@ class TestMemoryManager(unittest.TestCase):
         self.assertIsInstance(result, list)
 
 
+    @patch('app.memory.memory_manager.database.SessionLocal')
+    def test_format_conversation_history_for_agent_loads_10(self, mock_db):
+        """测试跨Agent历史加载最近10条，agent标记使用中文名称"""
+        mock_session = MagicMock()
+        mock_db.return_value = mock_session
+
+        # 模拟12条对话记录
+        mock_logs = []
+        for i in range(12):
+            log = MagicMock()
+            log.user_message = f"用户消息 {i}"
+            log.agent_response = f"AI回复 {i}"
+            log.agent_type = "nutrition" if i % 2 == 0 else "fitness"
+            log.created_at = datetime(2026, 5, 27, 14, i, 0)
+            mock_logs.append(log)
+
+        mock_session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = mock_logs
+
+        mm = MemoryManager(user_id=1)
+        result = mm.format_conversation_history_for_agent(days=7, limit=10)
+
+        self.assertIsInstance(result, str)
+        self.assertIn("近期对话历史", result)
+        # 验证中文 agent 名称
+        self.assertIn("营养师", result)
+        self.assertIn("健身教练", result)
+
+
 class TestMemoryIntegration(unittest.TestCase):
     """Memory 模块集成测试"""
 
