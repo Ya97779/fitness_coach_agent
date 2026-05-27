@@ -216,4 +216,4 @@ fitness_coach_agent/
 
 - `main` — 日常开发分支
 - `deploy` — 部署分支，服务器从 deploy 拉取
-- 开发完成后合并 main → deploy
+- 开发完成后推送：`git push origin main:deploy --force-with-lease`
