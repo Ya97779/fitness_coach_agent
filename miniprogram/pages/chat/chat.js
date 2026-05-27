@@ -172,10 +172,10 @@ Page({
   },
 
   updateAiMessage(msgId, content) {
-    const html = parseMarkdown(content)
+    // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 导致 mp-html 不刷新）
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, content, html }
+        return { ...m, content, html: '' }
       }
       return m
     })
@@ -184,20 +184,15 @@ Page({
   },
 
   finishAiMessage(msgId) {
+    // 流式完成后一次性解析 markdown 并渲染
     const messages = this.data.messages.map(m => {
-      if (m.id === msgId) return { ...m, loading: false, _visible: false }
+      if (m.id === msgId) {
+        return { ...m, loading: false, html: parseMarkdown(m.content) }
+      }
       return m
     })
     this.setData({ messages, sending: false })
     this.saveMessagesToCache()
-    // 通过 toggle _visible 强制 mp-html 重建，触发 observer 渲染 markdown
-    setTimeout(() => {
-      const showMsgs = this.data.messages.map(m => {
-        if (m.id === msgId) return { ...m, _visible: true }
-        return m
-      })
-      this.setData({ messages: showMsgs })
-    }, 100)
   },
 
   recordFromIntent() {
