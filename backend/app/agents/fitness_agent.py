@@ -69,6 +69,19 @@ def _extract_exercise_info(user_message: str) -> tuple:
     return "运动", duration
 
 
+def _estimate_exercise_calories(exercise_name: str, duration: int) -> float:
+    """估算运动热量（兜底用）
+
+    Args:
+        exercise_name: 运动名称
+        duration: 时长（分钟）
+
+    Returns:
+        估算热量 (kcal)
+    """
+    return calc_calories(exercise_name, user_weight=70, duration=duration)
+
+
 def get_rag():
     """获取 RAG 实例（使用全局单例）"""
     return get_rag_instance(enable_agentic=True)
