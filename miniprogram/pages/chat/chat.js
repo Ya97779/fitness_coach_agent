@@ -54,6 +54,18 @@ Page({
     if (app.globalData.chatStream.active) {
       this.restoreChatStream()
     }
+
+    // 首次进入小程序：滚动到底部；切换 tab 回来：保持原位
+    if (app.globalData.appLaunched) {
+      app.globalData.appLaunched = false
+      setTimeout(() => {
+        this.setData({ scrollToId: 'msg-bottom' })
+        // 清除 scrollToId，避免后续 syncMessages 更新消息时把用户拉回底部
+        setTimeout(() => {
+          this.setData({ scrollToId: '' })
+        }, 500)
+      }, 300)
+    }
   },
 
   onInput(e) {

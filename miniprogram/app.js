@@ -2,6 +2,7 @@ App({
   globalData: {
     userInfo: null,
     token: null,
+    appLaunched: true,  // 首次进入标记，chat 页面用：首次滚底部，切换 tab 不滚
     chatStream: {
       active: false,
       requestTask: null,
