@@ -51,6 +51,17 @@
   flex-direction: row-reverse;
 }
 
+/* 消息体（气泡+时间） */
+.msg-body {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100% - 80rpx);
+}
+
+.msg-item.user .msg-body {
+  align-items: flex-end;
+}
+
 /* AI 头像 */
 .msg-avatar {
   width: 48rpx;
@@ -83,7 +94,6 @@
 
 /* 气泡 */
 .msg-bubble {
-  max-width: calc(100% - 80rpx);
   padding: 20rpx 24rpx;
   border-radius: var(--radius-md);
   word-break: break-all;
@@ -104,6 +114,15 @@
 .msg-text {
   font-size: 24rpx;
   line-height: 1.7;
+}
+
+/* 消息时间 */
+.msg-time {
+  font-size: 20rpx;
+  color: var(--text-hint);
+  margin-top: 6rpx;
+  text-align: right;
+  display: block;
 }
 
 /* mp-html markdown 样式 */

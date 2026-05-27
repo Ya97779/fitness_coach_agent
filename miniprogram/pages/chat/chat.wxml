@@ -13,14 +13,17 @@
       <image class="msg-avatar-img" wx:if="{{item.role === 'user' && userAvatar}}" src="{{userAvatar}}" mode="aspectFill" />
       <view class="msg-avatar" wx:elif="{{item.role === 'user'}}">我</view>
       <view class="msg-avatar" wx:else>AI</view>
-      <view class="msg-bubble bubble-{{item.role}}">
-        <mp-html wx:if="{{item.role !== 'user' && item._visible !== false}}" id="mp-{{item.id}}" content="{{item.html}}" selectable />
-        <text wx:else class="msg-text" user-select>{{item.content}}</text>
-        <view class="msg-loading" wx:if="{{item.loading}}">
-          <view class="loading-dot"></view>
-          <view class="loading-dot"></view>
-          <view class="loading-dot"></view>
+      <view class="msg-body">
+        <view class="msg-bubble bubble-{{item.role}}">
+          <mp-html wx:if="{{item.role !== 'user' && item._visible !== false}}" id="mp-{{item.id}}" content="{{item.html}}" selectable />
+          <text wx:else class="msg-text" user-select>{{item.content}}</text>
+          <view class="msg-loading" wx:if="{{item.loading}}">
+            <view class="loading-dot"></view>
+            <view class="loading-dot"></view>
+            <view class="loading-dot"></view>
+          </view>
         </view>
+        <text class="msg-time" wx:if="{{item.role === 'user' && item.timeStr}}">{{item.timeStr}}</text>
       </view>
     </view>
     <view id="msg-bottom" style="height: 20rpx;"></view>

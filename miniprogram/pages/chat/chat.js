@@ -4,6 +4,15 @@ const { parse: parseMarkdown } = require('../../utils/markdown')
 
 let msgId = 0
 
+function formatTime(ts) {
+  const d = new Date(ts)
+  const M = String(d.getMonth() + 1).padStart(2, '0')
+  const D = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${M}/${D} ${h}:${m}`
+}
+
 Page({
   data: {
     messages: [],
@@ -66,7 +75,7 @@ Page({
 
     this.setData({ pendingIntent: null, intentButtonText: '' })
 
-    const userMsg = { id: `m${++msgId}`, role: 'user', content: text }
+    const userMsg = { id: `m${++msgId}`, role: 'user', content: text, timeStr: formatTime(Date.now()) }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
 
     const messages = [...this.data.messages, userMsg, aiMsg]
@@ -251,10 +260,10 @@ Page({
   loadMessagesFromCache() {
     const cached = wx.getStorageSync('chat_messages')
     if (cached && cached.length > 0) {
-      // 为 AI 消息补充 html 字段
       const messages = cached.map(m => ({
         ...m,
-        html: m.role !== 'user' ? parseMarkdown(m.content) : ''
+        html: m.role !== 'user' ? parseMarkdown(m.content) : '',
+        timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : ''
       }))
       this.setData({ messages, scrollToId: 'msg-bottom' })
       return true
@@ -284,7 +293,8 @@ Page({
             content: m.content,
             agent_type: m.agent_type,
             timestamp: m.timestamp,
-            html: role !== 'user' ? parseMarkdown(m.content) : ''
+            html: role !== 'user' ? parseMarkdown(m.content) : '',
+            timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : ''
           }
         })
         this.setData({ messages: formatted, scrollToId: 'msg-bottom' })
