@@ -23,12 +23,27 @@ Page({
   },
 
   onShow() {
+    // 加载用户头像
     if (isLoggedIn() && !this.data.userAvatar) {
       request({ url: '/api/v1/user/me' }).then(user => {
         if (user.avatar_url) {
           this.setData({ userAvatar: user.avatar_url })
         }
       }).catch(() => {})
+    }
+
+    // 加载本地缓存
+    this.loadMessagesFromCache()
+
+    // 后台同步最新数据
+    if (isLoggedIn()) {
+      this.syncMessagesFromServer()
+    }
+
+    // 检查是否有进行中的流式请求
+    const app = getApp()
+    if (app.globalData.chatStream.active) {
+      this.restoreChatStream()
     }
   },
 
@@ -54,12 +69,20 @@ Page({
     const userMsg = { id: `m${++msgId}`, role: 'user', content: text }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
 
+    const messages = [...this.data.messages, userMsg, aiMsg]
     this.setData({
-      messages: [...this.data.messages, userMsg, aiMsg],
+      messages,
       inputValue: '',
       sending: true,
       scrollToId: `msg-${aiMsg.id}`
     })
+
+    // 保存到全局状态
+    const app = getApp()
+    app.globalData.chatStream.active = true
+    app.globalData.chatStream.messages = messages
+    app.globalData.chatStream.aiMsgId = aiMsg.id
+    app.globalData.chatStream.pendingContent = ''
 
     let fullContent = ''
     let lineBuffer = ''
@@ -105,17 +128,25 @@ Page({
             currentEventType = 'data'
             fullContent += data
             this.updateAiMessage(aiMsg.id, fullContent)
+            // 更新全局 pendingContent
+            app.globalData.chatStream.pendingContent = fullContent
           }
         }
       },
       () => {
         this.finishAiMessage(aiMsg.id)
+        app.globalData.chatStream.active = false
+        this.saveMessagesToCache()
       },
       (err) => {
         this.updateAiMessage(aiMsg.id, fullContent || '抱歉，发生了错误，请稍后重试。')
         this.finishAiMessage(aiMsg.id)
+        app.globalData.chatStream.active = false
+        this.saveMessagesToCache()
       }
     )
+
+    app.globalData.chatStream.requestTask = requestTask
   },
 
   updateAiMessage(msgId, content) {
@@ -129,6 +160,8 @@ Page({
       messages,
       scrollToId: 'msg-bottom'
     })
+    // 流式过程中也定期保存
+    this.saveMessagesToCache()
   },
 
   finishAiMessage(msgId) {
@@ -181,5 +214,76 @@ Page({
 
   clearIntent() {
     this.setData({ pendingIntent: null, intentButtonText: '' })
+  },
+
+  // ========== 本地缓存 ==========
+
+  // 保存消息到本地缓存
+  saveMessagesToCache() {
+    const messages = this.data.messages.slice(-20).map(m => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      agent_type: m.agent_type || '',
+      timestamp: m.timestamp || Date.now()
+    }))
+    wx.setStorageSync('chat_messages', messages)
+  },
+
+  // 从本地缓存加载消息
+  loadMessagesFromCache() {
+    const cached = wx.getStorageSync('chat_messages')
+    if (cached && cached.length > 0) {
+      // 为 AI 消息补充 html 字段
+      const messages = cached.map(m => ({
+        ...m,
+        html: m.role !== 'user' ? parseMarkdown(m.content) : ''
+      }))
+      this.setData({ messages })
+      return true
+    }
+    return false
+  },
+
+  // 从后端同步最新消息
+  syncMessagesFromServer() {
+    request({ url: '/api/v1/chat/history?limit=20' }).then(serverMessages => {
+      if (!serverMessages || serverMessages.length === 0) return
+      const cached = this.data.messages
+      // 简单对比最后一条消息内容
+      if (cached.length === 0 ||
+          cached[cached.length - 1].content !== serverMessages[serverMessages.length - 1].content) {
+        const formatted = serverMessages.map((m, i) => {
+          const role = m.role === 'assistant' ? 'ai' : m.role
+          return {
+            id: `sync_${i}`,
+            role,
+            content: m.content,
+            agent_type: m.agent_type,
+            timestamp: m.timestamp,
+            html: role !== 'user' ? parseMarkdown(m.content) : ''
+          }
+        })
+        this.setData({ messages: formatted })
+        wx.setStorageSync('chat_messages', formatted)
+      }
+    }).catch(() => {})
+  },
+
+  // 恢复进行中的流式请求状态
+  restoreChatStream() {
+    const app = getApp()
+    const stream = app.globalData.chatStream
+
+    // 恢复消息列表
+    if (stream.messages.length > 0) {
+      this.setData({ messages: stream.messages })
+    }
+
+    // 补全 pendingContent
+    if (stream.pendingContent && stream.aiMsgId) {
+      this.updateAiMessage(stream.aiMsgId, stream.pendingContent)
+      stream.pendingContent = ''
+    }
   }
 })
