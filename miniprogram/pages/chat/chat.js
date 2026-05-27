@@ -175,7 +175,7 @@ Page({
     // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 导致 mp-html 不刷新）
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, content, html: '' }
+        return { ...m, content, _streaming: true }
       }
       return m
     })
@@ -187,7 +187,7 @@ Page({
     // 流式完成后一次性解析 markdown 并渲染
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, loading: false, html: parseMarkdown(m.content) }
+        return { ...m, loading: false, _streaming: false, html: parseMarkdown(m.content) }
       }
       return m
     })
@@ -261,7 +261,7 @@ Page({
         ...m,
         html: m.role !== 'user' ? parseMarkdown(m.content) : '',
         timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : '',
-        _visible: true
+        _streaming: false
       }))
       this.setData({ messages })
       return true
@@ -280,6 +280,8 @@ Page({
       // 再次检查，因为异步返回时状态可能已变
       if (app.globalData.chatStream.active) return
       const cached = this.data.messages
+      // 缓存消息比服务器多，说明服务器还没同步，不覆盖
+      if (cached.length >= serverMessages.length) return
       // 简单对比最后一条消息内容
       if (cached.length === 0 ||
           cached[cached.length - 1].content !== serverMessages[serverMessages.length - 1].content) {
@@ -293,7 +295,7 @@ Page({
             timestamp: m.timestamp,
             html: role !== 'user' ? parseMarkdown(m.content) : '',
             timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : '',
-            _visible: true
+            _streaming: false
           }
         })
         this.setData({ messages: formatted })
