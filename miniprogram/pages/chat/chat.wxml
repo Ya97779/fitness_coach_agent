@@ -15,7 +15,8 @@
       <view class="msg-avatar" wx:else>AI</view>
       <view class="msg-body">
         <view class="msg-bubble bubble-{{item.role}}">
-          <mp-html wx:if="{{item.role !== 'user' && item._visible !== false && item._refresh !== false}}" id="mp-{{item.id}}" content="{{item.html}}" selectable />
+          <mp-html wx:if="{{item.role !== 'user' && item._visible !== false}}" id="mp-{{item.id}}" content="{{item.html}}" selectable />
+          <text wx:elif="{{item.role !== 'user'}}" class="msg-text" user-select>{{item.content}}</text>
           <text wx:else class="msg-text" user-select>{{item.content}}</text>
           <view class="msg-loading" wx:if="{{item.loading}}">
             <view class="loading-dot"></view>

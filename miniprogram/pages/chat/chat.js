@@ -74,8 +74,6 @@ Page({
     }
 
     this.setData({ pendingIntent: null, intentButtonText: '' })
-    this._refreshTimer = null
-    this._refreshPending = false
 
     const userMsg = { id: `m${++msgId}`, role: 'user', content: text, timeStr: formatTime(Date.now()) }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
@@ -169,62 +167,25 @@ Page({
       }
       return m
     })
-    this.setData({
-      messages,
-      scrollToId: 'msg-bottom'
-    })
+    this.setData({ messages })
     this.saveMessagesToCache()
-
-    // 流式输出过程中定期强制刷新 mp-html 组件（解决 wx:for 中 observer 不触发的问题）
-    if (!this._refreshPending) {
-      this._refreshPending = true
-      clearTimeout(this._refreshTimer)
-      this._refreshTimer = setTimeout(() => {
-        this._refreshPending = false
-        // 先隐藏组件
-        const hideMsgs = this.data.messages.map(m => {
-          if (m.id === msgId) return { ...m, _refresh: false }
-          return m
-        })
-        this.setData({ messages: hideMsgs })
-        // 下一帧重新显示，强制组件重建
-        setTimeout(() => {
-          const showMsgs = this.data.messages.map(m => {
-            if (m.id === msgId) return { ...m, _refresh: true }
-            return m
-          })
-          this.setData({ messages: showMsgs })
-        }, 50)
-      }, 500)
-    }
   },
 
   finishAiMessage(msgId) {
-    // 清理流式刷新定时器
-    clearTimeout(this._refreshTimer)
-    this._refreshPending = false
-
     const messages = this.data.messages.map(m => {
-      if (m.id === msgId) return { ...m, loading: false }
+      if (m.id === msgId) return { ...m, loading: false, _visible: false }
       return m
     })
     this.setData({ messages, sending: false })
     this.saveMessagesToCache()
     // 通过 toggle _visible 强制 mp-html 重建，触发 observer 渲染 markdown
     setTimeout(() => {
-      const hideMsgs = this.data.messages.map(m => {
-        if (m.id === msgId) return { ...m, _visible: false }
+      const showMsgs = this.data.messages.map(m => {
+        if (m.id === msgId) return { ...m, _visible: true }
         return m
       })
-      this.setData({ messages: hideMsgs })
-      setTimeout(() => {
-        const showMsgs = this.data.messages.map(m => {
-          if (m.id === msgId) return { ...m, _visible: true }
-          return m
-        })
-        this.setData({ messages: showMsgs })
-      }, 50)
-    }, 50)
+      this.setData({ messages: showMsgs })
+    }, 100)
   },
 
   recordFromIntent() {
@@ -292,13 +253,12 @@ Page({
       const messages = cached.map(m => ({
         ...m,
         html: m.role !== 'user' ? parseMarkdown(m.content) : '',
-        timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : ''
+        timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : '',
+        _visible: true
       }))
-      this.setData({ messages, scrollToId: 'msg-bottom' })
+      this.setData({ messages })
       return true
     }
-    // 即使没有缓存，也设置 scrollToId 以确保后续消息能滚动到底部
-    this.setData({ scrollToId: 'msg-bottom' })
     return false
   },
 
@@ -325,10 +285,11 @@ Page({
             agent_type: m.agent_type,
             timestamp: m.timestamp,
             html: role !== 'user' ? parseMarkdown(m.content) : '',
-            timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : ''
+            timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : '',
+            _visible: true
           }
         })
-        this.setData({ messages: formatted, scrollToId: 'msg-bottom' })
+        this.setData({ messages: formatted })
         wx.setStorageSync('chat_messages', formatted)
       }
     }).catch(() => {})
@@ -341,7 +302,7 @@ Page({
 
     // 恢复消息列表
     if (stream.messages.length > 0) {
-      this.setData({ messages: stream.messages, scrollToId: 'msg-bottom' })
+      this.setData({ messages: stream.messages })
     }
 
     // 补全 pendingContent
