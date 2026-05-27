@@ -74,6 +74,8 @@ Page({
     }
 
     this.setData({ pendingIntent: null, intentButtonText: '' })
+    this._refreshTimer = null
+    this._refreshPending = false
 
     const userMsg = { id: `m${++msgId}`, role: 'user', content: text, timeStr: formatTime(Date.now()) }
     const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
@@ -172,9 +174,30 @@ Page({
       scrollToId: 'msg-bottom'
     })
     this.saveMessagesToCache()
+
+    // 流式输出过程中定期强制刷新 mp-html 组件（解决 wx:for 中 observer 不触发的问题）
+    if (!this._refreshPending) {
+      this._refreshPending = true
+      clearTimeout(this._refreshTimer)
+      this._refreshTimer = setTimeout(() => {
+        this._refreshPending = false
+        const idx = this.data.messages.findIndex(m => m.id === msgId)
+        if (idx === -1) return
+        // 先隐藏组件
+        this.setData({ [`messages[${idx}]._refresh`]: false })
+        // 下一帧重新显示，强制组件重建
+        setTimeout(() => {
+          this.setData({ [`messages[${idx}]._refresh`]: true })
+        }, 50)
+      }, 500)
+    }
   },
 
   finishAiMessage(msgId) {
+    // 清理流式刷新定时器
+    clearTimeout(this._refreshTimer)
+    this._refreshPending = false
+
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) return { ...m, loading: false }
       return m
