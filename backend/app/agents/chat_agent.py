@@ -113,16 +113,30 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
     system_msg = SystemMessage(content=system_content)
 
     def generate_response():
+        chat_messages = [system_msg] + messages
         try:
             if stream:
-                for chunk in llm.stream([system_msg] + messages):
+                chunk_count = 0
+                total_content = ""
+                print(f"[chat_agent] 开始 LLM 流式调用, messages={len(chat_messages)}", flush=True)
+                for chunk in llm.stream(chat_messages):
                     if chunk.content:
+                        chunk_count += 1
+                        total_content += chunk.content
+                        if chunk_count == 1:
+                            print(f"[chat_agent] LLM 首个 chunk: {chunk.content[:100]}", flush=True)
                         yield chunk.content
+                print(f"[chat_agent] LLM 流式完成: {chunk_count} chunks, 总长度={len(total_content)}", flush=True)
+                if chunk_count == 0:
+                    print(f"[chat_agent] 警告: LLM 未返回任何内容!", flush=True)
             else:
-                response = llm.invoke([system_msg] + messages)
-                yield response.content
+                response = llm.invoke(chat_messages)
+                content = response.content if hasattr(response, 'content') else str(response)
+                print(f"[chat_agent] LLM 非流式返回: 长度={len(content)}, 前100字={content[:100]}", flush=True)
+                yield content
         except Exception as e:
             error_msg = str(e)
+            print(f"[chat_agent] LLM 调用异常: {error_msg[:200]}", flush=True)
             if "1214" in error_msg or "messages" in error_msg.lower():
                 yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
             else:

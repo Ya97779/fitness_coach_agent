@@ -482,14 +482,27 @@ def nutrition_with_user(
 
         try:
             if stream:
+                chunk_count = 0
+                total_content = ""
+                print(f"[nutrition_agent] 开始 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 for chunk in llm.stream(chat_history):
                     if chunk.content:
+                        chunk_count += 1
+                        total_content += chunk.content
+                        if chunk_count == 1:
+                            print(f"[nutrition_agent] LLM 首个 chunk: {chunk.content[:100]}", flush=True)
                         yield chunk.content
+                print(f"[nutrition_agent] LLM 流式完成: {chunk_count} chunks, 总长度={len(total_content)}", flush=True)
+                if chunk_count == 0:
+                    print(f"[nutrition_agent] 警告: LLM 未返回任何内容!", flush=True)
             else:
                 final_response = llm.invoke(chat_history)
-                yield final_response.content if hasattr(final_response, 'content') else str(final_response)
+                content = final_response.content if hasattr(final_response, 'content') else str(final_response)
+                print(f"[nutrition_agent] LLM 非流式返回: 长度={len(content)}, 前100字={content[:100]}", flush=True)
+                yield content
         except Exception as e:
             error_msg = str(e)
+            print(f"[nutrition_agent] LLM 调用异常: {error_msg[:200]}", flush=True)
             if "1214" in error_msg or "messages" in error_msg.lower():
                 yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
             else:
