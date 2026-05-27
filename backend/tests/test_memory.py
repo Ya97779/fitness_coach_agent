@@ -125,6 +125,22 @@ class TestConversationSummarizer(unittest.TestCase):
         self.assertIn('topics', result)
         self.assertIn('goals', result)
 
+    def test_summarize_messages_preserves_last_10_raw(self):
+        """测试分层压缩保留最近10条消息原文"""
+        summarizer = ConversationSummarizer(max_messages=10)
+        # 创建25条消息：15条旧 + 10条新
+        old_messages = [HumanMessage(content=f"旧消息 {i}") for i in range(15)]
+        recent_messages = [AIMessage(content=f"新消息 {i}") for i in range(10)]
+        all_messages = old_messages + recent_messages
+
+        with patch.object(summarizer, '_generate_layered_summary', return_value="摘要内容"):
+            result = summarizer.summarize_messages(all_messages)
+
+        # 最近10条应该完整保留
+        recent_contents = [m.content for m in result[-10:]]
+        for i in range(10):
+            self.assertIn(f"新消息 {i}", recent_contents)
+
 
 class TestStatsSummarizer(unittest.TestCase):
     """StatsSummarizer 单元测试"""

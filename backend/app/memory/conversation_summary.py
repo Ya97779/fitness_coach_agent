@@ -57,39 +57,86 @@ class ConversationSummarizer:
         messages: List[BaseMessage],
         user_profile: Optional[Dict[str, Any]] = None
     ) -> List[BaseMessage]:
-        """对早期消息进行摘要，保留关键信息
+        """对早期消息进行分层摘要，保留关键信息
 
-        保留最近 N 条消息不变，对早期消息进行摘要压缩。
+        分层策略：
+        - 最近 10 条：完整保留
+        - 11-20 条：简要摘要（每5条→1条，~50字）
+        - 20 条以上：精简摘要（每10条→1条，~30字）
 
         Args:
             messages: 原始消息列表
             user_profile: 用户画像（用于识别关键信息）
 
         Returns:
-            List[BaseMessage]: 压缩后的消息列表
+            List[BaseMessage]: 压缩后的消息列表，顺序为 [精简摘要] → [简要摘要] → [最近10条原文]
         """
         if not self.should_summarize(messages):
             return messages
 
-        keep_recent = self.MAX_SUMMARY_LENGTH
-        messages_to_summarize = messages[:-keep_recent] if len(messages) > keep_recent else messages[:-1]
+        keep_recent = self.MAX_MESSAGES_BEFORE_SUMMARY  # 10
         recent_messages = messages[-keep_recent:]
+        older_messages = messages[:-keep_recent]
 
-        summary = self._generate_summary(messages_to_summarize, user_profile)
+        # 分层处理
+        system_messages = [m for m in older_messages if isinstance(m, SystemMessage)]
+        non_system = [m for m in older_messages if not isinstance(m, SystemMessage)]
 
-        system_messages = [m for m in messages_to_summarize if isinstance(m, SystemMessage)]
-        non_system_messages = [m for m in messages_to_summarize if not isinstance(m, SystemMessage)]
+        summary_parts = []
+        if len(non_system) > 10:
+            # 精简摘要层：20条以上的部分
+            deep_old = non_system[:-10]
+            summary_parts.append(self._generate_layered_summary(deep_old, "compact"))
+            # 简要摘要层：11-20条的部分
+            mid_old = non_system[-10:]
+            summary_parts.append(self._generate_layered_summary(mid_old, "brief"))
+        else:
+            # 只有简要摘要层
+            summary_parts.append(self._generate_layered_summary(non_system, "brief"))
 
         result = []
-        if system_messages:
-            result.extend(system_messages)
-
-        summary_msg = AIMessage(content=f"【对话历史摘要】\n{summary}")
-        result.append(summary_msg)
-
+        result.extend(system_messages)
+        result.append(AIMessage(content="\n".join(summary_parts)))
         result.extend(recent_messages)
-
         return result
+
+    def _generate_layered_summary(
+        self,
+        messages: List[BaseMessage],
+        level: str = "brief"
+    ) -> str:
+        """按层级生成摘要
+
+        Args:
+            messages: 需要摘要的消息
+            level: "brief"（简要，~50字）或 "compact"（精简，~30字）
+
+        Returns:
+            str: 生成的摘要
+        """
+        if not messages:
+            return ""
+
+        message_texts = []
+        for msg in messages:
+            role = "用户" if isinstance(msg, HumanMessage) else "AI"
+            content = msg.content if hasattr(msg, 'content') else str(msg)
+            message_texts.append(f"{role}: {content}")
+
+        conversation_text = "\n".join(message_texts)
+
+        if level == "compact":
+            prompt = f"用30字以内精简概括以下对话的核心结论和用户偏好：\n{conversation_text}"
+        else:
+            prompt = f"用50字以内概括以下对话的主要话题和结论：\n{conversation_text}"
+
+        try:
+            from ..llm_manager import LLMManager
+            llm = LLMManager.get_llm(temperature=0.3)
+            response = llm.invoke([HumanMessage(content=prompt)])
+            return f"【历史摘要】{response.content}"
+        except Exception as e:
+            return f"【历史摘要】（摘要生成失败）"
 
     def _generate_summary(
         self,
