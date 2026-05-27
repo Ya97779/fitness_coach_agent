@@ -181,13 +181,19 @@ Page({
       clearTimeout(this._refreshTimer)
       this._refreshTimer = setTimeout(() => {
         this._refreshPending = false
-        const idx = this.data.messages.findIndex(m => m.id === msgId)
-        if (idx === -1) return
         // 先隐藏组件
-        this.setData({ [`messages[${idx}]._refresh`]: false })
+        const hideMsgs = this.data.messages.map(m => {
+          if (m.id === msgId) return { ...m, _refresh: false }
+          return m
+        })
+        this.setData({ messages: hideMsgs })
         // 下一帧重新显示，强制组件重建
         setTimeout(() => {
-          this.setData({ [`messages[${idx}]._refresh`]: true })
+          const showMsgs = this.data.messages.map(m => {
+            if (m.id === msgId) return { ...m, _refresh: true }
+            return m
+          })
+          this.setData({ messages: showMsgs })
         }, 50)
       }, 500)
     }
@@ -291,6 +297,8 @@ Page({
       this.setData({ messages, scrollToId: 'msg-bottom' })
       return true
     }
+    // 即使没有缓存，也设置 scrollToId 以确保后续消息能滚动到底部
+    this.setData({ scrollToId: 'msg-bottom' })
     return false
   },
 
