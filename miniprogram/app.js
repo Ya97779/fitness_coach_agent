@@ -2,6 +2,13 @@ App({
   globalData: {
     userInfo: null,
     token: null,
+    chatStream: {
+      active: false,
+      requestTask: null,
+      messages: [],
+      pendingContent: '',
+      aiMsgId: ''
+    },
     training: {
       active: false,
       elapsedSeconds: 0,
