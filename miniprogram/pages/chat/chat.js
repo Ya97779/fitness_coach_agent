@@ -130,7 +130,7 @@ Page({
               continue
             }
             if (currentEventType === 'status') {
-              this.updateAiMessage(aiMsg.id, data)
+              this.updateAiMessage(aiMsg.id, data, true)
               currentEventType = 'data'
               continue
             }
@@ -149,7 +149,7 @@ Page({
             }
             currentEventType = 'data'
             fullContent += data
-            this.updateAiMessage(aiMsg.id, fullContent)
+            this.updateAiMessage(aiMsg.id, fullContent, false)
             // 更新全局 pendingContent
             app.globalData.chatStream.pendingContent = fullContent
           }
@@ -171,11 +171,12 @@ Page({
     app.globalData.chatStream.requestTask = requestTask
   },
 
-  updateAiMessage(msgId, content) {
+  updateAiMessage(msgId, content, isStatus) {
     // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 导致 mp-html 不刷新）
+    // isStatus=true 表示状态消息（如"Agent正在思考..."），不是最终内容
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, content, _streaming: true }
+        return { ...m, content, _streaming: true, _isStatus: !!isStatus, _hasRealContent: m._hasRealContent || !isStatus }
       }
       return m
     })
@@ -187,7 +188,11 @@ Page({
     // 流式完成后一次性解析 markdown 并渲染
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, loading: false, _streaming: false, html: parseMarkdown(m.content) }
+        // 如果最后仍是 status 消息（LLM 没返回真实内容），显示错误提示
+        if (m._isStatus && !m._hasRealContent) {
+          return { ...m, loading: false, _streaming: false, content: '抱歉，AI 未能生成回复，请重试。', html: '<p>抱歉，AI 未能生成回复，请重试。</p>' }
+        }
+        return { ...m, loading: false, _streaming: false, _isStatus: false, html: parseMarkdown(m.content) }
       }
       return m
     })
