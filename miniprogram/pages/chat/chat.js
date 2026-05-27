@@ -76,6 +76,7 @@ Page({
       sending: true,
       scrollToId: `msg-${aiMsg.id}`
     })
+    this.saveMessagesToCache()
 
     // 保存到全局状态
     const app = getApp()
@@ -150,9 +151,10 @@ Page({
   },
 
   updateAiMessage(msgId, content) {
+    const html = parseMarkdown(content)
     const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, content, html: parseMarkdown(content) }
+        return { ...m, content, html }
       }
       return m
     })
@@ -160,7 +162,6 @@ Page({
       messages,
       scrollToId: 'msg-bottom'
     })
-    // 流式过程中也定期保存
     this.saveMessagesToCache()
   },
 
@@ -170,6 +171,22 @@ Page({
       return m
     })
     this.setData({ messages, sending: false })
+    this.saveMessagesToCache()
+    // 通过 toggle _visible 强制 mp-html 重建，触发 observer 渲染 markdown
+    setTimeout(() => {
+      const hideMsgs = this.data.messages.map(m => {
+        if (m.id === msgId) return { ...m, _visible: false }
+        return m
+      })
+      this.setData({ messages: hideMsgs })
+      setTimeout(() => {
+        const showMsgs = this.data.messages.map(m => {
+          if (m.id === msgId) return { ...m, _visible: true }
+          return m
+        })
+        this.setData({ messages: showMsgs })
+      }, 50)
+    }, 50)
   },
 
   recordFromIntent() {
@@ -247,8 +264,14 @@ Page({
 
   // 从后端同步最新消息
   syncMessagesFromServer() {
+    // 有进行中的流式请求时跳过同步，避免覆盖恢复的消息
+    const app = getApp()
+    if (app.globalData.chatStream.active) return
+
     request({ url: '/api/v1/chat/history?limit=20' }).then(serverMessages => {
       if (!serverMessages || serverMessages.length === 0) return
+      // 再次检查，因为异步返回时状态可能已变
+      if (app.globalData.chatStream.active) return
       const cached = this.data.messages
       // 简单对比最后一条消息内容
       if (cached.length === 0 ||

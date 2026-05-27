@@ -131,7 +131,7 @@ Page({
             wx.hideLoading()
             wx.showToast({ title: '已清除', icon: 'success' })
             setTimeout(() => {
-              wx.switchTab({ url: '/pages/home/home/home' })
+              wx.switchTab({ url: '/pages/home/home' })
             }, 1500)
           }).catch(err => {
             wx.hideLoading()
