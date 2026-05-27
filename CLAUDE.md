@@ -211,6 +211,7 @@ fitness_coach_agent/
 - 测试用 `unittest` + `unittest.mock`，mock LLM 用 `@patch('app.llm_manager.LLMManager.get_llm')`
 - 测试文件顶部需要 `sys.path.insert(0, ...)` 确保导入正确
 - 改动后跑验证：`python -m pytest backend/tests/ -v`
+- **复用优先**：新增功能前先搜索项目中是否已有实现。已有函数能完成需求时直接调用，不要另起新名字的 wrapper 或重复实现。如需扩展已有函数，修改原函数而非新建
 
 ## 分支策略
 
