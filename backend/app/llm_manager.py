@@ -80,7 +80,7 @@ class LLMManager:
                 temperature=temperature,
                 request_timeout=60,
                 max_retries=2,
-                model_kwargs={"thinking": {"type": "disabled"}},
+                extra_body={"thinking": {"type": "disabled"}},
                 callbacks=[APILogCallback()]
             )
         return cls._instances[temperature]
