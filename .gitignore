@@ -72,6 +72,8 @@ backend/static/guide/
 *.sqlite3
 db.sqlite3
 /data/
+*.db
 fitness_coach.db
+fitagent.db
 chroma_db/
 checkpoints.db
