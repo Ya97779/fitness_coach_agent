@@ -2,7 +2,7 @@
 
 ## 现象
 
-小程序 chat 页面，AI 流式输出完成后，显示的是纯文本而非渲染后的 markdown。需要切换到别的页面再回来才能渲染成功。
+小程序 chat 页面，AI 流式输出完成后，显示的是纯文本而非渲染后的 markdown。需要切换到别的页面再回来才能渲染成功。有时还伴随页面跳动。
 
 ## 根因分析
 
@@ -26,62 +26,74 @@
 
 切换页面再回来时，`loadMessagesFromCache` 重新 `setData`，此时 mp-html 已存在，`content` 值变化触发 observer，所以能渲染。
 
----
+### 页面跳动问题
 
-## 已尝试的修复方案（全部失败）
-
-### 方案 1：attached 生命周期直接调用 setContent
-
-```javascript
-attached: function() {
-  if (this.data.content) this.setContent(this.data.content)
-}
-```
-
-**结果：失败。** 组件 attached 时 `this.data.content` 可能还未从外部设置。
-
-### 方案 2：attached + setTimeout(0) + properties 检查
-
-```javascript
-attached: function() {
-  var self = this;
-  setTimeout(function() {
-    var c = self.properties.content || self.data.content;
-    if (c) self.setContent(c);
-  }, 0)
-}
-```
-
-**结果：失败。** 原因未知，可能 setTimeout(0) 时 properties 仍未设置完成。
-
-### 方案 3：用 hidden 替代 wx:if
-
-```html
-<mp-html wx:if="{{item.role !== 'user'}}" hidden="{{item._streaming || !item.html}}" content="{{item.html}}" />
-```
-
-思路：组件始终存在（只要 role !== 'user'），用 CSS hidden 控制显隐。content 从空变有值时 observer 触发。
-
-**结果：失败。** mp-html 完全不渲染，连"切页面回来"都不行了。hidden 属性可能干扰了 mp-html 组件的内部渲染机制。
+`sendMessage` 设置 `scrollToId` 滚动到 AI 消息位置，但 `finishAiMessage` 的 `setData` 没有清除 `scrollToId`，导致 `scroll-into-view` 重新触发滚动。
 
 ---
 
-## 待验证的假设
+## 修复方案
 
-1. ~~observer 不触发初始值~~ — 已确认是根因，但 attached 兜底方案未能解决
-2. mp-html 组件的 `setContent` 方法可能在组件 hidden 或刚创建时无法正确工作
-3. 需要确认 `parseMarkdown` 返回的 HTML 是否正确传到了 mp-html 的 content 属性
-4. 可能需要从 finishAiMessage 中用 `this.selectComponent` 直接调用组件方法
+### 最终方案：selectComponent 手动调用 setContent
 
-## 下一步排查方向
+分两步 setData，绕开 observer 问题：
 
-1. 在 finishAiMessage 中加 `console.log` 确认 `html` 值是否正确
-2. 用小程序开发者工具的调试器检查 mp-html 组件实例的 data/properties
-3. 尝试用 `this.selectComponent('#mp-xxx')` 手动调用 `setContent`
-4. 考虑换用 `rich-text` 组件替代 mp-html（功能少但更可靠）
+```javascript
+finishAiMessage(msgId) {
+  // 第一步：关闭 streaming，清除 scrollToId，html 设为空
+  const step1 = this.data.messages.map(m => {
+    if (m.id === msgId) {
+      return { ...m, loading: false, _streaming: false, html: '' }
+    }
+    return m
+  })
+  this.setData({ messages: step1, sending: false, scrollToId: '' })
+
+  // 第二步：mp-html 创建后，手动调用 setContent
+  wx.nextTick(() => {
+    const comp = this.selectComponent(`#mp-${msgId}`)
+    if (comp && htmlContent) {
+      comp.setContent(htmlContent)
+    }
+    // 同步更新 data 中的 html（用于缓存）
+    const step2 = this.data.messages.map(m => {
+      if (m.id === msgId) return { ...m, html: htmlContent }
+      return m
+    })
+    this.setData({ messages: step2 })
+    this.saveMessagesToCache()
+  })
+}
+```
+
+**原理**：
+1. 第一步 `html=''` + `_streaming=false` → `wx:if` 条件中 `!item.html` 为 true → 条件不满足 → text 显示
+2. 第二步 `nextTick` 后 `html` 有值 → 条件满足 → mp-html 创建
+3. `selectComponent` 直接获取组件实例调用 `setContent`，不依赖 observer
+
+**同样的方案应用于**：
+- `loadMessagesFromCache` — 从缓存恢复消息时
+- `syncMessagesFromServer` — 从服务端同步消息时
+
+---
+
+## 已尝试的失败方案（供参考）
+
+| 方案 | 思路 | 结果 |
+|------|------|------|
+| attached 直接调用 setContent | 组件挂载时检查 content 并初始化 | 失败：attached 时 content 可能未设置 |
+| attached + setTimeout(0) | 延迟检查 properties.content | 失败：原因未知 |
+| hidden 替代 wx:if | 组件始终存在，CSS 控制显隐 | 失败：mp-html 完全不渲染 |
+
+## 关键教训
+
+1. **微信小程序 property observer 不触发初始值** — `wx:if` 动态创建的组件，必须用 `selectComponent` 手动初始化
+2. **scroll-into-view 会重复触发** — 修改消息内容的 `setData` 如果不清除 `scrollToId`，会导致页面跳动
+3. **分两步 setData** — 第一步创建组件，第二步设置内容，避免组件创建时 content 初始值不触发 observer
+4. **流式渲染要分阶段** — 流式中用纯文本，完成后一次性解析 markdown
 
 ## 涉及文件
 
-- `miniprogram/components/mp-html/index.js` — 组件定义，attached 生命周期
+- `miniprogram/components/mp-html/index.js` — 组件定义
 - `miniprogram/pages/chat/chat.wxml:18` — mp-html 的 wx:if 条件
-- `miniprogram/pages/chat/chat.js:187` — finishAiMessage
+- `miniprogram/pages/chat/chat.js` — finishAiMessage、loadMessagesFromCache、syncMessagesFromServer
