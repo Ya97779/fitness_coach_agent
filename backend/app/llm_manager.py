@@ -78,8 +78,9 @@ class LLMManager:
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE"),
                 temperature=temperature,
-                request_timeout=30,
+                request_timeout=60,
                 max_retries=2,
+                model_kwargs={"thinking": {"type": "disabled"}},
                 callbacks=[APILogCallback()]
             )
         return cls._instances[temperature]
