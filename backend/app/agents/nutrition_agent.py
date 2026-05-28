@@ -485,7 +485,8 @@ def nutrition_with_user(
                 chunk_count = 0
                 total_content = ""
                 print(f"[nutrition_agent] 开始 LLM 流式调用, messages={len(chat_history)}", flush=True)
-                for chunk in llm.stream(chat_history):
+                llm_with_tools = llm.bind_tools(nutrition_tools)
+                for chunk in llm_with_tools.stream(chat_history):
                     if chunk.content:
                         chunk_count += 1
                         total_content += chunk.content

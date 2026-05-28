@@ -38,7 +38,7 @@ def _extract_exercise_info(user_message: str) -> tuple:
         (exercise_name, duration_minutes)
     """
     # 尝试提取时长
-    duration = 30  # 默认30分钟
+    duration = 20  # 默认20分钟
     m = re.search(r'(\d+)\s*分钟', user_message)
     if m:
         duration = int(m.group(1))
@@ -352,7 +352,8 @@ def fitness_with_user(
                 chunk_count = 0
                 total_content = ""
                 print(f"[fitness_agent] 开始 LLM 流式调用, messages={len(chat_history)}", flush=True)
-                for chunk in llm.stream(chat_history):
+                llm_with_tools = llm.bind_tools(fitness_tools)
+                for chunk in llm_with_tools.stream(chat_history):
                     if chunk.content:
                         chunk_count += 1
                         total_content += chunk.content
