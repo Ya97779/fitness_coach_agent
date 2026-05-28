@@ -126,40 +126,40 @@
 }
 
 /* mp-html markdown 样式 */
-.bubble-ai mp-html {
+.bubble-ai rich-text {
   font-size: 22rpx;
   line-height: 1.8;
   color: #333;
 }
 
-.bubble-ai mp-html h1,
-.bubble-ai mp-html h2,
-.bubble-ai mp-html h3 {
+.bubble-ai rich-text h1,
+.bubble-ai rich-text h2,
+.bubble-ai rich-text h3 {
   font-weight: 700;
   color: var(--text-primary);
   margin: 24rpx 0 12rpx;
   line-height: 1.4;
 }
 
-.bubble-ai mp-html h1 { font-size: 34rpx; }
-.bubble-ai mp-html h2 { font-size: 30rpx; }
-.bubble-ai mp-html h3 { font-size: 28rpx; }
+.bubble-ai rich-text h1 { font-size: 34rpx; }
+.bubble-ai rich-text h2 { font-size: 30rpx; }
+.bubble-ai rich-text h3 { font-size: 28rpx; }
 
-.bubble-ai mp-html p {
+.bubble-ai rich-text p {
   margin: 12rpx 0;
 }
 
-.bubble-ai mp-html ul,
-.bubble-ai mp-html ol {
+.bubble-ai rich-text ul,
+.bubble-ai rich-text ol {
   padding-left: 32rpx;
   margin: 12rpx 0;
 }
 
-.bubble-ai mp-html li {
+.bubble-ai rich-text li {
   margin: 8rpx 0;
 }
 
-.bubble-ai mp-html code {
+.bubble-ai rich-text code {
   font-family: monospace;
   font-size: 24rpx;
   background: rgba(0, 0, 0, 0.06);
@@ -167,7 +167,7 @@
   border-radius: 4rpx;
 }
 
-.bubble-ai mp-html pre {
+.bubble-ai rich-text pre {
   background: rgba(0, 0, 0, 0.06);
   padding: 16rpx;
   border-radius: 8rpx;
@@ -175,42 +175,42 @@
   margin: 12rpx 0;
 }
 
-.bubble-ai mp-html pre code {
+.bubble-ai rich-text pre code {
   background: none;
   padding: 0;
 }
 
-.bubble-ai mp-html blockquote {
+.bubble-ai rich-text blockquote {
   border-left: 6rpx solid var(--accent);
   padding-left: 16rpx;
   margin: 12rpx 0;
   color: var(--text-secondary);
 }
 
-.bubble-ai mp-html table {
+.bubble-ai rich-text table {
   border-collapse: collapse;
   margin: 16rpx 0;
   width: 100%;
 }
 
-.bubble-ai mp-html th,
-.bubble-ai mp-html td {
+.bubble-ai rich-text th,
+.bubble-ai rich-text td {
   border: 1rpx solid var(--border);
   padding: 10rpx 14rpx;
   text-align: left;
   font-size: 24rpx;
 }
 
-.bubble-ai mp-html th {
+.bubble-ai rich-text th {
   background: rgba(0, 0, 0, 0.04);
   font-weight: 600;
 }
 
-.bubble-ai mp-html strong {
+.bubble-ai rich-text strong {
   font-weight: 700;
 }
 
-.bubble-ai mp-html em {
+.bubble-ai rich-text em {
   font-style: italic;
 }
 
