@@ -31,6 +31,14 @@ if not logger.handlers:
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
     logger.addHandler(_handler)
+
+# LLM API 调用日志
+_llm_logger = logging.getLogger("llm_api")
+_llm_logger.setLevel(logging.DEBUG)
+if not _llm_logger.handlers:
+    _llm_handler = logging.StreamHandler()
+    _llm_handler.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
+    _llm_logger.addHandler(_llm_handler)
 from dotenv import load_dotenv
 
 load_dotenv()
