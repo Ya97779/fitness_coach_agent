@@ -362,7 +362,18 @@ def fitness_with_user(
                         yield chunk.content
                 print(f"[fitness_agent] LLM 流式完成: {chunk_count} chunks, 总长度={len(total_content)}", flush=True)
                 if chunk_count == 0:
-                    print(f"[fitness_agent] 警告: LLM 未返回任何内容!", flush=True)
+                    print(f"[fitness_agent] 流式返回空，尝试非流式兜底...", flush=True)
+                    try:
+                        fallback = llm_with_tools.invoke(chat_history)
+                        fb_content = fallback.content if hasattr(fallback, 'content') else str(fallback)
+                        print(f"[fitness_agent] 非流式兜底: 长度={len(fb_content)}, 前100字={fb_content[:100]}", flush=True)
+                        if fb_content:
+                            yield fb_content
+                        else:
+                            yield "抱歉，AI 未能生成回复，请重试。"
+                    except Exception as fb_err:
+                        print(f"[fitness_agent] 非流式兜底也失败: {fb_err}", flush=True)
+                        yield "抱歉，AI 服务暂时不可用，请稍后重试。"
             else:
                 final_response = llm.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
