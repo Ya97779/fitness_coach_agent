@@ -185,40 +185,19 @@ Page({
   },
 
   finishAiMessage(msgId) {
-    // 流式完成后分两步渲染 markdown：
-    // 1. 关闭 _streaming，让 mp-html 组件通过 wx:if 创建
-    // 2. nextTick 后用 selectComponent 手动调用 setContent 渲染
-    const target = this.data.messages.find(m => m.id === msgId)
-    const isError = target && target._isStatus && !target._hasRealContent
-    const htmlContent = isError
-      ? '<p>抱歉，AI 未能生成回复，请重试。</p>'
-      : parseMarkdown(target ? target.content : '')
-
-    // 第一步：关闭 streaming，让 mp-html 创建
-    const step1 = this.data.messages.map(m => {
+    // 流式完成后一次性解析 markdown 并渲染
+    const messages = this.data.messages.map(m => {
       if (m.id === msgId) {
-        return { ...m, loading: false, _streaming: false, _isStatus: false, html: '' }
+        // 如果最后仍是 status 消息（LLM 没返回真实内容），显示错误提示
+        if (m._isStatus && !m._hasRealContent) {
+          return { ...m, loading: false, _streaming: false, content: '抱歉，AI 未能生成回复，请重试。', html: '<p>抱歉，AI 未能生成回复，请重试。</p>' }
+        }
+        return { ...m, loading: false, _streaming: false, _isStatus: false, html: parseMarkdown(m.content) }
       }
       return m
     })
-    this.setData({ messages: step1, sending: false })
-
-    // 第二步：mp-html 创建后，手动调用 setContent
-    wx.nextTick(() => {
-      const comp = this.selectComponent(`#mp-${msgId}`)
-      if (comp && htmlContent) {
-        comp.setContent(htmlContent)
-      }
-      // 同步更新 data 中的 html（用于缓存和切换页面恢复）
-      const step2 = this.data.messages.map(m => {
-        if (m.id === msgId) {
-          return { ...m, html: htmlContent }
-        }
-        return m
-      })
-      this.setData({ messages: step2 })
-      this.saveMessagesToCache()
-    })
+    this.setData({ messages, sending: false })
+    this.saveMessagesToCache()
   },
 
   recordFromIntent() {
@@ -285,26 +264,11 @@ Page({
     if (cached && cached.length > 0) {
       const messages = cached.map(m => ({
         ...m,
-        html: '',  // 先不设置 html，让 mp-html 通过 wx:if 创建
+        html: m.role !== 'user' ? parseMarkdown(m.content) : '',
         timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : '',
         _streaming: false
       }))
       this.setData({ messages })
-      // mp-html 创建后手动调用 setContent 渲染
-      wx.nextTick(() => {
-        const updated = this.data.messages.map(m => {
-          if (m.role !== 'user' && m.content) {
-            const comp = this.selectComponent(`#mp-${m.id}`)
-            if (comp) {
-              const html = parseMarkdown(m.content)
-              comp.setContent(html)
-              return { ...m, html }
-            }
-          }
-          return m
-        })
-        this.setData({ messages: updated })
-      })
       return true
     }
     return false
@@ -334,31 +298,13 @@ Page({
             content: m.content,
             agent_type: m.agent_type,
             timestamp: m.timestamp,
-            html: '',  // 先不设置，等 mp-html 创建后手动 setContent
+            html: role !== 'user' ? parseMarkdown(m.content) : '',
             timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : '',
             _streaming: false
           }
         })
         this.setData({ messages: formatted })
-        // mp-html 创建后手动调用 setContent
-        wx.nextTick(() => {
-          const updated = this.data.messages.map(m => {
-            if (m.role !== 'user' && m.content) {
-              const comp = this.selectComponent(`#mp-${m.id}`)
-              if (comp) {
-                const html = parseMarkdown(m.content)
-                comp.setContent(html)
-                return { ...m, html }
-              }
-            }
-            return m
-          })
-          this.setData({ messages: updated })
-          wx.setStorageSync('chat_messages', updated.map(m => ({
-            id: m.id, role: m.role, content: m.content,
-            agent_type: m.agent_type || '', timestamp: m.timestamp || Date.now()
-          })))
-        })
+        wx.setStorageSync('chat_messages', formatted)
       }
     }).catch(() => {})
   },
