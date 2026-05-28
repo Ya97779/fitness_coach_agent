@@ -354,7 +354,12 @@ def fitness_with_user(
                 print(f"[fitness_agent] 开始 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 llm_with_tools = llm.bind_tools(fitness_tools)
                 for chunk in llm_with_tools.stream(chat_history):
-                    if chunk.content:
+                    # 记录 chunk 完整信息用于调试
+                    has_content = bool(chunk.content)
+                    has_tool_calls = bool(getattr(chunk, 'tool_calls', None))
+                    if chunk_count < 3:
+                        print(f"[fitness_agent] chunk[{chunk_count}]: content={has_content}({len(chunk.content) if chunk.content else 0}), tool_calls={has_tool_calls}, type={type(chunk).__name__}", flush=True)
+                    if has_content:
                         chunk_count += 1
                         total_content += chunk.content
                         if chunk_count == 1:
@@ -366,7 +371,8 @@ def fitness_with_user(
                     try:
                         fallback = llm_with_tools.invoke(chat_history)
                         fb_content = fallback.content if hasattr(fallback, 'content') else str(fallback)
-                        print(f"[fitness_agent] 非流式兜底: 长度={len(fb_content)}, 前100字={fb_content[:100]}", flush=True)
+                        fb_tool_calls = getattr(fallback, 'tool_calls', None)
+                        print(f"[fitness_agent] 非流式兜底: 长度={len(fb_content)}, tool_calls={bool(fb_tool_calls)}, 前100字={fb_content[:100]}", flush=True)
                         if fb_content:
                             yield fb_content
                         else:
