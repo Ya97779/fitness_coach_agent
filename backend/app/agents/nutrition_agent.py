@@ -505,7 +505,7 @@ def nutrition_with_user(
                                 print(f"[nutrition_agent] LLM 首个 chunk: {chunk.content[:100]}", flush=True)
                             yield chunk.content
 
-                    print(f"[nutrition_agent] 流式完成: {chunk_count} chunks, 总长度={len(total_content)}", flush=True)
+                    print(f"[nutrition_agent] 流式完成: total_chunks={raw_idx}, content_chunks={chunk_count}, 总长度={len(total_content)}", flush=True)
 
                     # 有内容就结束
                     if chunk_count > 0:
@@ -532,10 +532,10 @@ def nutrition_with_user(
                             chat_history.append({"role": "tool", "content": tc_result, "tool_call_id": tc['id']})
                         continue
 
-                    # 既没内容也没 tool_calls，非流式兜底
+                    # 既没内容也没 tool_calls，非流式兜底（不用 bind_tools 避免兼容问题）
                     print(f"[nutrition_agent] 流式返回空，尝试非流式兜底...", flush=True)
                     try:
-                        fallback = llm_with_tools.invoke(chat_history)
+                        fallback = llm.invoke(chat_history)
                         fb_content = fallback.content if hasattr(fallback, 'content') else str(fallback)
                         print(f"[nutrition_agent] 非流式兜底: 长度={len(fb_content)}, 前100字={fb_content[:100]}", flush=True)
                         if fb_content:
