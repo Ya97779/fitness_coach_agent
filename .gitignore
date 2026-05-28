@@ -57,10 +57,8 @@ venv.bak/
 .Trae/
 .DS_Store
 Thumbs.db
-miniprogram/project.config.json
 miniprogram/project.private.config.json
 miniprogram/images/guide/
-skills-lock.json
 
 # =========================
 # 静态资源（大文件，需单独部署）

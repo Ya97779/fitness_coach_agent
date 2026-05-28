@@ -2,34 +2,35 @@
 
 ## 现象
 
-小程序 chat 页面，AI 流式输出完成后，显示的是纯文本而非渲染后的 markdown。切换到其他页面再切回来才正常渲染。
+小程序 chat 页面，AI 流式输出完成后，显示的是纯文本而非渲染后的 markdown。需要切换到别的页面再回来才能渲染成功。
 
-## 根因
+## 根因分析
 
-两层问题叠加：
+### 背景：流式渲染分两阶段
 
-### 1. 流式过程中不解析 markdown（设计如此）
+1. **流式中**：`updateAiMessage` 设置 `_streaming: true`，只更新纯文本 `content`，不解析 markdown（避免高频 setData 卡顿）
+2. **流式完成**：`finishAiMessage` 设置 `_streaming: false` + `html: parseMarkdown(content)`，切到 mp-html 渲染
 
-`updateAiMessage` 在流式过程中只更新纯文本，设置 `_streaming: true`，此时 WXML 走 `text` 分支：
+### WXML 条件
 
 ```html
 <mp-html wx:if="{{item.role !== 'user' && !item._streaming && item.html}}" content="{{item.html}}" />
 <text wx:elif="{{item.role !== 'user'}}">{{item.content}}</text>
 ```
 
-这是正确的——高频 setData 中解析 markdown 会卡顿。
+流式完成时 `_streaming=false` + `html` 有值 → 条件满足 → mp-html 组件通过 `wx:if` 创建。
 
-### 2. 流式完成后 mp-html 不渲染（bug）
+### 核心问题：property observer 不触发初始值
 
-`finishAiMessage` 同时设置 `_streaming: false` 和 `html: parseMarkdown(content)`，WXML 条件满足，`mp-html` 组件通过 `wx:if` 创建。
+微信小程序的 property `observer` **只在值变化时触发，初始值不触发**。当 `wx:if` 从 false 变 true 时组件新创建，`content` 的初始值不会调用 `observer`，所以 `setContent()` 不执行，组件不渲染。
 
-**但微信小程序的 property observer 只在值变化时触发，初始值不触发。** 当 `wx:if` 从 false 变 true 时，组件新创建，`content` 的初始值不会调用 `observer`，所以 `setContent()` 不执行，组件不渲染。
+切换页面再回来时，`loadMessagesFromCache` 重新 `setData`，此时 mp-html 已存在，`content` 值变化触发 observer，所以能渲染。
 
-切换页面再回来时，`onShow` → `loadMessagesFromCache` 重新 `setData`，此时 `mp-html` 已存在，`content` 值变化触发 observer，所以能渲染。
+---
 
-## 修复
+## 已尝试的修复方案（全部失败）
 
-在 `miniprogram/components/mp-html/index.js` 添加 `attached` 生命周期：
+### 方案 1：attached 生命周期直接调用 setContent
 
 ```javascript
 attached: function() {
@@ -37,16 +38,50 @@ attached: function() {
 }
 ```
 
-组件挂载时主动检查 content 并初始化，不依赖 observer。
+**结果：失败。** 组件 attached 时 `this.data.content` 可能还未从外部设置。
 
-## 关键教训
+### 方案 2：attached + setTimeout(0) + properties 检查
 
-1. **微信小程序 property observer 不触发初始值**——通过 `wx:if` 动态创建的组件，需要用 `attached` 生命周期兜底初始化
-2. **"切页面回来才正常"是典型的组件生命周期问题**——说明数据没问题，但组件没有响应数据变化
-3. **流式渲染要分阶段**——流式中用纯文本（避免高频 setData 卡顿），完成后一次性解析 markdown 并切到 mp-html
+```javascript
+attached: function() {
+  var self = this;
+  setTimeout(function() {
+    var c = self.properties.content || self.data.content;
+    if (c) self.setContent(c);
+  }, 0)
+}
+```
+
+**结果：失败。** 原因未知，可能 setTimeout(0) 时 properties 仍未设置完成。
+
+### 方案 3：用 hidden 替代 wx:if
+
+```html
+<mp-html wx:if="{{item.role !== 'user'}}" hidden="{{item._streaming || !item.html}}" content="{{item.html}}" />
+```
+
+思路：组件始终存在（只要 role !== 'user'），用 CSS hidden 控制显隐。content 从空变有值时 observer 触发。
+
+**结果：失败。** mp-html 完全不渲染，连"切页面回来"都不行了。hidden 属性可能干扰了 mp-html 组件的内部渲染机制。
+
+---
+
+## 待验证的假设
+
+1. ~~observer 不触发初始值~~ — 已确认是根因，但 attached 兜底方案未能解决
+2. mp-html 组件的 `setContent` 方法可能在组件 hidden 或刚创建时无法正确工作
+3. 需要确认 `parseMarkdown` 返回的 HTML 是否正确传到了 mp-html 的 content 属性
+4. 可能需要从 finishAiMessage 中用 `this.selectComponent` 直接调用组件方法
+
+## 下一步排查方向
+
+1. 在 finishAiMessage 中加 `console.log` 确认 `html` 值是否正确
+2. 用小程序开发者工具的调试器检查 mp-html 组件实例的 data/properties
+3. 尝试用 `this.selectComponent('#mp-xxx')` 手动调用 `setContent`
+4. 考虑换用 `rich-text` 组件替代 mp-html（功能少但更可靠）
 
 ## 涉及文件
 
-- `miniprogram/components/mp-html/index.js` — 添加 attached 生命周期
-- `miniprogram/pages/chat/chat.wxml:18` — mp-html 的 wx:if 条件（未修改）
-- `miniprogram/pages/chat/chat.js:187` — finishAiMessage（未修改）
+- `miniprogram/components/mp-html/index.js` — 组件定义，attached 生命周期
+- `miniprogram/pages/chat/chat.wxml:18` — mp-html 的 wx:if 条件
+- `miniprogram/pages/chat/chat.js:187` — finishAiMessage

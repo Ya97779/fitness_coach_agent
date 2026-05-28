@@ -482,78 +482,14 @@ def nutrition_with_user(
 
         try:
             if stream:
-                llm_with_tools = llm.bind_tools(nutrition_tools)
-                # 流式调用可能返回 tool_calls（模型想再次调用工具），需要循环处理
-                for _retry in range(3):
-                    chunk_count = 0
-                    total_content = ""
-                    accumulated = None  # 拼接 AIMessageChunk 用于提取 tool_calls
-                    print(f"[nutrition_agent] 流式调用第{_retry+1}轮, messages={len(chat_history)}", flush=True)
-                    raw_idx = 0
-                    for chunk in llm_with_tools.stream(chat_history):
-                        has_content = bool(chunk.content)
-                        has_tool_calls = bool(getattr(chunk, 'tool_calls', None))
-                        if raw_idx < 3 or (has_tool_calls and raw_idx < 10):
-                            print(f"[nutrition_agent] chunk[{raw_idx}]: content={has_content}({len(chunk.content) if chunk.content else 0}), tool_calls={has_tool_calls}", flush=True)
-                        raw_idx += 1
-                        # 拼接 chunk 用于后续提取 tool_calls
-                        accumulated = chunk if accumulated is None else accumulated + chunk
-                        if has_content:
-                            chunk_count += 1
-                            total_content += chunk.content
-                            if chunk_count == 1:
-                                print(f"[nutrition_agent] LLM 首个 chunk: {chunk.content[:100]}", flush=True)
-                            yield chunk.content
-
-                    print(f"[nutrition_agent] 流式完成: total_chunks={raw_idx}, content_chunks={chunk_count}, 总长度={len(total_content)}", flush=True)
-
-                    # 有内容就结束
-                    if chunk_count > 0:
-                        break
-
-                    # 没有内容但有 tool_calls，执行工具后重试
-                    if accumulated and getattr(accumulated, 'tool_calls', None):
-                        print(f"[nutrition_agent] 流式返回 tool_calls，执行工具后重试...", flush=True)
-                        for tc in accumulated.tool_calls:
-                            tc_name = tc['name']
-                            tc_args = tc['args']
-                            print(f"[nutrition_agent] 工具调用: {tc_name}({tc_args})", flush=True)
-                            for t in nutrition_tools:
-                                if t.name == tc_name:
-                                    try:
-                                        tc_result = t.invoke(tc_args)
-                                        print(f"[nutrition_agent] 工具结果: {tc_name} → {tc_result}", flush=True)
-                                    except Exception as te:
-                                        tc_result = f"工具执行错误: {te}"
-                                    break
-                            else:
-                                tc_result = f"未知工具: {tc_name}"
-                            chat_history.append(accumulated)
-                            chat_history.append({"role": "tool", "content": tc_result, "tool_call_id": tc['id']})
-                        continue
-
-                    # 既没内容也没 tool_calls，非流式兜底（不用 bind_tools 避免兼容问题）
-                    print(f"[nutrition_agent] 流式返回空，尝试非流式兜底...", flush=True)
-                    try:
-                        fallback = llm.invoke(chat_history)
-                        fb_content = fallback.content if hasattr(fallback, 'content') else str(fallback)
-                        print(f"[nutrition_agent] 非流式兜底: 长度={len(fb_content)}, 前100字={fb_content[:100]}", flush=True)
-                        if fb_content:
-                            yield fb_content
-                        else:
-                            yield "抱歉，AI 未能生成回复，请重试。"
-                    except Exception as fb_err:
-                        print(f"[nutrition_agent] 非流式兜底也失败: {fb_err}", flush=True)
-                        yield "抱歉，AI 服务暂时不可用，请稍后重试。"
-                    break
+                for chunk in llm.stream(chat_history):
+                    if chunk.content:
+                        yield chunk.content
             else:
                 final_response = llm.invoke(chat_history)
-                content = final_response.content if hasattr(final_response, 'content') else str(final_response)
-                print(f"[nutrition_agent] LLM 非流式返回: 长度={len(content)}, 前100字={content[:100]}", flush=True)
-                yield content
+                yield final_response.content if hasattr(final_response, 'content') else str(final_response)
         except Exception as e:
             error_msg = str(e)
-            print(f"[nutrition_agent] LLM 调用异常: {error_msg[:200]}", flush=True)
             if "1214" in error_msg or "messages" in error_msg.lower():
                 yield f"抱歉，API调用出现问题，请检查API配置是否正确。错误信息: {error_msg[:200]}"
             else:
