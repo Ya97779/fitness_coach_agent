@@ -353,12 +353,14 @@ def fitness_with_user(
                 total_content = ""
                 print(f"[fitness_agent] 开始 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 llm_with_tools = llm.bind_tools(fitness_tools)
+                raw_idx = 0
                 for chunk in llm_with_tools.stream(chat_history):
                     # 记录 chunk 完整信息用于调试
                     has_content = bool(chunk.content)
                     has_tool_calls = bool(getattr(chunk, 'tool_calls', None))
-                    if chunk_count < 3:
-                        print(f"[fitness_agent] chunk[{chunk_count}]: content={has_content}({len(chunk.content) if chunk.content else 0}), tool_calls={has_tool_calls}, type={type(chunk).__name__}", flush=True)
+                    if raw_idx < 3 or (not has_content and raw_idx % 30 == 0):
+                        print(f"[fitness_agent] chunk[{raw_idx}]: content={has_content}({len(chunk.content) if chunk.content else 0}), tool_calls={has_tool_calls}", flush=True)
+                    raw_idx += 1
                     if has_content:
                         chunk_count += 1
                         total_content += chunk.content

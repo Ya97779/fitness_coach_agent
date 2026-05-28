@@ -18,28 +18,28 @@ class APILogCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """LLM 调用完成时记录 token 使用情况"""
-        if response.llm_outputs:
-            token_usage = response.llm_outputs.get("token_usage", {})
-            if token_usage:
-                logger.info(
-                    f"[API] token_usage: prompt={token_usage.get('prompt_tokens', 0)}, "
-                    f"completion={token_usage.get('completion_tokens', 0)}, "
-                    f"total={token_usage.get('total_tokens', 0)}"
-                )
-            # 检查是否有 finish_reason
-            generations = response.generations
-            if generations and generations[0]:
-                gen = generations[0][0]
-                finish_reason = getattr(gen, "finish_reason", None) or getattr(gen.generation_info, "finish_reason", None) if hasattr(gen, "generation_info") and gen.generation_info else None
-                if finish_reason:
-                    logger.info(f"[API] finish_reason: {finish_reason}")
-                # 如果生成内容为空
-                if not gen.text and not getattr(gen, "message", None):
-                    logger.warning("[API] 警告: 响应内容为空!")
-                elif hasattr(gen, "message") and gen.message:
-                    msg = gen.message
-                    if not msg.content and not getattr(msg, "tool_calls", None):
-                        logger.warning("[API] 警告: message.content 和 tool_calls 都为空!")
+        output = response.llm_output or {}
+        token_usage = output.get("token_usage", {})
+        if token_usage:
+            logger.info(
+                f"[API] token_usage: prompt={token_usage.get('prompt_tokens', 0)}, "
+                f"completion={token_usage.get('completion_tokens', 0)}, "
+                f"total={token_usage.get('total_tokens', 0)}"
+            )
+        # 检查 finish_reason
+        finish_reason = output.get("finish_reason")
+        if finish_reason:
+            logger.info(f"[API] finish_reason: {finish_reason}")
+        # 检查生成内容
+        generations = response.generations
+        if generations and generations[0]:
+            gen = generations[0][0]
+            if not gen.text and not getattr(gen, "message", None):
+                logger.warning("[API] 警告: 响应内容为空!")
+            elif hasattr(gen, "message") and gen.message:
+                msg = gen.message
+                if not msg.content and not getattr(msg, "tool_calls", None):
+                    logger.warning("[API] 警告: message.content 和 tool_calls 都为空!")
 
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """LLM 调用出错时记录"""
