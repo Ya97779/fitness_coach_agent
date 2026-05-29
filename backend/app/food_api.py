@@ -36,9 +36,22 @@ def _select_best_match(food_list: list, query: str) -> dict:
         clean_name = item['name'].split('[')[0].strip()
         if clean_name == query or item['name'] == query:
             return item
-    # 2. 包含匹配（query 在 name 中，选最短的 = 最精确的）
+    # 2. 包含匹配（query 在 name 中）
     candidates = [i for i in food_list if query in i['name']]
     if candidates:
+        # 优先选"均值"类结果（如"鸡蛋(均值)"），代表食物的通用营养数据
+        avg_candidates = [i for i in candidates if '均值' in i['name']]
+        if avg_candidates:
+            return avg_candidates[0]
+        # 再排除子部分（蛋白/蛋黄/粉等），只保留完整食物
+        # 通过检查去括号后名称是否仍以 query 开头且无多余后缀
+        exact_suffix_candidates = [
+            i for i in candidates
+            if i['name'].split('(')[0].split('[')[0].strip() == query
+        ]
+        if exact_suffix_candidates:
+            return exact_suffix_candidates[0]
+        # 兜底：最短名称
         return min(candidates, key=lambda x: len(x['name']))
     # 3. 兜底取第一条
     return food_list[0]
