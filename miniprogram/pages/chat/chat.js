@@ -44,13 +44,16 @@ Page({
     // 加载本地缓存
     this.loadMessagesFromCache()
 
-    // 后台同步最新数据
-    if (isLoggedIn()) {
+    // 后台同步最新数据（流式刚完成时跳过，避免服务端旧数据覆盖缓存新消息）
+    const app = getApp()
+    if (isLoggedIn() && !app.globalData.chatStream.justFinished) {
       this.syncMessagesFromServer()
+    }
+    if (app.globalData.chatStream.justFinished) {
+      app.globalData.chatStream.justFinished = false
     }
 
     // 检查是否有进行中的流式请求
-    const app = getApp()
     if (app.globalData.chatStream.active) {
       this.restoreChatStream()
     }
@@ -102,6 +105,7 @@ Page({
     // 保存到全局状态
     const app = getApp()
     app.globalData.chatStream.active = true
+    app.globalData.chatStream.justFinished = false
     app.globalData.chatStream.messages = messages
     app.globalData.chatStream.aiMsgId = aiMsg.id
     app.globalData.chatStream.pendingContent = ''
@@ -158,12 +162,14 @@ Page({
       () => {
         this.finishAiMessage(aiMsg.id)
         app.globalData.chatStream.active = false
+        app.globalData.chatStream.justFinished = true
         this.saveMessagesToCache()
       },
       (err) => {
         this.updateAiMessage(aiMsg.id, fullContent || '抱歉，发生了错误，请稍后重试。')
         this.finishAiMessage(aiMsg.id)
         app.globalData.chatStream.active = false
+        app.globalData.chatStream.justFinished = true
         this.saveMessagesToCache()
       }
     )
