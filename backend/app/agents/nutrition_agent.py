@@ -466,6 +466,31 @@ def nutrition_with_user(
         chat_history.append(response)
         chat_history.extend(tool_messages)
 
+        # 解析 LLM 回复中的文本工具调用（GLM-4.7 有时把工具调用输出为文本）
+        if want_record and "log_food_intake" not in called_tools:
+            _response_text = response.content if hasattr(response, 'content') else ''
+            import re
+            _match = re.search(r'log_food_intake\s*\(([^)]+)\)', _response_text)
+            if _match:
+                try:
+                    args_str = _match.group(1)
+                    args = {}
+                    for pair in re.findall(r'(\w+)\s*=\s*("([^"]+)"|\'([^\']+)\'|(\d+(?:\.\d+)?))', args_str):
+                        key = pair[0]
+                        val = pair[2] or pair[3] or pair[4]
+                        if val and val.replace('.', '').isdigit():
+                            args[key] = float(val)
+                        else:
+                            args[key] = val
+                    args.setdefault('user_id', user_id)
+                    if 'food_name' in args and 'calories' in args:
+                        result = log_food_intake.invoke(args)
+                        print(f"[nutrition_agent] 从文本解析并执行: log_food_intake → {result}")
+                        called_tools.add('log_food_intake')
+                        chat_history.append({"role": "tool", "content": result, "tool_call_id": "text_parse"})
+                except Exception as e:
+                    print(f"[nutrition_agent] 文本工具调用解析失败: {e}")
+
         # 兜底：用户要求记录但 LLM 没调用 log_food_intake
         if want_record and "log_food_intake" not in called_tools:
             food_items = _extract_food_names(user_message)
