@@ -86,18 +86,17 @@ def _extract_food_names(user_message: str) -> list:
 
 
 def _estimate_calories(food_name: str) -> int:
-    """估算食物热量（本地查找表）"""
+    """估算食物热量（本地查找表，兜底用）"""
     if food_name in _FOOD_CALORIE_ESTIMATES:
         return _FOOD_CALORIE_ESTIMATES[food_name]
-    # 模糊匹配
     for name, cal in _FOOD_CALORIE_ESTIMATES.items():
         if name in food_name or food_name in name:
             return cal
     return 300  # 默认估算
 
 
-def _lookup_food_cache(food_name: str) -> dict | None:
-    """从 FoodCalorieCache 表查找食物热量（按 name 匹配，返回含 source 的结果）"""
+def _get_food_nutrition(food_name: str) -> dict:
+    """获取食物每100g营养数据：DB 缓存 → 本地估算（不调外部 API）"""
     from .. import database, models
     db = database.SessionLocal()
     try:
@@ -105,14 +104,19 @@ def _lookup_food_cache(food_name: str) -> dict | None:
             models.FoodCalorieCache.name == food_name,
         ).first()
         if cached:
-            return {"calories": cached.calories, "source": cached.source or "unknown"}
-        return None
+            print(f"[nutrition_agent] DB 缓存命中: '{food_name}' → {cached.calories}kcal/100g")
+            return {"calories": cached.calories, "protein": 0, "fat": 0, "carbs": 0}
     finally:
         db.close()
 
+    # 本地估算兜底
+    return {
+        "calories": float(_estimate_calories(food_name)),
+        "protein": 0, "fat": 0, "carbs": 0,
+    }
 
-def _save_food_cache(food_name: str, calories: float, source: str = "api",
-                     portion_qty: float = None, portion_unit: str = None, weight_g: float = None):
+
+def _save_food_cache(food_name: str, calories: float):
     """写入/更新 FoodCalorieCache 表"""
     from .. import database, models
     db = database.SessionLocal()
@@ -122,22 +126,10 @@ def _save_food_cache(food_name: str, calories: float, source: str = "api",
         ).first()
         if existing:
             existing.calories = calories
-            existing.source = source
-            if portion_qty is not None:
-                existing.portion_qty = portion_qty
-            if portion_unit is not None:
-                existing.portion_unit = portion_unit
+            existing.source = "llm"
         else:
             db.add(models.FoodCalorieCache(
-                name=food_name, calories=calories, source=source,
-                portion_qty=portion_qty, portion_unit=portion_unit,
-            ))
-        if existing:
-            existing.calories = calories
-            existing.source = source
-        else:
-            db.add(models.FoodCalorieCache(
-                name=food_name, calories=calories, source=source
+                name=food_name, calories=calories, source="llm"
             ))
         db.commit()
     except Exception as e:
@@ -145,42 +137,6 @@ def _save_food_cache(food_name: str, calories: float, source: str = "api",
         print(f"[nutrition_agent] 缓存写入失败: {e}")
     finally:
         db.close()
-
-
-def _get_food_nutrition(food_name: str) -> dict:
-    """获取食物营养数据（每100g）：DB 缓存（API来源直接用，LLM来源验证）→ API → 本地估算"""
-    # 1. 查 DB 缓存
-    cached = _lookup_food_cache(food_name)
-    if cached:
-        # API 来源的缓存直接信任
-        if cached['source'] in ('api', 'api+标准份量'):
-            print(f"[nutrition_agent] DB 缓存命中(API): '{food_name}' → {cached['calories']}kcal/100g")
-            return {"calories": cached["calories"], "protein": 0, "fat": 0, "carbs": 0}
-        # LLM 来源的缓存需要验证：继续查 API
-        print(f"[nutrition_agent] DB 缓存(LLM来源): '{food_name}' → {cached['calories']}kcal, 验证中...")
-
-    # 2. 查 API
-    from ..food_api import search_food_nutrient
-    api_result = search_food_nutrient(food_name)
-    if api_result:
-        _save_food_cache(food_name, api_result['calories'], "api")
-        return {
-            "calories": float(api_result['calories']),
-            "protein": float(api_result.get('protein', 0)),
-            "fat": float(api_result.get('fat', 0)),
-            "carbs": float(api_result.get('carbs', 0)),
-        }
-
-    # 3. API 未找到，用 LLM 缓存（如果有）
-    if cached:
-        print(f"[nutrition_agent] API 未找到，使用 LLM 缓存: '{food_name}' → {cached['calories']}kcal")
-        return {"calories": cached["calories"], "protein": 0, "fat": 0, "carbs": 0}
-
-    # 4. 本地估算（不写 DB，不够准确）
-    return {
-        "calories": float(_estimate_calories(food_name)),
-        "protein": 0, "fat": 0, "carbs": 0,
-    }
 
 
 def _detect_meal_type(user_message: str) -> str:
@@ -227,18 +183,22 @@ def get_user_nutrition_info(user_id: int):
 
 
 @tool
-def log_food_intake(user_id: int, food_name: str, calories: float = 0, meal_type: str = "lunch", protein: float = 0, fat: float = 0, carbs: float = 0, weight_g: float = 0, calories_per_100g: float = 0):
-    """记录用户摄入的食物及其营养成分到数据库。
+def log_food_intake(user_id: int, food_name: str, calories_per_100g: float, weight_g: float, meal_type: str = "lunch"):
+    """记录用户摄入的食物到数据库，并缓存营养数据。
 
-    优先用 weight_g + calories_per_100g 计算热量（更准确），
-    否则直接用 calories 参数。
+    你需要估算：
+    - calories_per_100g: 该食物每100g的热量（如鸡蛋≈144）
+    - weight_g: 用户吃的份量重量（如1个鸡蛋≈50g）
 
-    meal_type 可选值: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)
+    工具会自动计算实际热量并缓存，下次同一食物直接命中缓存。
+
+    meal_type: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)
     """
-    # 优先用 weight_g + calories_per_100g 计算热量（更准确）
-    if weight_g > 0 and calories_per_100g > 0:
-        calories = round(calories_per_100g * weight_g / 100)
-        print(f"[nutrition_agent] 份量计算: {food_name} {weight_g}g × {calories_per_100g}kcal/100g = {calories}kcal")
+    calories = round(calories_per_100g * weight_g / 100)
+    print(f"[nutrition_agent] 份量计算: {food_name} {weight_g}g × {calories_per_100g}kcal/100g = {calories}kcal")
+
+    # 缓存每100g热量
+    _save_food_cache(food_name, calories_per_100g)
 
     db = database.SessionLocal()
     try:
@@ -291,43 +251,6 @@ def get_daily_nutrition_summary(user_id: int):
 
 
 @tool
-def search_food_nutrition(food_name: str):
-    """搜索食物营养信息（每100g的热量），用于后续计算。
-
-    优先查 DB 缓存（API来源直接用，LLM来源验证后用），未命中调外部 API。
-
-    Args:
-        food_name: 食物名称
-
-    Returns:
-        str: 营养检索结果，包含每100g热量
-    """
-    # 1. 查 DB 缓存
-    cached = _lookup_food_cache(food_name)
-    if cached:
-        # API 来源直接信任
-        if cached['source'] in ('api', 'api+标准份量'):
-            print(f"[nutrition_agent] DB 缓存命中(API): '{food_name}' → {cached['calories']}kcal/100g")
-            return f"【缓存检索】{food_name}: 每100g热量 {cached['calories']} kcal"
-        # LLM 来源：继续查 API 验证
-        print(f"[nutrition_agent] DB 缓存(LLM来源): '{food_name}' → {cached['calories']}kcal, 验证中...")
-
-    # 2. 查 API
-    from ..food_api import search_food_nutrient
-    result = search_food_nutrient(food_name)
-
-    if result:
-        _save_food_cache(food_name, result['calories'], "api")
-        return f"【API检索】{food_name}: 每100g热量 {result['calories']} kcal, 蛋白质 {result['protein']}g, 脂肪 {result['fat']}g, 碳水 {result['carbs']}g"
-
-    # 3. API 未找到，用 LLM 缓存（如果有）
-    if cached:
-        return f"【缓存检索】{food_name}: 每100g热量 {cached['calories']} kcal（来源：历史估算）"
-
-    return f"【API检索】未找到 {food_name} 的营养信息。请根据营养知识估算该食物每100g的热量。"
-
-
-@tool
 def search_nutrition_knowledge(query: str):
     """搜索营养与饮食专业知识（仅检索，不生成回答）
 
@@ -372,7 +295,6 @@ nutrition_tools = [
     get_user_nutrition_info,
     log_food_intake,
     get_daily_nutrition_summary,
-    search_food_nutrition,
     search_nutrition_knowledge
 ]
 
@@ -459,13 +381,12 @@ def nutrition_with_user(
 
 ## 关键规则
 - 当前用户 ID = {user_id}，调用工具时必须传入
-- 用户要求记录饮食时，必须在同一轮中调用两个工具：先 search_food_nutrition 获取每100g热量，再 log_food_intake 记录
-- search_food_nutrition 返回的是每100g热量，不是每份热量！
-- 调用 log_food_intake 时，必须用 weight_g 和 calories_per_100g 参数，不要直接填 calories
-  - 你需要估算食物的重量（克）：如1个鸡蛋≈50g, 1个苹果≈200g, 1碗米饭≈200g
-  - 然后传入 weight_g=估算克数, calories_per_100g=搜索返回的每100g热量
-  - 工具会自动计算：热量 = calories_per_100g × weight_g / 100
-- search_food_nutrition 返回空时，根据营养知识估算每100g热量和重量
+- 用户要求记录饮食时，调用 log_food_intake，需要提供：
+  - food_name: 食物名称
+  - calories_per_100g: 你估算的每100g热量（如鸡蛋≈144, 米饭≈116, 鸡胸肉≈165）
+  - weight_g: 你估算的份量重量（如1个鸡蛋≈50g, 1碗米饭≈200g, 1个苹果≈200g）
+  - meal_type: breakfast/lunch/dinner/snack
+- 不要跳过估算直接填热量数字，必须分别给出每100g热量和重量
 - meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐→snack
 - 专业知识问题用 search_nutrition_knowledge 检索
 """
@@ -502,18 +423,17 @@ def nutrition_with_user(
                 recorded = []
                 for food_name, meal_type in food_items:
                     nutrition = _get_food_nutrition(food_name)
-                    print(f"[nutrition_agent] 兜底记录: {food_name}, {nutrition['calories']}kcal, {meal_type}")
+                    per_100g = nutrition['calories']
+                    print(f"[nutrition_agent] 兜底记录: {food_name}, {per_100g}kcal/100g, 默认100g, {meal_type}")
                     fallback_result = log_food_intake.invoke({
                         "user_id": user_id,
                         "food_name": food_name,
-                        "calories": nutrition['calories'],
+                        "calories_per_100g": per_100g,
+                        "weight_g": 100,
                         "meal_type": meal_type,
-                        "protein": nutrition['protein'],
-                        "fat": nutrition['fat'],
-                        "carbs": nutrition['carbs'],
                     })
                     print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                    recorded.append(f"{food_name} {nutrition['calories']:.0f}kcal({meal_type})")
+                    recorded.append(f"{food_name} {per_100g:.0f}kcal/100g×100g({meal_type})")
                 if content:
                     yield content
                     yield f"\n\n已自动记录：{', '.join(recorded)}"
@@ -557,37 +477,19 @@ def nutrition_with_user(
         if want_record and "log_food_intake" not in called_tools:
             food_items = _extract_food_names(user_message)
             recorded = []
-            # 尝试从已有 tool 结果中提取每100g热量
-            search_results = {}
-            for tm in tool_messages:
-                if isinstance(tm, dict) and 'content' in tm:
-                    content = tm['content']
-                    if '每100g热量' in content:
-                        import re
-                        m = re.search(r'(.+?):\s*每100g热量\s*(\d+(?:\.\d+)?)', content)
-                        if m:
-                            search_results[m.group(1).strip()] = float(m.group(2))
             for food_name, meal_type in food_items:
-                # 优先用已有的 tool 结果
-                if food_name in search_results:
-                    per_100g = search_results[food_name]
-                else:
-                    nutrition = _get_food_nutrition(food_name)
-                    per_100g = nutrition['calories']
-                # 兜底按 100g 记录（无法精确知道份量重量）
-                calories = per_100g
-                print(f"[nutrition_agent] 兜底记录: {food_name}, {nutrition['calories']}kcal, {meal_type}")
+                nutrition = _get_food_nutrition(food_name)
+                per_100g = nutrition['calories']
+                print(f"[nutrition_agent] 兜底记录: {food_name}, {per_100g}kcal/100g, 默认100g, {meal_type}")
                 fallback_result = log_food_intake.invoke({
                     "user_id": user_id,
                     "food_name": food_name,
-                    "calories": nutrition['calories'],
+                    "calories_per_100g": per_100g,
+                    "weight_g": 100,
                     "meal_type": meal_type,
-                    "protein": nutrition['protein'],
-                    "fat": nutrition['fat'],
-                    "carbs": nutrition['carbs'],
                 })
                 print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                recorded.append(f"{food_name} {nutrition['calories']:.0f}kcal({meal_type})")
+                recorded.append(f"{food_name} {per_100g:.0f}kcal/100g×100g({meal_type})")
             # 追加工具消息让 LLM 知道已记录
             chat_history.append({
                 "role": "tool",
