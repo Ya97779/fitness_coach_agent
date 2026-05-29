@@ -8,8 +8,7 @@ App({
       requestTask: null,
       messages: [],
       pendingContent: '',
-      aiMsgId: '',
-      justFinished: false
+      aiMsgId: ''
     },
     training: {
       active: false,
