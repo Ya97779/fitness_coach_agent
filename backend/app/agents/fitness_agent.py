@@ -351,19 +351,30 @@ def fitness_with_user(
             has_content = False
             llm_with_tools = llm.bind_tools(fitness_tools)
             if stream:
+                chunk_count = 0
+                print(f"[fitness_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 for chunk in llm_with_tools.stream(chat_history):
+                    chunk_count += 1
+                    # 检测工具调用
+                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                        print(f"[fitness_agent] 第二轮 LLM 返回 tool_calls: {chunk.tool_calls}", flush=True)
                     if chunk.content:
                         has_content = True
+                        if chunk_count == 1:
+                            print(f"[fitness_agent] 第二轮 LLM 首个 chunk: {chunk.content[:100]}", flush=True)
                         yield chunk.content
+                print(f"[fitness_agent] 第二轮 LLM 流式完成: {chunk_count} chunks, has_content={has_content}", flush=True)
             else:
                 final_response = llm_with_tools.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
+                print(f"[fitness_agent] 第二轮 LLM invoke 完成, content长度={len(content) if content else 0}", flush=True)
                 if content:
                     has_content = True
                     yield content
 
             # LLM 未生成内容时，从工具结果构造回复
             if not has_content:
+                print(f"[fitness_agent] LLM 未生成内容, tool_messages={len(tool_messages)}条", flush=True)
                 tool_summary = []
                 for tm in tool_messages:
                     c = tm.get('content', '') if isinstance(tm, dict) else ''
@@ -371,6 +382,7 @@ def fitness_with_user(
                         tool_summary.append(c)
                     elif c and '未找到' not in c and c != '未知工具':
                         tool_summary.append(c)
+                print(f"[fitness_agent] 工具摘要: {len(tool_summary)}条", flush=True)
                 if tool_summary:
                     yield '根据查询结果：\n' + '\n'.join(f'- {s}' for s in tool_summary)
                 else:
