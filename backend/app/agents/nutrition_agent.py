@@ -516,17 +516,44 @@ def nutrition_with_user(
 
         try:
             has_content = False
+            streamed_text = ''
             if stream:
                 for chunk in llm.stream(chat_history):
                     if chunk.content:
                         has_content = True
+                        streamed_text += chunk.content
                         yield chunk.content
             else:
                 final_response = llm.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
                 if content:
                     has_content = True
+                    streamed_text = content
                     yield content
+
+            # 检测流式输出中的文本工具调用（GLM-4.7 兼容）
+            if want_record and 'log_food_intake' in streamed_text and 'log_food_intake' not in called_tools:
+                import re
+                _match = re.search(r'log_food_intake\s*\(([^)]+)\)', streamed_text)
+                if _match:
+                    try:
+                        args_str = _match.group(1)
+                        args = {}
+                        for pair in re.findall(r'(\w+)\s*=\s*("([^"]+)"|\'([^\']+)\'|(\d+(?:\.\d+)?))', args_str):
+                            key = pair[0]
+                            val = pair[2] or pair[3] or pair[4]
+                            if val and val.replace('.', '').isdigit():
+                                args[key] = float(val)
+                            else:
+                                args[key] = val
+                        args.setdefault('user_id', user_id)
+                        if 'food_name' in args and 'calories' in args:
+                            result = log_food_intake.invoke(args)
+                            print(f"[nutrition_agent] 流式后解析执行: log_food_intake → {result}")
+                            # 补充记录结果到输出末尾
+                            yield f"\n\n✅ {result}"
+                    except Exception as e:
+                        print(f"[nutrition_agent] 流式后文本工具调用解析失败: {e}")
 
             # LLM 未生成内容时，从工具结果构造回复
             if not has_content:
