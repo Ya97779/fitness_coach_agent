@@ -49,16 +49,11 @@ Page({
       }).catch(() => {})
     }
 
+    // 加载缓存消息（缓存在流式过程中被持续更新，始终是最新的）
+    this.loadMessagesFromCache()
+
+    // 流式进行中：恢复实时内容
     const app = getApp()
-
-    // 优先使用 stream.messages（流式完成后的最新消息，不论 active 状态）
-    if (app.globalData.chatStream.messages.length > 0) {
-      this.setData({ messages: app.globalData.chatStream.messages })
-    } else {
-      this.loadMessagesFromCache()
-    }
-
-    // 流式进行中：继续恢复实时内容
     if (app.globalData.chatStream.active) {
       this.restoreChatStream()
     }
