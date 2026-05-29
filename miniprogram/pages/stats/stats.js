@@ -46,16 +46,18 @@ Page({
         } else {
           this.setData({ loading: false })
         }
+        this._pageReady = true
       })
       return
     }
     this.setData({ loggedIn: true })
     this._initData()
+    this._pageReady = true
   },
 
   onShow() {
-    // 从其他页面返回时，如果有缓存则后台同步
-    if (this.data.loggedIn) {
+    // 从其他页面返回时，如果有缓存则后台同步（跳过首次加载）
+    if (this.data.loggedIn && this._pageReady) {
       this._syncFromServer()
     }
   },
@@ -210,16 +212,19 @@ Page({
   // --- 记录列表 ---
   _filterDisplayLogs() {
     const { allLogs, displayCount } = this.data
-    const displayLogs = allLogs.slice(0, displayCount).map(log => ({
-      ...log,
-      weekday: WEEKDAYS[new Date(log.date).getDay()],
-      month: new Date(log.date).getMonth() + 1,
-      day: new Date(log.date).getDate(),
-      intakeCal: log.intake_calories || 0,
-      burnCal: log.burn_calories || 0,
-      foodByMeal: this._groupByMeal(log.food_items || []),
-      exerciseItems: log.exercise_items || []
-    }))
+    const displayLogs = allLogs.slice(0, displayCount).map(log => {
+      const d = new Date(log.date)
+      return {
+        ...log,
+        weekday: WEEKDAYS[d.getDay()],
+        month: d.getMonth() + 1,
+        day: d.getDate(),
+        intakeCal: log.intake_calories || 0,
+        burnCal: log.burn_calories || 0,
+        foodByMeal: this._groupByMeal(log.food_items || []),
+        exerciseItems: log.exercise_items || []
+      }
+    })
     this.setData({
       displayLogs,
       hasMore: allLogs.length > displayCount
@@ -307,29 +312,63 @@ Page({
           y: zeroY - (v / maxAbs) * (chartH / 2)
         }))
 
+        // Helper: 计算两点之间与零线的交点 x 坐标
+        const getZeroCrossingX = (p1, p2) => {
+          if (p1.y === p2.y) return p1.x
+          const t = (zeroY - p1.y) / (p2.y - p1.y)
+          return p1.x + t * (p2.x - p1.x)
+        }
+
+        // 构建带零线交点的路径
+        const buildFillPath = (isAbove) => {
+          const path = []
+          for (let i = 0; i < points.length; i++) {
+            const p = points[i]
+            const val = nets[i]
+            const isPositive = val >= 0
+
+            if (i > 0) {
+              const prev = points[i - 1]
+              const prevPositive = nets[i - 1] >= 0
+              // 跨越零线时插入交点
+              if (prevPositive !== isPositive) {
+                const crossX = getZeroCrossingX(prev, p)
+                path.push({ x: crossX, y: zeroY })
+              }
+            }
+
+            if (isAbove) {
+              path.push({ x: p.x, y: Math.min(p.y, zeroY) })
+            } else {
+              path.push({ x: p.x, y: Math.max(p.y, zeroY) })
+            }
+          }
+          return path
+        }
+
         // 盈余区域填充（零线上方）
-        ctx.setFillStyle('rgba(255, 107, 107, 0.15)')
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, zeroY)
-        points.forEach(p => {
-          const y = Math.min(p.y, zeroY)
-          ctx.lineTo(p.x, y)
-        })
-        ctx.lineTo(points[points.length - 1].x, zeroY)
-        ctx.closePath()
-        ctx.fill()
+        const surplusPath = buildFillPath(true)
+        if (surplusPath.length > 1) {
+          ctx.setFillStyle('rgba(255, 107, 107, 0.15)')
+          ctx.beginPath()
+          ctx.moveTo(surplusPath[0].x, zeroY)
+          surplusPath.forEach(p => ctx.lineTo(p.x, p.y))
+          ctx.lineTo(surplusPath[surplusPath.length - 1].x, zeroY)
+          ctx.closePath()
+          ctx.fill()
+        }
 
         // 缺口区域填充（零线下方）
-        ctx.setFillStyle('rgba(76, 175, 80, 0.15)')
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, zeroY)
-        points.forEach(p => {
-          const y = Math.max(p.y, zeroY)
-          ctx.lineTo(p.x, y)
-        })
-        ctx.lineTo(points[points.length - 1].x, zeroY)
-        ctx.closePath()
-        ctx.fill()
+        const deficitPath = buildFillPath(false)
+        if (deficitPath.length > 1) {
+          ctx.setFillStyle('rgba(76, 175, 80, 0.15)')
+          ctx.beginPath()
+          ctx.moveTo(deficitPath[0].x, zeroY)
+          deficitPath.forEach(p => ctx.lineTo(p.x, p.y))
+          ctx.lineTo(deficitPath[deficitPath.length - 1].x, zeroY)
+          ctx.closePath()
+          ctx.fill()
+        }
 
         // 绘制折线
         ctx.setStrokeStyle('#1a1a1a')
