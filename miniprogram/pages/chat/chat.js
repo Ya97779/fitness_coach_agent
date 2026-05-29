@@ -260,15 +260,18 @@ Page({
 
   // ========== 本地缓存 ==========
 
-  // 保存消息到本地缓存
+  // 保存消息到本地缓存（只保存已完成的消息，跳过正在流式的）
   saveMessagesToCache() {
-    const messages = this.data.messages.slice(-20).map(m => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      agent_type: m.agent_type || '',
-      timestamp: m.timestamp || Date.now()
-    }))
+    const messages = this.data.messages
+      .filter(m => m.role === 'user' || !m._streaming)
+      .slice(-20)
+      .map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        agent_type: m.agent_type || '',
+        timestamp: m.timestamp || Date.now()
+      }))
     wx.setStorageSync('chat_messages', messages)
   },
 
