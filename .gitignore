@@ -77,3 +77,4 @@ fitness_coach.db
 fitagent.db
 chroma_db/
 checkpoints.db
+backend/checkpoints.db
