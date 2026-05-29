@@ -517,21 +517,23 @@ def nutrition_with_user(
         try:
             has_content = False
             streamed_text = ''
+            # 第二轮也要绑定工具，否则 LLM 会把工具调用输出为文本
+            llm_with_tools = llm.bind_tools(nutrition_tools)
             if stream:
-                for chunk in llm.stream(chat_history):
+                for chunk in llm_with_tools.stream(chat_history):
                     if chunk.content:
                         has_content = True
                         streamed_text += chunk.content
                         yield chunk.content
             else:
-                final_response = llm.invoke(chat_history)
+                final_response = llm_with_tools.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
                 if content:
                     has_content = True
                     streamed_text = content
                     yield content
 
-            # 检测流式输出中的文本工具调用（GLM-4.7 兼容）
+            # 检测流式输出中的文本工具调用（GLM-4.7 兜底）
             if want_record and 'log_food_intake' in streamed_text and 'log_food_intake' not in called_tools:
                 import re
                 _match = re.search(r'log_food_intake\s*\(([^)]+)\)', streamed_text)

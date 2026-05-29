@@ -348,12 +348,13 @@ def fitness_with_user(
             })
 
         try:
+            llm_with_tools = llm.bind_tools(fitness_tools)
             if stream:
-                for chunk in llm.stream(chat_history):
+                for chunk in llm_with_tools.stream(chat_history):
                     if chunk.content:
                         yield chunk.content
             else:
-                final_response = llm.invoke(chat_history)
+                final_response = llm_with_tools.invoke(chat_history)
                 yield final_response.content if hasattr(final_response, 'content') else str(final_response)
         except Exception as e:
             error_msg = str(e)
