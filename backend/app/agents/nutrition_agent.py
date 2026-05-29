@@ -97,14 +97,12 @@ def _estimate_calories(food_name: str) -> int:
 
 
 def _lookup_food_cache(food_name: str) -> dict | None:
-    """从 FoodCalorieCache 表查找食物热量（精确匹配 name，无份量限制）"""
+    """从 FoodCalorieCache 表查找食物热量（按 name 匹配，取第一条）"""
     from .. import database, models
     db = database.SessionLocal()
     try:
         cached = db.query(models.FoodCalorieCache).filter(
             models.FoodCalorieCache.name == food_name,
-            models.FoodCalorieCache.portion_qty == None,
-            models.FoodCalorieCache.portion_unit == None,
         ).first()
         if cached:
             return {"calories": cached.calories, "source": "db_cache"}
@@ -423,6 +421,7 @@ def nutrition_with_user(
 ## 关键规则
 - 当前用户 ID = {user_id}，调用工具时必须传入
 - 用户要求记录饮食时，必须在同一轮中调用两个工具：先 search_food_nutrition 获取热量，再 log_food_intake 记录。两个工具缺一不可，必须在同一轮 tool_calls 中返回
+- log_food_intake 的 calories 参数必须使用 search_food_nutrition 返回的热量值，不要用自己的知识估算
 - search_food_nutrition 返回空时，根据营养知识估算热量后调用 log_food_intake 记录
 - meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐→snack
 - 专业知识问题用 search_nutrition_knowledge 检索
@@ -552,13 +551,33 @@ def nutrition_with_user(
             })
 
         try:
+            has_content = False
             if stream:
                 for chunk in llm.stream(chat_history):
                     if chunk.content:
+                        has_content = True
                         yield chunk.content
             else:
                 final_response = llm.invoke(chat_history)
-                yield final_response.content if hasattr(final_response, 'content') else str(final_response)
+                content = final_response.content if hasattr(final_response, 'content') else str(final_response)
+                if content:
+                    has_content = True
+                    yield content
+
+            # LLM 未生成内容时，从工具结果构造回复
+            if not has_content:
+                tool_summary = []
+                for tm in tool_messages:
+                    c = tm.get('content', '') if isinstance(tm, dict) else ''
+                    if c and '已记录' in c:
+                        tool_summary.append(c)
+                    elif c and '热量' in c:
+                        tool_summary.append(c)
+                if tool_summary:
+                    yield '；'.join(tool_summary) + '。'
+                else:
+                    yield '已处理您的请求。'
+
         except Exception as e:
             error_msg = str(e)
             if "1214" in error_msg or "messages" in error_msg.lower():
