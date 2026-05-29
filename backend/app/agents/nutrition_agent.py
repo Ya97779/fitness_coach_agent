@@ -117,7 +117,7 @@ def _get_food_nutrition(food_name: str) -> dict:
 
 
 def _save_food_cache(food_name: str, calories: float):
-    """写入/更新 FoodCalorieCache 表"""
+    """写入/更新 FoodCalorieCache 表（按 name 去重）"""
     from .. import database, models
     db = database.SessionLocal()
     try:
@@ -132,6 +132,7 @@ def _save_food_cache(food_name: str, calories: float):
                 name=food_name, calories=calories, source="llm"
             ))
         db.commit()
+        print(f"[nutrition_agent] 缓存已更新: '{food_name}' → {calories}kcal")
     except Exception as e:
         db.rollback()
         print(f"[nutrition_agent] 缓存写入失败: {e}")
@@ -183,22 +184,16 @@ def get_user_nutrition_info(user_id: int):
 
 
 @tool
-def log_food_intake(user_id: int, food_name: str, calories_per_100g: float, weight_g: float, meal_type: str = "lunch"):
-    """记录用户摄入的食物到数据库，并缓存营养数据。
+def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: str = "lunch"):
+    """记录用户摄入的食物到数据库，并缓存热量数据。
 
-    你需要估算：
-    - calories_per_100g: 该食物每100g的热量（如鸡蛋≈144）
-    - weight_g: 用户吃的份量重量（如1个鸡蛋≈50g）
-
-    工具会自动计算实际热量并缓存，下次同一食物直接命中缓存。
+    calories 为该份食物的总热量（如1个鸡蛋≈72kcal, 1碗兰州拉面≈550kcal）。
+    工具会自动缓存，下次同一食物直接命中。
 
     meal_type: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)
     """
-    calories = round(calories_per_100g * weight_g / 100)
-    print(f"[nutrition_agent] 份量计算: {food_name} {weight_g}g × {calories_per_100g}kcal/100g = {calories}kcal")
-
-    # 缓存每100g热量
-    _save_food_cache(food_name, calories_per_100g)
+    # 缓存热量
+    _save_food_cache(food_name, calories)
 
     db = database.SessionLocal()
     try:
@@ -381,12 +376,11 @@ def nutrition_with_user(
 
 ## 关键规则
 - 当前用户 ID = {user_id}，调用工具时必须传入
-- 用户要求记录饮食时，调用 log_food_intake，需要提供：
-  - food_name: 食物名称
-  - calories_per_100g: 你估算的每100g热量（如鸡蛋≈144, 米饭≈116, 鸡胸肉≈165）
-  - weight_g: 你估算的份量重量（如1个鸡蛋≈50g, 1碗米饭≈200g, 1个苹果≈200g）
+- 用户要求记录饮食时，调用 log_food_intake，提供：
+  - food_name: 食物名称（如"鸡蛋"、"兰州拉面"）
+  - calories: 该份食物的总热量（如1个鸡蛋≈72, 1碗兰州拉面≈550）
   - meal_type: breakfast/lunch/dinner/snack
-- 不要跳过估算直接填热量数字，必须分别给出每100g热量和重量
+- 根据用户描述的份量直接估算总热量，不需要拆分每100g和重量
 - meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐→snack
 - 专业知识问题用 search_nutrition_knowledge 检索
 """
@@ -423,17 +417,16 @@ def nutrition_with_user(
                 recorded = []
                 for food_name, meal_type in food_items:
                     nutrition = _get_food_nutrition(food_name)
-                    per_100g = nutrition['calories']
-                    print(f"[nutrition_agent] 兜底记录: {food_name}, {per_100g}kcal/100g, 默认100g, {meal_type}")
+                    cal = nutrition['calories']
+                    print(f"[nutrition_agent] 兜底记录: {food_name}, {cal}kcal, {meal_type}")
                     fallback_result = log_food_intake.invoke({
                         "user_id": user_id,
                         "food_name": food_name,
-                        "calories_per_100g": per_100g,
-                        "weight_g": 100,
+                        "calories": cal,
                         "meal_type": meal_type,
                     })
                     print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                    recorded.append(f"{food_name} {per_100g:.0f}kcal/100g×100g({meal_type})")
+                    recorded.append(f"{food_name} {cal:.0f}kcal({meal_type})")
                 if content:
                     yield content
                     yield f"\n\n已自动记录：{', '.join(recorded)}"
@@ -479,17 +472,16 @@ def nutrition_with_user(
             recorded = []
             for food_name, meal_type in food_items:
                 nutrition = _get_food_nutrition(food_name)
-                per_100g = nutrition['calories']
-                print(f"[nutrition_agent] 兜底记录: {food_name}, {per_100g}kcal/100g, 默认100g, {meal_type}")
+                cal = nutrition['calories']
+                print(f"[nutrition_agent] 兜底记录: {food_name}, {cal}kcal, {meal_type}")
                 fallback_result = log_food_intake.invoke({
                     "user_id": user_id,
                     "food_name": food_name,
-                    "calories_per_100g": per_100g,
-                    "weight_g": 100,
+                    "calories": cal,
                     "meal_type": meal_type,
                 })
                 print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
-                recorded.append(f"{food_name} {per_100g:.0f}kcal/100g×100g({meal_type})")
+                recorded.append(f"{food_name} {cal:.0f}kcal({meal_type})")
             # 追加工具消息让 LLM 知道已记录
             chat_history.append({
                 "role": "tool",
