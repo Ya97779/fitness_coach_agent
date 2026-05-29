@@ -355,6 +355,10 @@ def fitness_with_user(
                 print(f"[fitness_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 for chunk in llm_with_tools.stream(chat_history):
                     chunk_count += 1
+                    # 首个 chunk 打印所有属性
+                    if chunk_count <= 3:
+                        attrs = {k: str(v)[:100] for k, v in vars(chunk).items() if not k.startswith('_')}
+                        print(f"[fitness_agent] chunk[{chunk_count}] 属性: {attrs}", flush=True)
                     # 检测工具调用
                     if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
                         print(f"[fitness_agent] 第二轮 LLM 返回 tool_calls: {chunk.tool_calls}", flush=True)
