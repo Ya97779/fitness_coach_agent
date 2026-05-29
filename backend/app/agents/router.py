@@ -89,7 +89,11 @@ def _keyword_match(text: str) -> str:
     elif fitness_score >= 2 and nutrition_score == 0:
         return "fitness"
     elif nutrition_score >= 1 and fitness_score >= 1:
-        return "mixed"
+        # 两边都有关键词，选分数高的；相等时优先营养
+        if nutrition_score >= fitness_score:
+            return "nutrition"
+        else:
+            return "fitness"
     elif nutrition_score >= 1:
         return "nutrition"
     elif fitness_score >= 1:
