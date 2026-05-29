@@ -640,6 +640,15 @@ def update_food_log(
                             _log = _db.query(models.DailyLog).get(_it.log_id)
                             if _log:
                                 _log.intake_calories = (_log.intake_calories or 0) - _old + est
+                            # 保存到食物热量缓存
+                            cache = models.FoodCalorieCache(
+                                name=new_name,
+                                portion_qty=new_qty,
+                                portion_unit=new_unit,
+                                calories=est,
+                                source="llm",
+                            )
+                            _db.add(cache)
                             _db.commit()
                     finally:
                         _db.close()
