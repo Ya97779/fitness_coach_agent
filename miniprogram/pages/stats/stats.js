@@ -259,11 +259,28 @@ Page({
   // --- 图表 ---
   _prepareChartData() {
     const { chartRange } = this.data
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - chartRange)
-    const chartLogs = this.data.allLogs
-      .filter(l => new Date(l.date) >= cutoff)
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // 构建日期→log 的映射
+    const logMap = {}
+    this.data.allLogs.forEach(l => {
+      logMap[l.date] = l
+    })
+
+    // 补全每一天，没有记录的填 0
+    const chartLogs = []
+    for (let i = chartRange - 1; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      const dateStr = this._formatDate(d)
+      const log = logMap[dateStr]
+      chartLogs.push({
+        date: dateStr,
+        intake_calories: log ? (log.intake_calories || 0) : 0,
+        burn_calories: log ? (log.burn_calories || 0) : 0
+      })
+    }
     this.setData({ chartLogs })
   },
 
@@ -283,33 +300,53 @@ Page({
       if (!res || !res[0]) return
       const { width, height } = res[0]
       const ctx = wx.createCanvasContext('netCalorieChart', this)
-      const padding = { top: 30, right: 20, bottom: 40, left: 20 }
+      const padding = { top: 40, right: 20, bottom: 40, left: 60 }
       const chartW = width - padding.left - padding.right
       const chartH = height - padding.top - padding.bottom
 
       // 计算净热量
       const nets = chartLogs.map(l => (l.intake_calories || 0) - (l.burn_calories || 0))
-      const maxAbs = Math.max(Math.abs(Math.min(...nets)), Math.abs(Math.max(...nets)), 100)
+      const minVal = Math.min(...nets, 0)
+      const maxVal = Math.max(...nets, 0)
+
+      // 自动计算纵轴范围和间距
+      const range = maxVal - minVal || 200
+      const rawStep = range / 4
+      // 取整到"好看"的步长（10/20/50/100/200/500 的倍数）
+      const niceSteps = [10, 20, 50, 100, 200, 500, 1000]
+      let step = niceSteps.find(s => s >= rawStep) || Math.ceil(rawStep / 100) * 100
+      const yMin = Math.floor(minVal / step) * step
+      const yMax = Math.ceil(maxVal / step) * step
+      const yRange = yMax - yMin || step
 
       // 零线 Y 坐标
-      const zeroY = padding.top + chartH / 2
+      const zeroY = padding.top + chartH * (1 - (0 - yMin) / yRange)
 
-      // 绘制零线虚线
-      ctx.setStrokeStyle('#e0e0e0')
-      ctx.setLineWidth(1)
-      ctx.setLineDash([4, 4])
-      ctx.beginPath()
-      ctx.moveTo(padding.left, zeroY)
-      ctx.lineTo(width - padding.right, zeroY)
-      ctx.stroke()
-      ctx.setLineDash([])
+      // 绘制网格线和 Y 轴标签
+      ctx.setTextAlign('right')
+      for (let v = yMin; v <= yMax; v += step) {
+        const y = padding.top + chartH * (1 - (v - yMin) / yRange)
+        ctx.setStrokeStyle(v === 0 ? '#bbb' : '#f0f0f0')
+        ctx.setLineWidth(v === 0 ? 1 : 0.5)
+        ctx.setLineDash(v === 0 ? [4, 4] : [])
+        ctx.beginPath()
+        ctx.moveTo(padding.left, y)
+        ctx.lineTo(width - padding.right, y)
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        // Y 轴数值标签
+        ctx.setFillStyle('#999')
+        ctx.setFontSize(18)
+        ctx.fillText(v, padding.left - 8, y + 5)
+      }
 
       // 绘制区域填充 + 折线
       if (chartLogs.length >= 2) {
         // 计算各点坐标
         const points = nets.map((v, i) => ({
           x: padding.left + chartW * i / (chartLogs.length - 1),
-          y: zeroY - (v / maxAbs) * (chartH / 2)
+          y: padding.top + chartH * (1 - (v - yMin) / yRange)
         }))
 
         // Helper: 计算两点之间与零线的交点 x 坐标
@@ -382,8 +419,8 @@ Page({
         })
         ctx.stroke()
 
-        // 数据点
-        points.forEach(p => {
+        // 数据点 + 数值标签
+        points.forEach((p, i) => {
           ctx.setFillStyle('#ffffff')
           ctx.beginPath()
           ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI)
@@ -391,6 +428,16 @@ Page({
           ctx.setStrokeStyle('#1a1a1a')
           ctx.setLineWidth(2)
           ctx.stroke()
+
+          // 数值标签（30天模式跳过 0 值，避免拥挤）
+          const val = nets[i]
+          if (chartLogs.length <= 7 || val !== 0) {
+            ctx.setFillStyle('#333')
+            ctx.setFontSize(chartLogs.length > 7 ? 14 : 16)
+            ctx.setTextAlign('center')
+            const labelY = val >= 0 ? p.y - 12 : p.y + 20
+            ctx.fillText(val, p.x, labelY)
+          }
         })
       }
 
