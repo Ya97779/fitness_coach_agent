@@ -31,6 +31,49 @@ def _detect_exercise_record_intent(user_message: str) -> bool:
     return False
 
 
+def _execute_tool_calls(tool_calls: list, tools: list) -> list:
+    """执行工具调用列表，返回 tool message 列表
+
+    Args:
+        tool_calls: 工具调用列表（来自 LLM 的 tool_calls 或 tool_call_chunks）
+        tools: 可用工具列表
+
+    Returns:
+        list: tool message 字典列表
+    """
+    results = []
+    for tool_call in tool_calls:
+        tool_name = tool_call.get('name', '')
+        tool_args = tool_call.get('args', {})
+        tool_id = tool_call.get('id', 'unknown')
+
+        if not tool_name:
+            continue
+
+        print(f"[fitness_agent] 执行工具: {tool_name}({tool_args})")
+
+        tool_result = None
+        for t in tools:
+            if t.name == tool_name:
+                try:
+                    tool_result = t.invoke(tool_args)
+                    print(f"[fitness_agent] 工具结果: {tool_name} → {tool_result}")
+                except Exception as e:
+                    tool_result = f"工具执行错误: {e}"
+                    print(f"[fitness_agent] 工具异常: {tool_name} → {e}")
+                break
+
+        if tool_result is None:
+            tool_result = f"未知工具: {tool_name}"
+
+        results.append({
+            "role": "tool",
+            "content": tool_result,
+            "tool_call_id": tool_id
+        })
+    return results
+
+
 def _extract_exercise_info(user_message: str) -> tuple:
     """从用户消息中提取运动名称和时长
 
@@ -152,17 +195,36 @@ def search_fitness_knowledge(query: str):
         str: RAG 检索结果（未找到时返回提示信息）
     """
     rag = get_rag()
-    results = rag.search(query, top_k=3, mode="hybrid")
+    results = rag.search(query, top_k=5, mode="hybrid")
 
     print(f"[RAG] 健身知识检索: query='{query}', results={len(results)}")
 
     if not results:
         return f"【RAG检索】未在知识库中找到相关信息"
 
-    content = results[0].get("content", "")
-    if content:
-        return f"【RAG检索】\n{content}"
-    return f"【RAG检索】未在知识库中找到相关信息"
+    # 过滤垃圾内容和太短的结果
+    spam_patterns = ["加微信", "免费获得", "大礼包", "微信号", "扫码", "关注公众号"]
+    valid_results = []
+    for r in results:
+        content = r.get("content", "").strip()
+        if not content or len(content) < 20:
+            continue
+        if any(spam in content for spam in spam_patterns):
+            print(f"[RAG] 过滤垃圾内容: {content[:50]}...")
+            continue
+        valid_results.append(content)
+
+    if not valid_results:
+        return f"【RAG检索】未在知识库中找到相关信息"
+
+    # 返回前 3 条有效结果
+    content_parts = []
+    for i, c in enumerate(valid_results[:3]):
+        if len(c) > 500:
+            c = c[:500] + "..."
+        content_parts.append(f"[来源{i+1}] {c}")
+
+    return f"【RAG检索】\n" + "\n\n".join(content_parts)
 
 
 fitness_tools = [
@@ -352,26 +414,61 @@ def fitness_with_user(
             llm_with_tools = llm.bind_tools(fitness_tools)
             if stream:
                 chunk_count = 0
+                accumulated_tool_calls = []
                 print(f"[fitness_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 for chunk in llm_with_tools.stream(chat_history):
                     chunk_count += 1
-                    # 首个 chunk 打印所有属性
-                    if chunk_count <= 3:
-                        attrs = {k: str(v)[:100] for k, v in vars(chunk).items() if not k.startswith('_')}
-                        print(f"[fitness_agent] chunk[{chunk_count}] 属性: {attrs}", flush=True)
-                    # 检测工具调用
+                    # 详细日志前 5 个 chunk
+                    if chunk_count <= 5:
+                        tc = getattr(chunk, 'tool_call_chunks', None)
+                        tcs = getattr(chunk, 'tool_calls', None)
+                        print(f"[fitness_agent] chunk[{chunk_count}]: content='{chunk.content[:50] if chunk.content else ''}', tool_calls={tcs}, tool_call_chunks={tc}", flush=True)
+                    # 收集 tool_call_chunks（流式工具调用）
+                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
+                        for tc in chunk.tool_call_chunks:
+                            accumulated_tool_calls.append(tc)
+                            print(f"[fitness_agent] 收集 tool_call_chunk: {tc}", flush=True)
+                    # 收集完整 tool_calls
                     if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                        print(f"[fitness_agent] 第二轮 LLM 返回 tool_calls: {chunk.tool_calls}", flush=True)
+                        for tc in chunk.tool_calls:
+                            accumulated_tool_calls.append(tc)
+                            print(f"[fitness_agent] 收集 tool_call: {tc}", flush=True)
                     if chunk.content:
                         has_content = True
-                        if chunk_count == 1:
-                            print(f"[fitness_agent] 第二轮 LLM 首个 chunk: {chunk.content[:100]}", flush=True)
                         yield chunk.content
-                print(f"[fitness_agent] 第二轮 LLM 流式完成: {chunk_count} chunks, has_content={has_content}", flush=True)
+                print(f"[fitness_agent] 第二轮 LLM 流式完成: {chunk_count} chunks, has_content={has_content}, tool_calls={len(accumulated_tool_calls)}", flush=True)
+
+                # 第二轮返回了 tool_calls → 执行后第三轮调用
+                if accumulated_tool_calls and not has_content:
+                    print(f"[fitness_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    _extra_tool_msgs = _execute_tool_calls(accumulated_tool_calls, fitness_tools)
+                    tool_messages.extend(_extra_tool_msgs)
+                    chat_history.extend(_extra_tool_msgs)
+
+                    # 第三轮 LLM 调用
+                    print(f"[fitness_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
+                    for chunk in llm_with_tools.stream(chat_history):
+                        if chunk.content:
+                            has_content = True
+                            yield chunk.content
+                    print(f"[fitness_agent] 第三轮 LLM 流式完成, has_content={has_content}", flush=True)
             else:
                 final_response = llm_with_tools.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
                 print(f"[fitness_agent] 第二轮 LLM invoke 完成, content长度={len(content) if content else 0}", flush=True)
+
+                # 第二轮返回了 tool_calls → 执行后第三轮调用
+                if (not content) and hasattr(final_response, 'tool_calls') and final_response.tool_calls:
+                    print(f"[fitness_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    chat_history.append(final_response)
+                    _extra_tool_msgs = _execute_tool_calls(final_response.tool_calls, fitness_tools)
+                    tool_messages.extend(_extra_tool_msgs)
+                    chat_history.extend(_extra_tool_msgs)
+
+                    final_response2 = llm_with_tools.invoke(chat_history)
+                    content = final_response2.content if hasattr(final_response2, 'content') else str(final_response2)
+                    print(f"[fitness_agent] 第三轮 LLM invoke 完成, content长度={len(content) if content else 0}", flush=True)
+
                 if content:
                     has_content = True
                     yield content
@@ -382,15 +479,24 @@ def fitness_with_user(
                 tool_summary = []
                 for tm in tool_messages:
                     c = tm.get('content', '') if isinstance(tm, dict) else ''
-                    if c and '已记录' in c:
+                    if not c or '工具执行错误' in c or '未知工具' in c:
+                        continue
+                    # 记录类结果直接包含
+                    if '已记录' in c:
                         tool_summary.append(c)
-                    elif c and '未找到' not in c and c != '未知工具':
+                    # RAG 检索结果包含有效内容时（非空、非广告）
+                    elif '【RAG检索】' in c:
+                        rag_content = c.replace('【RAG检索】\n', '').replace('【RAG检索】', '').strip()
+                        if rag_content and '未在知识库中找到' not in rag_content and len(rag_content) > 20:
+                            tool_summary.append(f"知识库参考: {rag_content[:300]}")
+                    # 其他有效结果
+                    elif len(c) > 5 and '未找到' not in c:
                         tool_summary.append(c)
                 print(f"[fitness_agent] 工具摘要: {len(tool_summary)}条", flush=True)
                 if tool_summary:
                     yield '根据查询结果：\n' + '\n'.join(f'- {s}' for s in tool_summary)
                 else:
-                    yield '已处理您的请求。'
+                    yield '抱歉，暂时无法生成该训练计划。请稍后再试，或尝试更具体的问题。'
 
         except Exception as e:
             error_msg = str(e)

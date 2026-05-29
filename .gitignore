@@ -78,3 +78,4 @@ fitagent.db
 chroma_db/
 checkpoints.db
 backend/checkpoints.db
+knowledge_base/

@@ -48,6 +48,41 @@ def _detect_food_record_intent(user_message: str) -> bool:
     return False
 
 
+def _execute_tool_calls(tool_calls: list, tools: list) -> list:
+    """执行工具调用列表，返回 tool message 列表"""
+    results = []
+    for tool_call in tool_calls:
+        tool_name = tool_call.get('name', '')
+        tool_args = tool_call.get('args', {})
+        tool_id = tool_call.get('id', 'unknown')
+
+        if not tool_name:
+            continue
+
+        print(f"[nutrition_agent] 执行工具: {tool_name}({tool_args})")
+
+        tool_result = None
+        for t in tools:
+            if t.name == tool_name:
+                try:
+                    tool_result = t.invoke(tool_args)
+                    print(f"[nutrition_agent] 工具结果: {tool_name} → {tool_result}")
+                except Exception as e:
+                    tool_result = f"工具执行错误: {e}"
+                    print(f"[nutrition_agent] 工具异常: {tool_name} → {e}")
+                break
+
+        if tool_result is None:
+            tool_result = f"未知工具: {tool_name}"
+
+        results.append({
+            "role": "tool",
+            "content": tool_result,
+            "tool_call_id": tool_id
+        })
+    return results
+
+
 def _extract_food_names(user_message: str) -> list:
     """从用户消息中提取食物名称（支持多种食物）
 
@@ -266,20 +301,28 @@ def search_nutrition_knowledge(query: str):
         str: RAG 检索结果（未找到时返回提示信息）
     """
     rag = get_rag()
-    results = rag.search(query, top_k=3, mode="hybrid")
+    results = rag.search(query, top_k=5, mode="hybrid")
 
     print(f"[RAG] 营养知识检索: query='{query}', results={len(results)}")
 
     if not results:
         return f"【RAG检索】未在知识库中找到相关信息"
 
+    # 过滤垃圾内容和太短的结果
+    spam_patterns = ["加微信", "免费获得", "大礼包", "微信号", "扫码", "关注公众号"]
     content_parts = []
-    for i, r in enumerate(results[:3]):
-        c = r.get("content", "")
-        if c:
-            if len(c) > 500:
-                c = c[:500] + "..."
-            content_parts.append(f"[来源{i+1}] {c}")
+    for i, r in enumerate(results[:5]):
+        c = r.get("content", "").strip()
+        if not c or len(c) < 20:
+            continue
+        if any(spam in c for spam in spam_patterns):
+            print(f"[RAG] 过滤垃圾内容: {c[:50]}...")
+            continue
+        if len(c) > 500:
+            c = c[:500] + "..."
+        content_parts.append(f"[来源{i+1}] {c}")
+        if len(content_parts) >= 3:
+            break
 
     if content_parts:
         return f"【RAG检索】\n" + "\n\n".join(content_parts)
@@ -520,14 +563,58 @@ def nutrition_with_user(
             # 第二轮也要绑定工具，否则 LLM 会把工具调用输出为文本
             llm_with_tools = llm.bind_tools(nutrition_tools)
             if stream:
+                chunk_count = 0
+                accumulated_tool_calls = []
                 for chunk in llm_with_tools.stream(chat_history):
+                    chunk_count += 1
+                    if chunk_count <= 5:
+                        tc = getattr(chunk, 'tool_call_chunks', None)
+                        tcs = getattr(chunk, 'tool_calls', None)
+                        print(f"[nutrition_agent] chunk[{chunk_count}]: content='{chunk.content[:50] if chunk.content else ''}', tool_calls={tcs}, tool_call_chunks={tc}", flush=True)
+                    # 收集 tool_call_chunks
+                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
+                        for tc in chunk.tool_call_chunks:
+                            accumulated_tool_calls.append(tc)
+                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                        for tc in chunk.tool_calls:
+                            accumulated_tool_calls.append(tc)
                     if chunk.content:
                         has_content = True
                         streamed_text += chunk.content
                         yield chunk.content
+                print(f"[nutrition_agent] 第二轮流式完成: {chunk_count} chunks, has_content={has_content}, tool_calls={len(accumulated_tool_calls)}", flush=True)
+
+                # 第二轮返回了 tool_calls → 执行后第三轮调用
+                if accumulated_tool_calls and not has_content:
+                    print(f"[nutrition_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    _extra_tool_msgs = _execute_tool_calls(accumulated_tool_calls, nutrition_tools)
+                    tool_messages.extend(_extra_tool_msgs)
+                    chat_history.extend(_extra_tool_msgs)
+
+                    print(f"[nutrition_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
+                    for chunk in llm_with_tools.stream(chat_history):
+                        if chunk.content:
+                            has_content = True
+                            streamed_text += chunk.content
+                            yield chunk.content
+                    print(f"[nutrition_agent] 第三轮 LLM 流式完成, has_content={has_content}", flush=True)
             else:
                 final_response = llm_with_tools.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
+                print(f"[nutrition_agent] 第二轮 invoke 完成, content长度={len(content) if content else 0}", flush=True)
+
+                # 第二轮返回了 tool_calls → 执行后第三轮调用
+                if (not content) and hasattr(final_response, 'tool_calls') and final_response.tool_calls:
+                    print(f"[nutrition_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    chat_history.append(final_response)
+                    _extra_tool_msgs = _execute_tool_calls(final_response.tool_calls, nutrition_tools)
+                    tool_messages.extend(_extra_tool_msgs)
+                    chat_history.extend(_extra_tool_msgs)
+
+                    final_response2 = llm_with_tools.invoke(chat_history)
+                    content = final_response2.content if hasattr(final_response2, 'content') else str(final_response2)
+                    print(f"[nutrition_agent] 第三轮 invoke 完成, content长度={len(content) if content else 0}", flush=True)
+
                 if content:
                     has_content = True
                     streamed_text = content
@@ -559,17 +646,28 @@ def nutrition_with_user(
 
             # LLM 未生成内容时，从工具结果构造回复
             if not has_content:
+                print(f"[nutrition_agent] LLM 未生成内容, tool_messages={len(tool_messages)}条", flush=True)
                 tool_summary = []
                 for tm in tool_messages:
                     c = tm.get('content', '') if isinstance(tm, dict) else ''
-                    if c and '已记录' in c:
+                    if not c or '工具执行错误' in c or '未知工具' in c:
+                        continue
+                    # 记录类结果直接包含
+                    if '已记录' in c:
                         tool_summary.append(c)
-                    elif c and '热量' in c:
+                    # RAG 检索结果包含有效内容时
+                    elif '【RAG检索】' in c:
+                        rag_content = c.replace('【RAG检索】\n', '').replace('【RAG检索】', '').strip()
+                        if rag_content and '未在知识库中找到' not in rag_content and len(rag_content) > 20:
+                            tool_summary.append(f"知识库参考: {rag_content[:300]}")
+                    # 其他有效结果（热量查询等）
+                    elif len(c) > 5 and '未找到' not in c:
                         tool_summary.append(c)
+                print(f"[nutrition_agent] 工具摘要: {len(tool_summary)}条", flush=True)
                 if tool_summary:
                     yield '；'.join(tool_summary) + '。'
                 else:
-                    yield '已处理您的请求。'
+                    yield '抱歉，暂时无法处理该请求。请稍后再试。'
 
         except Exception as e:
             error_msg = str(e)
