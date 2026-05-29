@@ -446,12 +446,20 @@ Page({
       ctx.setFontSize(16)
       ctx.setTextAlign('center')
       const total = chartLogs.length
-      chartLogs.forEach((l, i) => {
-        // 近7天全部显示，近30天每隔5天显示（首尾始终显示）
-        if (total > 7 && i % 5 !== 0 && i !== total - 1) return
-        const x = padding.left + chartW * i / (total - 1 || 1)
-        ctx.fillText(l.date.slice(5), x, height - 8)
-      })
+      if (total <= 7) {
+        // 近7天全部显示
+        chartLogs.forEach((l, i) => {
+          const x = padding.left + chartW * i / (total - 1 || 1)
+          ctx.fillText(l.date.slice(5), x, height - 8)
+        })
+      } else {
+        // 近30天固定5个刻度：首日、1/4、中间、3/4、末日
+        const ticks = [0, Math.round(total * 0.25), Math.round(total * 0.5), Math.round(total * 0.75), total - 1]
+        ticks.forEach(i => {
+          const x = padding.left + chartW * i / (total - 1)
+          ctx.fillText(chartLogs[i].date.slice(5), x, height - 8)
+        })
+      }
 
       ctx.draw()
     })
