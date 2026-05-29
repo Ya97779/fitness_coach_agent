@@ -96,21 +96,69 @@ def _estimate_calories(food_name: str) -> int:
     return 300  # 默认估算
 
 
-def _get_food_nutrition(food_name: str) -> dict:
-    """获取食物营养数据：优先 API，API 查不到再用本地估算
+def _lookup_food_cache(food_name: str) -> dict | None:
+    """从 FoodCalorieCache 表查找食物热量（精确匹配 name，无份量限制）"""
+    from .. import database, models
+    db = database.SessionLocal()
+    try:
+        cached = db.query(models.FoodCalorieCache).filter(
+            models.FoodCalorieCache.name == food_name,
+            models.FoodCalorieCache.portion_qty == None,
+            models.FoodCalorieCache.portion_unit == None,
+        ).first()
+        if cached:
+            return {"calories": cached.calories, "source": "db_cache"}
+        return None
+    finally:
+        db.close()
 
-    Returns:
-        dict: {"calories": float, "protein": float, "fat": float, "carbs": float}
-    """
+
+def _save_food_cache(food_name: str, calories: float, source: str = "api"):
+    """写入 FoodCalorieCache 表"""
+    from .. import database, models
+    db = database.SessionLocal()
+    try:
+        existing = db.query(models.FoodCalorieCache).filter(
+            models.FoodCalorieCache.name == food_name,
+            models.FoodCalorieCache.portion_qty == None,
+            models.FoodCalorieCache.portion_unit == None,
+        ).first()
+        if existing:
+            existing.calories = calories
+            existing.source = source
+        else:
+            db.add(models.FoodCalorieCache(
+                name=food_name, calories=calories, source=source
+            ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[nutrition_agent] 缓存写入失败: {e}")
+    finally:
+        db.close()
+
+
+def _get_food_nutrition(food_name: str) -> dict:
+    """获取食物营养数据：DB 缓存 → API → 本地估算"""
+    # 1. 查 DB 缓存
+    cached = _lookup_food_cache(food_name)
+    if cached:
+        print(f"[nutrition_agent] DB 缓存命中: '{food_name}' → {cached['calories']}kcal")
+        return {"calories": cached["calories"], "protein": 0, "fat": 0, "carbs": 0}
+
+    # 2. 查 API
     from ..food_api import search_food_nutrient
     api_result = search_food_nutrient(food_name)
     if api_result:
+        _save_food_cache(food_name, api_result['calories'], "api")
         return {
             "calories": float(api_result['calories']),
             "protein": float(api_result.get('protein', 0)),
             "fat": float(api_result.get('fat', 0)),
             "carbs": float(api_result.get('carbs', 0)),
         }
+
+    # 3. 本地估算（不写 DB，不够准确）
     return {
         "calories": float(_estimate_calories(food_name)),
         "protein": 0, "fat": 0, "carbs": 0,
@@ -217,7 +265,7 @@ def get_daily_nutrition_summary(user_id: int):
 def search_food_nutrition(food_name: str):
     """搜索食物营养信息（仅检索，不生成回答）
 
-    从 API 查询食物营养信息，返回检索结果供大模型生成回答。
+    优先查 DB 缓存，未命中再调外部 API，结果回写 DB。
 
     Args:
         food_name: 食物名称
@@ -225,10 +273,18 @@ def search_food_nutrition(food_name: str):
     Returns:
         str: API 检索结果（未找到时返回提示信息）
     """
+    # 1. 查 DB 缓存
+    cached = _lookup_food_cache(food_name)
+    if cached:
+        print(f"[nutrition_agent] DB 缓存命中: '{food_name}' → {cached['calories']}kcal")
+        return f"【缓存检索】{food_name}: 热量 {cached['calories']} kcal"
+
+    # 2. 查 API
     from ..food_api import search_food_nutrient
     result = search_food_nutrient(food_name)
 
     if result:
+        _save_food_cache(food_name, result['calories'], "api")
         return f"【API检索】{food_name}: 热量 {result['calories']} kcal, 蛋白质 {result['protein']}g, 脂肪 {result['fat']}g, 碳水 {result['carbs']}g"
     else:
         return f"【API检索】未找到 {food_name} 的营养信息。请根据你的营养知识估算该食物的热量，然后调用 log_food_intake 工具记录到用户日志中。"
