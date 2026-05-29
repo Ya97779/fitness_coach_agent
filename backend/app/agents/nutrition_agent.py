@@ -366,7 +366,7 @@ def nutrition_with_user(
 
 ## 关键规则
 - 当前用户 ID = {user_id}，调用工具时必须传入
-- 用户要求记录饮食时，必须调用 log_food_intake（user_id={user_id}）
+- 用户要求记录饮食时，必须在同一轮中调用两个工具：先 search_food_nutrition 获取热量，再 log_food_intake 记录。两个工具缺一不可，必须在同一轮 tool_calls 中返回
 - search_food_nutrition 返回空时，根据营养知识估算热量后调用 log_food_intake 记录
 - meal_type：早餐→breakfast，午餐→lunch，晚餐→dinner，加餐→snack
 - 专业知识问题用 search_nutrition_knowledge 检索
@@ -459,8 +459,23 @@ def nutrition_with_user(
         if want_record and "log_food_intake" not in called_tools:
             food_items = _extract_food_names(user_message)
             recorded = []
+            # 尝试从已有 tool 结果中提取营养数据，避免重复 API 调用
+            search_results = {}
+            for tm in tool_messages:
+                if isinstance(tm, dict) and 'content' in tm:
+                    content = tm['content']
+                    if '【API检索】' in content and '热量' in content:
+                        # 解析 "鸡蛋: 热量 144 kcal" 格式
+                        import re
+                        m = re.search(r'(.+?):\s*热量\s*(\d+(?:\.\d+)?)', content)
+                        if m:
+                            search_results[m.group(1).strip()] = float(m.group(2))
             for food_name, meal_type in food_items:
-                nutrition = _get_food_nutrition(food_name)
+                # 优先用已有的 tool 结果
+                if food_name in search_results:
+                    nutrition = {"calories": search_results[food_name], "protein": 0, "fat": 0, "carbs": 0}
+                else:
+                    nutrition = _get_food_nutrition(food_name)
                 print(f"[nutrition_agent] 兜底记录: {food_name}, {nutrition['calories']}kcal, {meal_type}")
                 fallback_result = log_food_intake.invoke({
                     "user_id": user_id,

@@ -4,9 +4,14 @@ import os
 import json
 import http.client
 import urllib
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# 内存缓存（food_name → {result, expire_time}）
+_cache = {}
+_CACHE_TTL = 300  # 5 分钟
 
 # 天行数据API配置
 API_KEY = os.getenv("TianxingFood_API_KEY")
@@ -59,13 +64,19 @@ def _select_best_match(food_list: list, query: str) -> dict:
 
 def search_food_nutrient(food_name: str) -> dict:
     """调用天行数据API查询食物营养信息
-    
+
     Args:
         food_name: 食物名称
-        
+
     Returns:
         包含热量、蛋白质、脂肪、碳水化合物的字典，或None表示未找到
     """
+    # 内存缓存检查
+    cached = _cache.get(food_name)
+    if cached and cached['expire_time'] > time.time():
+        print(f"[food_api] 内存缓存命中: '{food_name}'")
+        return cached['result']
+
     if not API_KEY:
         print("未配置TianxingFood_API_KEY，使用备用数据")
         return FALLBACK_DATA.get(food_name, None)
@@ -116,21 +127,29 @@ def search_food_nutrient(food_name: str) -> dict:
                 
                 # 如果获取到有效数据（热量大于0）
                 if int(calories) > 0:
-                    return {
+                    result = {
                         "calories": int(calories),
                         "protein": float(protein),
                         "fat": float(fat),
                         "carbs": float(carbs),
                         "source": "天行数据API"
                     }
+                    _cache[food_name] = {'result': result, 'expire_time': time.time() + _CACHE_TTL}
+                    return result
         
         # 没有找到数据
         print(f"API未找到'{food_name}'的信息: {data.get('msg', '未知')}")
-        return FALLBACK_DATA.get(food_name, None)
-    
+        fallback = FALLBACK_DATA.get(food_name, None)
+        if fallback:
+            _cache[food_name] = {'result': fallback, 'expire_time': time.time() + _CACHE_TTL}
+        return fallback
+
     except Exception as e:
         print(f"API调用失败: {e}")
-        return FALLBACK_DATA.get(food_name, None)
+        fallback = FALLBACK_DATA.get(food_name, None)
+        if fallback:
+            _cache[food_name] = {'result': fallback, 'expire_time': time.time() + _CACHE_TTL}
+        return fallback
 
 
 def search_food_calories(food_name: str) -> str:

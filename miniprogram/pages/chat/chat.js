@@ -49,11 +49,16 @@ Page({
       }).catch(() => {})
     }
 
-    // 切 tab 回来：仅读缓存，不请求服务端
-    this.loadMessagesFromCache()
-
-    // 检查是否有进行中的流式请求
     const app = getApp()
+
+    // 优先使用 stream.messages（流式完成后的最新消息，不论 active 状态）
+    if (app.globalData.chatStream.messages.length > 0) {
+      this.setData({ messages: app.globalData.chatStream.messages })
+    } else {
+      this.loadMessagesFromCache()
+    }
+
+    // 流式进行中：继续恢复实时内容
     if (app.globalData.chatStream.active) {
       this.restoreChatStream()
     }

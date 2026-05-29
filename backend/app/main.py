@@ -494,8 +494,18 @@ def create_food_log(
             else:
                 need_llm = True
         elif qty and unit:
-            # 非克单位（份/碗/个）：API 返回的是每100g，无法换算，直接 LLM
-            need_llm = True
+            # 非克单位（份/碗/个）：先查 API 每100g热量，用标准份量换算
+            result = search_food_nutrient(data.name)
+            if result:
+                per100g = result["calories"]
+                # 标准份量估算（克）：个=50g, 份=150g, 碗=200g, 杯=250g, 盘=300g, 块=30g, 片=25g, 条=60g
+                portion_g = {'个': 50, '份': 150, '碗': 200, '杯': 250, '盘': 300, '块': 30, '片': 25, '条': 60}.get(unit, 100)
+                calories = round(per100g * qty * portion_g / 100)
+                # 缓存
+                db.add(models.FoodCalorieCache(name=data.name, portion_qty=qty, portion_unit=unit, calories=calories, source="api+标准份量"))
+                logger.info(f"[food-log] API+标准份量: '{data.name}' {qty}{unit}={portion_g}g, 每100g={per100g}kcal → {calories}kcal")
+            else:
+                need_llm = True
         else:
             # 没填份量：走原有逻辑
             result = search_food_nutrient(data.name)
