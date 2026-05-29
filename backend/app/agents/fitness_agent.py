@@ -348,14 +348,34 @@ def fitness_with_user(
             })
 
         try:
+            has_content = False
             llm_with_tools = llm.bind_tools(fitness_tools)
             if stream:
                 for chunk in llm_with_tools.stream(chat_history):
                     if chunk.content:
+                        has_content = True
                         yield chunk.content
             else:
                 final_response = llm_with_tools.invoke(chat_history)
-                yield final_response.content if hasattr(final_response, 'content') else str(final_response)
+                content = final_response.content if hasattr(final_response, 'content') else str(final_response)
+                if content:
+                    has_content = True
+                    yield content
+
+            # LLM 未生成内容时，从工具结果构造回复
+            if not has_content:
+                tool_summary = []
+                for tm in tool_messages:
+                    c = tm.get('content', '') if isinstance(tm, dict) else ''
+                    if c and '已记录' in c:
+                        tool_summary.append(c)
+                    elif c and '未找到' not in c and c != '未知工具':
+                        tool_summary.append(c)
+                if tool_summary:
+                    yield '根据查询结果：\n' + '\n'.join(f'- {s}' for s in tool_summary)
+                else:
+                    yield '已处理您的请求。'
+
         except Exception as e:
             error_msg = str(e)
             if "1214" in error_msg or "messages" in error_msg.lower():
