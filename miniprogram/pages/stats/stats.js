@@ -445,8 +445,11 @@ Page({
       ctx.setFillStyle('#999')
       ctx.setFontSize(16)
       ctx.setTextAlign('center')
+      const total = chartLogs.length
       chartLogs.forEach((l, i) => {
-        const x = padding.left + chartW * i / (chartLogs.length - 1 || 1)
+        // 近7天全部显示，近30天每隔5天显示（首尾始终显示）
+        if (total > 7 && i % 5 !== 0 && i !== total - 1) return
+        const x = padding.left + chartW * i / (total - 1 || 1)
         ctx.fillText(l.date.slice(5), x, height - 8)
       })
 
