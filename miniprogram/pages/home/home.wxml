@@ -53,8 +53,8 @@
       <text class="shortcut-text">开始训练</text>
     </view>
     <view class="shortcut" bindtap="goStats">
-      <text class="shortcut-icon">~</text>
-      <text class="shortcut-text">历史趋势</text>
+      <text class="shortcut-icon">📅</text>
+      <text class="shortcut-text">历史记录</text>
     </view>
   </view>
 

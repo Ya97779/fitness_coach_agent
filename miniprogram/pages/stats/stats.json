@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "历史统计",
+  "navigationBarTitleText": "历史记录",
   "usingComponents": {
     "floating-timer": "/components/floating-timer/floating-timer"
   }

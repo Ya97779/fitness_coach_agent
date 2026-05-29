@@ -1,32 +1,110 @@
 <view class="page">
   <floating-timer />
+
   <!-- 未登录提示 -->
   <view class="login-card" wx:if="{{!loggedIn}}">
-    <text class="login-card-title">登录后可查看统计数据</text>
+    <text class="login-card-title">登录后可查看历史记录</text>
     <view class="login-card-btn" bindtap="handleLogin">
       <text class="login-card-btn-text">立即登录</text>
     </view>
   </view>
 
-  <!-- 日期范围 -->
-  <view class="range-tabs" wx:if="{{loggedIn}}">
-    <view class="range-tab {{range === 7 ? 'range-on' : ''}}" bindtap="setRange" data-range="7">近 7 天</view>
-    <view class="range-tab {{range === 30 ? 'range-on' : ''}}" bindtap="setRange" data-range="30">近 30 天</view>
+  <!-- Tab 切换 -->
+  <view class="tabs" wx:if="{{loggedIn}}">
+    <view class="tab {{activeTab === 0 ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="0">历史记录</view>
+    <view class="tab {{activeTab === 1 ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="1">统计图表</view>
   </view>
 
-  <!-- 折线图 -->
-  <view class="card" wx:if="{{loggedIn}}">
-    <text class="chart-label">摄入 vs 消耗</text>
-    <canvas canvas-id="lineChart" id="lineChart" class="chart-canvas" />
+  <!-- Tab 1: 历史记录 -->
+  <view wx:if="{{loggedIn && activeTab === 0}}">
+
+    <!-- 日历 -->
+    <view class="calendar">
+      <view class="calendar-header">
+        <view class="calendar-nav" bindtap="prevMonth">&lt;</view>
+        <text class="calendar-title">{{calendarYear}}年{{calendarMonth + 1}}月</text>
+        <view class="calendar-nav" bindtap="nextMonth">&gt;</view>
+      </view>
+      <view class="calendar-weekdays">
+        <text class="calendar-weekday">日</text>
+        <text class="calendar-weekday">一</text>
+        <text class="calendar-weekday">二</text>
+        <text class="calendar-weekday">三</text>
+        <text class="calendar-weekday">四</text>
+        <text class="calendar-weekday">五</text>
+        <text class="calendar-weekday">六</text>
+      </view>
+      <view class="calendar-grid">
+        <view
+          wx:for="{{calendarDays}}"
+          wx:key="index"
+          class="calendar-day {{item.isCurrentMonth ? '' : 'calendar-day-other'}} {{item.isSelected ? 'calendar-day-selected' : ''}}"
+          bindtap="selectDate"
+          data-date="{{item.date}}"
+        >
+          <text class="calendar-day-num">{{item.day}}</text>
+          <view class="calendar-dot" wx:if="{{item.hasRecord}}"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 记录列表 -->
+    <view class="records">
+      <view wx:if="{{displayLogs.length === 0 && !loading}}" class="empty">
+        <text class="empty-text">暂无历史记录</text>
+      </view>
+
+      <view wx:for="{{displayLogs}}" wx:key="date" class="day-card" id="date-{{item.date}}">
+        <!-- 日期标题 -->
+        <view class="day-header">
+          <text class="day-title">{{item.month}}月{{item.day}}日 {{item.weekday}}</text>
+          <text class="day-summary">摄入 {{item.intakeCal}} kcal · 消耗 {{item.burnCal}} kcal</text>
+        </view>
+
+        <!-- 饮食记录 -->
+        <view wx:for="{{item.foodByMeal}}" wx:for-item="meal" wx:key="meal" class="meal-group">
+          <text class="meal-label">{{meal.label}}</text>
+          <view wx:for="{{meal.items}}" wx:for-item="food" wx:key="id" class="record-item">
+            <text class="record-name">{{food.name}}</text>
+            <text class="record-value">{{food.calories}} kcal</text>
+          </view>
+        </view>
+
+        <!-- 运动记录 -->
+        <view wx:if="{{item.exerciseItems.length > 0}}" class="meal-group">
+          <text class="meal-label">运动</text>
+          <view wx:for="{{item.exerciseItems}}" wx:for-item="ex" wx:key="id" class="record-item">
+            <text class="record-name">{{ex.name || ex.type}}</text>
+            <text class="record-value">{{ex.duration}}分钟  {{ex.calories}} kcal</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 加载更多 -->
+      <view wx:if="{{hasMore}}" class="load-more" bindtap="loadMore">
+        <text class="load-more-text">加载更多</text>
+      </view>
+    </view>
   </view>
 
-  <!-- 柱状图 -->
-  <view class="card" wx:if="{{loggedIn}}">
-    <text class="chart-label">每日净热量</text>
-    <canvas canvas-id="barChart" id="barChart" class="chart-canvas" />
+  <!-- Tab 2: 统计图表 -->
+  <view wx:if="{{loggedIn && activeTab === 1}}">
+    <view class="range-tabs">
+      <view class="range-tab {{chartRange === 7 ? 'range-on' : ''}}" bindtap="setChartRange" data-range="7">近 7 天</view>
+      <view class="range-tab {{chartRange === 30 ? 'range-on' : ''}}" bindtap="setChartRange" data-range="30">近 30 天</view>
+    </view>
+
+    <view class="card" wx:if="{{chartLogs.length > 0}}">
+      <text class="chart-label">每日净热量趋势</text>
+      <canvas canvas-id="netCalorieChart" id="netCalorieChart" class="chart-canvas" />
+    </view>
+
+    <view class="empty" wx:if="{{!loading && chartLogs.length === 0}}">
+      <text class="empty-text">暂无历史数据</text>
+    </view>
   </view>
 
-  <view class="empty" wx:if="{{loggedIn && !loading && logs.length === 0}}">
-    <text class="empty-text">暂无历史数据</text>
+  <view class="empty" wx:if="{{loggedIn && loading}}">
+    <text class="empty-text">加载中...</text>
   </view>
 </view>
