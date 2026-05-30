@@ -148,6 +148,11 @@ Page({
               currentEventType = 'data'
               continue
             }
+            if (currentEventType === 'queue') {
+              this.updateAiMessage(aiMsg.id, `排队中，前面还有 ${data} 位...`, true)
+              currentEventType = 'data'
+              continue
+            }
             if (currentEventType === 'intent') {
               try {
                 const intentData = JSON.parse(data)

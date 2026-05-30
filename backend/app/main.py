@@ -924,6 +924,8 @@ async def chat_stream(
                     elif event_type == "intent":
                         import json as _json
                         yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"
+                    elif event_type == "queue":
+                        yield f"event: queue\ndata: {content}\n\n"
                     else:
                         # LLM 输出可能包含字面量转义序列（如 \n 两个字符），
                         # 先解码为真正的控制字符，再对 SSE 做转义

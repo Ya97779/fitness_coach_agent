@@ -2,14 +2,39 @@
 
 import os
 import threading
-from typing import Dict
+from typing import Dict, Callable, Optional
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 并发限制：最多 10 个同时进行的 LLM 调用，防止瞬间打爆 API
-_LLM_SEMAPHORE = threading.Semaphore(10)
+
+class _LLMQueue:
+    """LLM 并发队列，追踪等待人数"""
+    _semaphore = threading.Semaphore(3)
+    _lock = threading.Lock()
+    _waiting = 0
+
+    @classmethod
+    def acquire(cls, on_queue: Optional[Callable[[int], None]] = None):
+        """获取许可，如果需要排队则通过 on_queue 回调通知前面有几人"""
+        with cls._lock:
+            position = cls._waiting
+            cls._waiting += 1
+        if position > 0 and on_queue:
+            on_queue(position)
+        cls._semaphore.acquire()
+        with cls._lock:
+            cls._waiting -= 1
+
+    @classmethod
+    def release(cls):
+        cls._semaphore.release()
+
+    @classmethod
+    def queue_depth(cls) -> int:
+        with cls._lock:
+            return cls._waiting
 
 
 class LLMManager:
@@ -27,6 +52,12 @@ class LLMManager:
     """
 
     _instances: Dict[float, ChatOpenAI] = {}
+    _queue_callback: Optional[Callable[[int], None]] = None
+
+    @classmethod
+    def set_queue_callback(cls, callback: Optional[Callable[[int], None]]):
+        """设置排队回调，当 LLM 调用需要排队时触发 callback(前面等待人数)"""
+        cls._queue_callback = callback
 
     @classmethod
     def get_llm(cls, temperature: float = 0.7) -> ChatOpenAI:
@@ -48,23 +79,23 @@ class LLMManager:
                 max_retries=2,
                 extra_body={"thinking": {"type": "disabled"}}
             )
-            # 包装 invoke/stream，自动限流
+            # 包装 invoke/stream，自动限流 + 排队通知
             _orig_invoke = llm.invoke
             _orig_stream = llm.stream
 
             def _limited_invoke(*args, **kwargs):
-                _LLM_SEMAPHORE.acquire()
+                _LLMQueue.acquire(on_queue=cls._queue_callback)
                 try:
                     return _orig_invoke(*args, **kwargs)
                 finally:
-                    _LLM_SEMAPHORE.release()
+                    _LLMQueue.release()
 
             def _limited_stream(*args, **kwargs):
-                _LLM_SEMAPHORE.acquire()
+                _LLMQueue.acquire(on_queue=cls._queue_callback)
                 try:
                     return _orig_stream(*args, **kwargs)
                 finally:
-                    _LLM_SEMAPHORE.release()
+                    _LLMQueue.release()
 
             llm.invoke = _limited_invoke
             llm.stream = _limited_stream
@@ -77,11 +108,6 @@ class LLMManager:
         cls._instances.clear()
 
     @staticmethod
-    def acquire():
-        """获取 LLM 并发许可（阻塞直到有空位）"""
-        _LLM_SEMAPHORE.acquire()
-
-    @staticmethod
-    def release():
-        """释放 LLM 并发许可"""
-        _LLM_SEMAPHORE.release()
+    def queue_depth() -> int:
+        """当前排队等待的人数"""
+        return _LLMQueue.queue_depth()

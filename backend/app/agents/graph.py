@@ -637,6 +637,15 @@ def stream_user_message(
     }
     yield ("status", _status_messages.get(agent, "Agent正在思考..."))
 
+    # 设置 LLM 排队回调，通过 SSE 通知前端排队状态
+    _queue_events = []
+    def _on_queue(position):
+        _queue_events.append(position)
+        print(f"[stream] LLM 排队中，前面 {position} 人", flush=True)
+
+    from ..llm_manager import LLMManager
+    LLMManager.set_queue_callback(_on_queue)
+
     print(f"[stream] 开始调用 {agent} agent...", flush=True)
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
@@ -649,6 +658,11 @@ def stream_user_message(
     full_response = ""
     try:
         for chunk in response_generator:
+            # 发送排队状态事件
+            if _queue_events:
+                pos = _queue_events.pop(0)
+                yield ("queue", pos)
+
             full_response += chunk
             # 过滤意图标记，不发给前端
             if '[INTENT_JSON]' in chunk or '[INTENT:' in chunk:
