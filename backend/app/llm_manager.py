@@ -1,11 +1,15 @@
 """LLM 实例管理器 - 按 temperature 分桶缓存，避免重复创建"""
 
 import os
+import threading
 from typing import Dict
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# 并发限制：最多 10 个同时进行的 LLM 调用，防止瞬间打爆 API
+_LLM_SEMAPHORE = threading.Semaphore(10)
 
 
 class LLMManager:
@@ -35,7 +39,7 @@ class LLMManager:
             ChatOpenAI 实例（缓存命中时返回已有实例）
         """
         if temperature not in cls._instances:
-            cls._instances[temperature] = ChatOpenAI(
+            llm = ChatOpenAI(
                 model=os.getenv("LLM_MODEL", "glm-4.7"),
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE"),
@@ -44,9 +48,40 @@ class LLMManager:
                 max_retries=2,
                 extra_body={"thinking": {"type": "disabled"}}
             )
+            # 包装 invoke/stream，自动限流
+            _orig_invoke = llm.invoke
+            _orig_stream = llm.stream
+
+            def _limited_invoke(*args, **kwargs):
+                _LLM_SEMAPHORE.acquire()
+                try:
+                    return _orig_invoke(*args, **kwargs)
+                finally:
+                    _LLM_SEMAPHORE.release()
+
+            def _limited_stream(*args, **kwargs):
+                _LLM_SEMAPHORE.acquire()
+                try:
+                    return _orig_stream(*args, **kwargs)
+                finally:
+                    _LLM_SEMAPHORE.release()
+
+            llm.invoke = _limited_invoke
+            llm.stream = _limited_stream
+            cls._instances[temperature] = llm
         return cls._instances[temperature]
 
     @classmethod
     def clear(cls):
         """清空缓存（用于测试或配置变更后）"""
         cls._instances.clear()
+
+    @staticmethod
+    def acquire():
+        """获取 LLM 并发许可（阻塞直到有空位）"""
+        _LLM_SEMAPHORE.acquire()
+
+    @staticmethod
+    def release():
+        """释放 LLM 并发许可"""
+        _LLM_SEMAPHORE.release()

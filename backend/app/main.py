@@ -39,6 +39,21 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
+# ========== 限流 ==========
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"code": 429, "message": "请求过于频繁，请稍后再试"},
+    )
+
 # ========== CORS ==========
 ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
@@ -862,6 +877,7 @@ def _decode_llm_content(content: str) -> str:
 
 
 @router.post("/chat/stream")
+@limiter.limit("10/minute")
 async def chat_stream(
     request: StreamChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
