@@ -2,7 +2,7 @@
 
 import os
 import threading
-from typing import Dict, Callable, Optional
+from typing import Dict, Callable, Optional, Any
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
@@ -37,6 +37,34 @@ class _LLMQueue:
             return cls._waiting
 
 
+class _LLMProxy:
+    """ChatOpenAI 代理包装，自动限流 + 排队通知"""
+
+    def __init__(self, llm: ChatOpenAI, queue_callback: Optional[Callable[[int], None]] = None):
+        object.__setattr__(self, '_llm', llm)
+        object.__setattr__(self, '_queue_callback', queue_callback)
+
+    def invoke(self, *args, **kwargs):
+        _LLMQueue.acquire(on_queue=self._queue_callback)
+        try:
+            return self._llm.invoke(*args, **kwargs)
+        finally:
+            _LLMQueue.release()
+
+    def stream(self, *args, **kwargs):
+        _LLMQueue.acquire(on_queue=self._queue_callback)
+        try:
+            return self._llm.stream(*args, **kwargs)
+        finally:
+            _LLMQueue.release()
+
+    def bind_tools(self, *args, **kwargs):
+        return self._llm.bind_tools(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._llm, name)
+
+
 class LLMManager:
     """LLM 单例管理器
 
@@ -60,17 +88,14 @@ class LLMManager:
         cls._queue_callback = callback
 
     @classmethod
-    def get_llm(cls, temperature: float = 0.7) -> ChatOpenAI:
-        """获取或创建 ChatOpenAI 实例
-
-        Args:
-            temperature: 温度参数，影响输出随机性
+    def get_llm(cls, temperature: float = 0.7):
+        """获取 LLM 代理实例（带限流和排队通知）
 
         Returns:
-            ChatOpenAI 实例（缓存命中时返回已有实例）
+            _LLMProxy 代理对象，支持 invoke/stream/bind_tools
         """
         if temperature not in cls._instances:
-            llm = ChatOpenAI(
+            cls._instances[temperature] = ChatOpenAI(
                 model=os.getenv("LLM_MODEL", "glm-4.7"),
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE"),
@@ -79,28 +104,7 @@ class LLMManager:
                 max_retries=2,
                 extra_body={"thinking": {"type": "disabled"}}
             )
-            # 包装 invoke/stream，自动限流 + 排队通知
-            _orig_invoke = llm.invoke
-            _orig_stream = llm.stream
-
-            def _limited_invoke(*args, **kwargs):
-                _LLMQueue.acquire(on_queue=cls._queue_callback)
-                try:
-                    return _orig_invoke(*args, **kwargs)
-                finally:
-                    _LLMQueue.release()
-
-            def _limited_stream(*args, **kwargs):
-                _LLMQueue.acquire(on_queue=cls._queue_callback)
-                try:
-                    return _orig_stream(*args, **kwargs)
-                finally:
-                    _LLMQueue.release()
-
-            llm.invoke = _limited_invoke
-            llm.stream = _limited_stream
-            cls._instances[temperature] = llm
-        return cls._instances[temperature]
+        return _LLMProxy(cls._instances[temperature], cls._queue_callback)
 
     @classmethod
     def clear(cls):
