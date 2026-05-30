@@ -21,9 +21,9 @@
     <!-- 日历 -->
     <view class="calendar">
       <view class="calendar-header">
-        <view class="calendar-nav" bindtap="prevMonth">&lt;</view>
+        <view class="calendar-nav" bindtap="prevMonth">‹</view>
         <text class="calendar-title">{{calendarYear}}年{{calendarMonth + 1}}月</text>
-        <view class="calendar-nav" bindtap="nextMonth">&gt;</view>
+        <view class="calendar-nav" bindtap="nextMonth">›</view>
       </view>
       <view class="calendar-weekdays">
         <text class="calendar-weekday">日</text>
