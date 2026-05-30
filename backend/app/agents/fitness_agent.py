@@ -438,6 +438,15 @@ def fitness_with_user(
                         yield chunk.content
                 print(f"[fitness_agent] 第二轮 LLM 流式完成: {chunk_count} chunks, has_content={has_content}, tool_calls={len(accumulated_tool_calls)}", flush=True)
 
+                # bind_tools + stream 返回空内容且无工具调用 → 去掉 tools 重试
+                if not has_content and not accumulated_tool_calls:
+                    print(f"[fitness_agent] bind_tools 流式无内容，去掉 tools 重试", flush=True)
+                    for chunk in llm.stream(chat_history):
+                        if chunk.content:
+                            has_content = True
+                            yield chunk.content
+                    print(f"[fitness_agent] 无 tools 流式重试完成, has_content={has_content}", flush=True)
+
                 # 第二轮返回了 tool_calls → 执行后第三轮调用
                 if accumulated_tool_calls and not has_content:
                     print(f"[fitness_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
@@ -456,6 +465,13 @@ def fitness_with_user(
                 final_response = llm_with_tools.invoke(chat_history)
                 content = final_response.content if hasattr(final_response, 'content') else str(final_response)
                 print(f"[fitness_agent] 第二轮 LLM invoke 完成, content长度={len(content) if content else 0}", flush=True)
+
+                # bind_tools invoke 返回空内容且无工具调用 → 去掉 tools 重试
+                if not content and not (hasattr(final_response, 'tool_calls') and final_response.tool_calls):
+                    print(f"[fitness_agent] bind_tools invoke 无内容，去掉 tools 重试", flush=True)
+                    final_response_retry = llm.invoke(chat_history)
+                    content = final_response_retry.content if hasattr(final_response_retry, 'content') else str(final_response_retry)
+                    print(f"[fitness_agent] 无 tools invoke 重试完成, content长度={len(content) if content else 0}", flush=True)
 
                 # 第二轮返回了 tool_calls → 执行后第三轮调用
                 if (not content) and hasattr(final_response, 'tool_calls') and final_response.tool_calls:
