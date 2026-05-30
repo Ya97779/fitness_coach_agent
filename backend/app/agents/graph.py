@@ -650,7 +650,15 @@ def stream_user_message(
     try:
         for chunk in response_generator:
             full_response += chunk
-            yield ("data", chunk)
+            # 过滤意图标记，不发给前端
+            if '[INTENT_JSON]' in chunk or '[INTENT:' in chunk:
+                clean_chunk = re.sub(r'\[INTENT_JSON\].*?\[/INTENT_JSON\]', '', chunk)
+                clean_chunk = re.sub(r'\n?\[INTENT:(?:food|exercise)\].*?(?:\n|$)', '', clean_chunk)
+                clean_chunk = clean_chunk.strip()
+                if clean_chunk:
+                    yield ("data", clean_chunk)
+            else:
+                yield ("data", chunk)
     except Exception as e:
         error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
         print(f"[stream] 迭代异常: {e}")

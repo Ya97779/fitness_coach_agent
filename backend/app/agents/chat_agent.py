@@ -12,6 +12,7 @@ load_dotenv()
 
 # 意图检测正则
 _INTENT_PATTERN = re.compile(r'\n?\[INTENT:(food|exercise)\](.+?)(?:\n|$)')
+_INTENT_JSON_PATTERN = re.compile(r'\n?\[INTENT_JSON\](.*?)\[/INTENT_JSON\]')
 
 
 def format_memory_context(memory_summary: Dict[str, Any], agent_type: str = "chat") -> str:
@@ -134,12 +135,28 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
 def parse_intent(response_text: str) -> tuple:
     """从 chat agent 回复中解析意图标记
 
+    支持两种格式:
+    - [INTENT:food]name|meal|calories
+    - [INTENT_JSON]{"type":"food","data":{...}}[/INTENT_JSON]
+
     Args:
         response_text: LLM 原始回复
 
     Returns:
         (clean_text, intent_dict): 清理后的文本和意图信息（无意图时 intent_dict 为 None）
     """
+    # 优先匹配 JSON 格式
+    json_match = _INTENT_JSON_PATTERN.search(response_text)
+    if json_match:
+        import json as _json
+        clean_text = response_text[:json_match.start()].rstrip()
+        try:
+            intent = _json.loads(json_match.group(1))
+            return clean_text, intent
+        except Exception:
+            return clean_text, None
+
+    # 兜底匹配旧格式
     match = _INTENT_PATTERN.search(response_text)
     if not match:
         return response_text, None
