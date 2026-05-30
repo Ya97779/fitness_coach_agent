@@ -1018,24 +1018,6 @@ def submit_feedback(
     return {"message": "反馈已提交", "filename": filename}
 
 
-@router.get("/feedback")
-def list_feedback(current_user: models.User = Depends(auth.get_current_user)):
-    """列出所有用户反馈"""
-    feedbacks = []
-    if os.path.isdir(_feedback_dir):
-        for fname in sorted(os.listdir(_feedback_dir), reverse=True):
-            if not fname.endswith('.md'):
-                continue
-            filepath = os.path.join(_feedback_dir, fname)
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                feedbacks.append({"filename": fname, "content": content})
-            except Exception:
-                continue
-    return feedbacks
-
-
 # ----- 工具列表（无需鉴权） -----
 @router.get("/agents")
 async def list_agents():
