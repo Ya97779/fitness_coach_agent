@@ -897,7 +897,9 @@ async def chat_stream(
                         import json as _json
                         yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"
                     else:
-                        yield f"data: {content}\n\n"
+                        # 转义换行符，避免 SSE data: 行被截断
+                        safe_content = content.replace('\\', '\\\\').replace('\n', '\\n')
+                        yield f"data: {safe_content}\n\n"
                 elif msg_type == "done":
                     yield "data: [DONE]\n\n"
                     break

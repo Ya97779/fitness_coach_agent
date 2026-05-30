@@ -136,7 +136,7 @@ Page({
             continue
           }
           if (trimmed.startsWith('data: ')) {
-            const data = trimmed.slice(6)
+            const data = trimmed.slice(6).replace(/\\n/g, '\n').replace(/\\\\/g, '\\')
             if (data === '[DONE]') continue
             if (data.startsWith('Error:')) {
               fullContent = data
