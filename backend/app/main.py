@@ -849,6 +849,18 @@ def chat(
         intent=result.get("intent"),
     )
 
+def _decode_llm_content(content: str) -> str:
+    """解码 LLM 输出中的字面量转义序列，再做 SSE 安全转义
+
+    GLM-4.7 流式输出中，换行符可能以字面量 \\n（两个字符）而非真正的 \\n 出现。
+    需要先解码为真正的控制字符，再对 SSE 传输做转义（避免被当作消息分隔符）。
+    """
+    # 解码常见的 LLM 字面量转义序列
+    decoded = content.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+    # SSE 转义：先转义反斜杠，再转义换行
+    return decoded.replace('\\', '\\\\').replace('\n', '\\n')
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     request: StreamChatRequest,
@@ -897,8 +909,9 @@ async def chat_stream(
                         import json as _json
                         yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"
                     else:
-                        # 转义换行符，避免 SSE data: 行被截断
-                        safe_content = content.replace('\\', '\\\\').replace('\n', '\\n')
+                        # LLM 输出可能包含字面量转义序列（如 \n 两个字符），
+                        # 先解码为真正的控制字符，再对 SSE 做转义
+                        safe_content = _decode_llm_content(content)
                         yield f"data: {safe_content}\n\n"
                 elif msg_type == "done":
                     yield "data: [DONE]\n\n"
