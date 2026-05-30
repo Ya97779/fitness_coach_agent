@@ -17,7 +17,6 @@ requests
 plotly
 pandas
 pypdf
-pdf2image
 docx2txt
 unstructured
 pytesseract
