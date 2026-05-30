@@ -12,7 +12,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/卷腹.gif',
       equipment: '瑜伽垫',
       targetMuscles: ['腹直肌', '腹横肌'],
-      video: 'https://cdn.example.com/guide/crunch.mp4',
+      video: '',
       steps: [
         '仰卧在瑜伽垫上，双膝弯曲，双脚平放地面',
         '双手轻放在耳侧或交叉放在胸前',
@@ -40,10 +40,10 @@ module.exports = {
       name: '平板支撑',
       difficulty: 'beginner',
       summary: '核心抗伸展等长收缩训练',
-      cover: 'https://gzyapi.gzyhm.xyz/guide/平板支撑.gif',
+      cover: 'https://gzyapi.gzyhm.xyz/guide/平板支撑.jpg',
       equipment: '瑜伽垫',
       targetMuscles: ['腹直肌', '腹横肌', '竖脊肌', '臀大肌'],
-      video: 'https://cdn.example.com/guide/plank.mp4',
+      video: '',
       steps: [
         '俯卧，双肘撑地，肘关节在肩膀正下方',
         '双脚与肩同宽，脚尖着地',
@@ -74,7 +74,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/俄罗斯转体.gif',
       equipment: '瑜伽垫、药球（可选）',
       targetMuscles: ['腹外斜肌', '腹内斜肌', '腹直肌'],
-      video: 'https://cdn.example.com/guide/russian-twist.mp4',
+      video: '',
       steps: [
         '坐在瑜伽垫上，双膝弯曲，双脚微微离地',
         '身体后倾约 45 度，保持背部挺直',
@@ -105,7 +105,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/悬垂举腿.gif',
       equipment: '单杠',
       targetMuscles: ['腹直肌（尤其下腹）', '髂腰肌', '股直肌'],
-      video: 'https://cdn.example.com/guide/hanging-leg-raise.mp4',
+      video: '',
       steps: [
         '双手正握单杠，握距与肩同宽，身体自然悬垂',
         '收紧核心，保持身体稳定不要晃动',
@@ -136,7 +136,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/死虫式.gif',
       equipment: '瑜伽垫',
       targetMuscles: ['腹横肌', '腹直肌', '竖脊肌'],
-      video: 'https://cdn.example.com/guide/dead-bug.mp4',
+      video: '',
       steps: [
         '仰卧，双臂伸直指向天花板，双腿屈膝抬起呈 90 度',
         '腰部贴紧地面，保持骨盆中立',
@@ -167,7 +167,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/侧平板支撑.gif',
       equipment: '瑜伽垫',
       targetMuscles: ['腹外斜肌', '腹内斜肌', '腹横肌', '臀中肌'],
-      video: 'https://cdn.example.com/guide/side-plank.mp4',
+      video: '',
       steps: [
         '侧卧，下方手肘撑地，肘关节在肩膀正下方',
         '双脚叠放或前后错开（前后错开更稳定）',

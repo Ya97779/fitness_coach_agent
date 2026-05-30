@@ -19,7 +19,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/上斜杠铃卧推.gif',
       equipment: '杠铃、可调卧推凳',
       targetMuscles: ['胸大肌上束', '三角肌前束', '肱三头肌'],
-      video: 'https://cdn.example.com/guide/incline-bench-press.mp4',
+      video: '',
       steps: [
         '将卧推凳调至 30-45 度角',
         '双手握距略宽于肩，全握杠铃',
@@ -50,7 +50,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/上斜哑铃卧推.gif',
       equipment: '哑铃、可调卧推凳',
       targetMuscles: ['胸大肌上束', '三角肌前束', '肱三头肌'],
-      video: 'https://cdn.example.com/guide/incline-dumbbell-press.mp4',
+      video: '',
       steps: [
         '将卧推凳调至 30-45 度角',
         '双手各持一只哑铃，借助大腿力量举至肩部',
@@ -106,7 +106,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/杠铃卧推.gif',
       equipment: '杠铃、卧推凳',
       targetMuscles: ['胸大肌', '三角肌前束', '肱三头肌'],
-      video: 'https://www.gettyimages.com/detail/video/bench-press-workout-stock-footage/621685380?adppopup=true',
+      video: '',
       steps: [
         '仰卧在卧推凳上，双脚踩实地面',
         '双手握距略宽于肩，全握杠铃',
@@ -169,7 +169,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/俯卧撑.gif',
       equipment: '无（徒手）',
       targetMuscles: ['胸大肌', '三角肌前束', '肱三头肌', '核心'],
-      video: 'https://cdn.example.com/guide/push-up.mp4',
+      video: '',
       steps: [
         '双手撑地，略宽于肩，身体呈一条直线',
         '收紧核心，不要塌腰或撅臀',
@@ -201,7 +201,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/双杠臂屈伸.gif',
       equipment: '双杠',
       targetMuscles: ['胸大肌下束', '肱三头肌', '三角肌前束'],
-      video: 'https://cdn.example.com/guide/dips.mp4',
+      video: '',
       steps: [
         '双手撑在双杠上，手臂伸直，身体悬空',
         '身体微微前倾（约 30 度），更多刺激胸部',
@@ -230,7 +230,7 @@ module.exports = {
       cover: 'https://gzyapi.gzyhm.xyz/guide/龙门架夹胸.gif',
       equipment: '龙门架',
       targetMuscles: ['胸大肌下束', '三角肌前束'],
-      video: 'https://cdn.example.com/guide/cable-crossover.mp4',
+      video: '',
       steps: [
         '将龙门架两侧滑轮调至高位',
         '双手各握一个手柄，站在龙门架中间',
