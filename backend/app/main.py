@@ -879,13 +879,14 @@ def _decode_llm_content(content: str) -> str:
 @router.post("/chat/stream")
 @limiter.limit("10/minute")
 async def chat_stream(
-    request: StreamChatRequest,
+    request: Request,
+    body: StreamChatRequest,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
 
-    user_message = request.message.strip() if request.message else "你好"
+    user_message = body.message.strip() if body.message else "你好"
 
     async def event_generator():
         import queue
