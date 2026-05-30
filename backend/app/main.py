@@ -285,7 +285,7 @@ def calculate_metrics(height, weight, age, gender):
         bmr = 10 * weight + 6.25 * height - 5 * age + 5
     else:
         bmr = 10 * weight + 6.25 * height - 5 * age - 161
-    tdee = bmr * 1.375
+    tdee = bmr * 1.2
     return bmr, tdee
 
 # ========== API v1 路由 ==========
