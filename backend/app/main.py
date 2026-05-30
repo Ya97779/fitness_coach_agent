@@ -474,6 +474,7 @@ def create_food_log(
             logger.info(f"[food-log] 缓存命中: '{data.name}' → {calories} kcal (份量×{qty or 1})")
         else:
             need_llm = True
+            calories = 0  # LLM 估算前先置 0，后台线程算完后会更新
             logger.info(f"[food-log] 缓存未命中，需要 LLM 估算: '{data.name}'")
 
     if not need_llm:
