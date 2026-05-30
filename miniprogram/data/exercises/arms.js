@@ -58,19 +58,40 @@ module.exports = {
 
     // === 肱三头肌 ===
     {
-      id: 'close-grip-bench',
-      name: '窄距卧推',
-      subRegion: 'triceps',
-      difficulty: 'intermediate',
-      summary: '三头肌复合动作，可上大重量',
-      cover: 'https://gzyapi.gzyhm.xyz/guide/窄距卧推.gif',
-      equipment: '杠铃、卧推凳',
-      targetMuscles: ['肱三头肌', '胸大肌内侧'],
-      video: '',
-      steps: ['仰卧在卧推凳上，双手握距与肩同宽或略窄', '下放杠铃至胸部', '发力推起至手臂伸直'],
-      tips: ['握距不要过窄，保护手腕', '手肘贴近身体'],
-      mistakes: [{ wrong: '握距太窄伤手腕', fix: '保持与肩同宽或略窄' }],
-      variations: [{ id: 'tricep-pushdown', name: '绳索下压', desc: '孤立三头肌' }]
+      "id": "dumbbell-skullcrusher",
+      "name": "哑铃碎颅者",
+      "subRegion": "triceps",
+      "difficulty": "beginner",
+      "summary": "孤立训练肱三头肌，精准刺激手臂后侧，改善手臂松弛，提升手臂线条",
+      "cover": "https://gzyapi.gzyhm.xyz/guide/哑铃碎颅者.gif",
+      "equipment": "哑铃",
+      "targetMuscles": ["肱三头肌", "肱二头肌长头（辅助）", "肩袖肌群（稳定）"],
+      "video": "",
+      "steps": [
+        "仰卧在平凳上，双脚平放地面保持身体稳定，腰背自然贴紧凳面",
+        "双手掌心相对握住一只哑铃，手臂伸直垂直于胸部上方，大臂保持固定不动",
+        "以手肘为轴心，缓慢弯曲小臂，将哑铃向额头方向下放，感受三头肌拉伸",
+        "发力收紧肱三头肌，将小臂缓慢伸直，回到起始位置，全程大臂始终垂直地面"
+      ],
+      "tips": [
+        "大臂全程保持固定，不要前后晃动借力",
+        "下放速度放缓，避免惯性发力，顶峰收缩停顿1秒效果更佳",
+        "不要将哑铃下放过低，避免压迫颈部造成不适"
+      ],
+      "mistakes": [
+        {
+          "wrong": "大臂前后摆动借力，减少三头肌受力",
+          "fix": "夹紧大臂贴近耳朵，全程保持大臂角度固定，仅活动小臂"
+        },
+        {
+          "wrong": "手肘外展打开，发力偏移",
+          "fix": "手肘始终朝向天花板，保持手肘垂直地面，收紧肩带稳定肩部"
+        }
+      ],
+      "variations": [
+        "单臂哑铃碎颅者：单侧手臂独立完成动作，纠正左右手臂力量不平衡",
+        "上斜哑铃碎颅者：调整凳面倾斜角度，侧重刺激三头肌外侧头"
+      ]
     },
     {
       id: 'tricep-pushdown',
@@ -132,21 +153,6 @@ module.exports = {
       steps: ['坐在凳子上，前臂放在大腿上，手腕悬空', '掌心向下握住哑铃', '手腕向上弯举', '有控制地下放'],
       tips: ['重量比正握轻一些', '控制速度'],
       mistakes: [{ wrong: '甩动借力', fix: '控制动作节奏' }],
-      variations: []
-    },
-    {
-      id: 'farmer-walk',
-      name: '农夫行走',
-      subRegion: 'forearm',
-      difficulty: 'beginner',
-      summary: '功能性握力训练，同时锻炼核心',
-      cover: 'https://gzyapi.gzyhm.xyz/guide/农夫行走.gif',
-      equipment: '哑铃/壶铃',
-      targetMuscles: ['前臂屈肌群', '核心', '斜方肌'],
-      video: '',
-      steps: ['双手各持重物', '挺胸收腹，正常行走', '保持握紧，走一定距离或时间'],
-      tips: ['握紧不要松手', '保持正常步态'],
-      mistakes: [{ wrong: '身体前倾', fix: '挺胸收腹，保持直立' }],
       variations: []
     }
   ]

@@ -41,7 +41,8 @@ class LLMManager:
                 base_url=os.getenv("OPENAI_API_BASE"),
                 temperature=temperature,
                 request_timeout=30,
-                max_retries=2
+                max_retries=2,
+                extra_body={"thinking": {"type": "disabled"}}
             )
         return cls._instances[temperature]
 

@@ -118,6 +118,21 @@ module.exports = {
       tips: ['拉至大臂与地面平行', '外旋时双手在耳朵两侧'],
       mistakes: [{ wrong: '用手臂硬拉', fix: '用后束和肩胛骨发力' }],
       variations: []
+    },
+    {
+      id: 'reverse-fly',
+      name: '蝴蝶机反向飞鸟',
+      subRegion: 'upper',
+      difficulty: 'beginner',
+      summary: '孤立三角肌后束和上背，改善圆肩',
+      cover: 'https://gzyapi.gzyhm.xyz/guide/蝴蝶机反向飞鸟.gif',
+      equipment: '哑铃或反向蝴蝶机',
+      targetMuscles: ['三角肌后束', '菱形肌', '斜方肌中束'],
+      video: '',
+      steps: ['俯身或坐在反向蝴蝶机上', '双手向两侧打开', '挤压肩胛骨，缓慢回到起始位置'],
+      tips: ['想象用肩胛骨夹笔', '控制速度，不要甩动'],
+      mistakes: [{ wrong: '用手臂力量甩', fix: '用上背和后束发力' }],
+      variations: []
     }
   ]
 }
