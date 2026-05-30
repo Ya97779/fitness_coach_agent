@@ -39,7 +39,7 @@ const TEMPLATES = [
     id: 'legs', name: '腿部训练',
     exercises: [
       { name: '杠铃深蹲', sets: 4, rest: 240, weight: 0 },
-      { name: '倒登', sets: 4, rest: 240, weight: 0 },
+      { name: '倒蹬', sets: 4, rest: 240, weight: 0 },
       { name: '器械腿屈伸', sets: 4, rest: 180, weight: 0 },
       { name: '卧姿腿弯举', sets: 4, rest: 180, weight: 0 }
     ]
