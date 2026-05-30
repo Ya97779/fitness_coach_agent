@@ -91,6 +91,7 @@ if os.path.isdir(_guide_dir):
 os.makedirs(_avatars_dir, exist_ok=True)
 app.mount("/avatars", StaticFiles(directory=_avatars_dir), name="avatars")
 os.makedirs(_feedback_dir, exist_ok=True)
+app.mount("/feedback", StaticFiles(directory=_feedback_dir), name="feedback")
 
 # ========== RAG 启动初始化 ==========
 rag_initialized = False
