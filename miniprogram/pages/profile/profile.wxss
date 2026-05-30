@@ -338,14 +338,17 @@
 /* 退出登录 */
 .clear-data-btn {
   text-align: center;
-  padding: 24rpx;
-  margin-top: 16rpx;
+  padding: 22rpx;
+  margin-top: 24rpx;
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
 }
 
 .clear-data-text {
-  font-size: 24rpx;
-  color: var(--text-hint);
-  text-decoration: underline;
+  font-size: 26rpx;
+  color: var(--danger);
+  letter-spacing: 1rpx;
 }
 
 .logout-btn {

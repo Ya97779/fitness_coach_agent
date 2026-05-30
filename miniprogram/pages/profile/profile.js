@@ -122,12 +122,14 @@ Page({
   clearAllData() {
     wx.showModal({
       title: '清除全部数据',
-      content: '将删除所有饮食记录、运动记录和对话历史，账户信息保留。此操作不可恢复。',
-      confirmColor: '#c47a6c',
+      content: '将清除以下数据：\n- 所有饮食记录\n- 所有运动记录\n- 对话历史\n- 本地缓存\n\n个人资料（身高体重等）将保留，此操作不可恢复。',
+      confirmText: '确认清除',
+      confirmColor: '#e74c3c',
       success: (res) => {
         if (res.confirm) {
           wx.showLoading({ title: '清除中...' })
           request({ url: '/api/v1/user/me/data', method: 'DELETE' }).then(() => {
+            wx.removeStorageSync('chat_messages')
             wx.hideLoading()
             wx.showToast({ title: '已清除', icon: 'success' })
             setTimeout(() => {
