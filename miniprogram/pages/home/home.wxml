@@ -115,8 +115,8 @@
   </view>
 
   <!-- 反馈入口 -->
-  <view class="feedback-entry" wx:if="{{loggedIn}}" bindtap="goFeedback">
-    <text class="feedback-text">提出你的改进建议</text>
+  <view class="feedback-btn" wx:if="{{loggedIn}}" bindtap="goFeedback">
+    <text class="feedback-btn-text">提出你的改进建议</text>
   </view>
 
   <!-- 编辑弹窗 -->

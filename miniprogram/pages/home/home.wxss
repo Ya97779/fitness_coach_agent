@@ -284,16 +284,19 @@
 }
 
 /* 反馈入口 */
-.feedback-entry {
+.feedback-btn {
   text-align: center;
-  padding: 32rpx 0 16rpx;
+  padding: 22rpx 0;
+  margin: 16rpx 0;
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
 }
 
-.feedback-text {
-  font-size: 40rpx;
-  color: var(--text-hint);
+.feedback-btn-text {
+  font-size: 26rpx;
+  color: var(--text-secondary);
   letter-spacing: 1rpx;
-  text-decoration: underline;
 }
 
 /* 空状态 */
