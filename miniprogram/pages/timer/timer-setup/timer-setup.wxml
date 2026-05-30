@@ -83,11 +83,28 @@
   <!-- 底部按钮 -->
   <view class="bottom-bar">
     <view class="save-btn" bindtap="saveToWeeklyPlan">
-      <text class="save-text">保存至{{todayLabel}}计划</text>
+      <text class="save-text">保存至周计划</text>
     </view>
     <view class="start-btn {{exercises.length === 0 ? 'disabled' : ''}}" bindtap="startTraining">
       <text class="start-main">开始训练</text>
       <text class="start-sub">{{exercises.length}} 动作 / {{totalSets}} 组</text>
+    </view>
+  </view>
+
+  <!-- 周几选择弹窗 -->
+  <view class="modal-mask" wx:if="{{showDayPicker}}" bindtap="hideDayPicker">
+    <view class="modal-content" catchtap>
+      <text class="modal-title">保存到哪一天？</text>
+      <view class="day-grid">
+        <view class="day-item {{item.key === todayKey ? 'day-today' : ''}}"
+              wx:for="{{days}}" wx:key="key"
+              bindtap="selectDay" data-key="{{item.key}}" data-label="{{item.label}}">
+          <text class="day-text">{{item.label}}</text>
+        </view>
+      </view>
+      <view class="modal-cancel" bindtap="hideDayPicker">
+        <text class="modal-cancel-text">取消</text>
+      </view>
     </view>
   </view>
 </view>

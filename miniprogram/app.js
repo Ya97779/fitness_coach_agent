@@ -36,6 +36,10 @@ App({
     }
   },
 
+  onPageNotFound(res) {
+    wx.reLaunch({ url: '/pages/home/home' })
+  },
+
   loadUserInfo() {
     const { request } = require('./utils/request')
     request({ url: '/api/v1/user/me' }).then(user => {

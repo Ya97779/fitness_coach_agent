@@ -18,13 +18,15 @@ Page({
     exercises: [],
     totalSets: 0,
     todayLabel: '',
-    isRestDay: false
+    isRestDay: false,
+    showDayPicker: false,
+    days: DAYS
   },
 
   onShow() {
     const dayIndex = new Date().getDay()
     const today = DAYS[dayIndex === 0 ? 6 : dayIndex - 1]
-    this.setData({ todayLabel: today.label })
+    this.setData({ todayLabel: today.label, todayKey: today.key })
 
     // 优先从周计划加载今日训练
     const weeklyPlan = wx.getStorageSync('weekly_plan')
@@ -136,8 +138,25 @@ Page({
   },
 
   saveToWeeklyPlan() {
-    this.syncToWeeklyPlan()
-    wx.showToast({ title: '已保存至' + this.data.todayLabel + '计划', icon: 'none' })
+    this.setData({ showDayPicker: true })
+  },
+
+  hideDayPicker() {
+    this.setData({ showDayPicker: false })
+  },
+
+  selectDay(e) {
+    const key = e.currentTarget.dataset.key
+    const label = e.currentTarget.dataset.label
+    const weeklyPlan = wx.getStorageSync('weekly_plan') || { days: {} }
+    if (!weeklyPlan.days) weeklyPlan.days = {}
+    weeklyPlan.days[key] = {
+      exercises: this.data.exercises.map(ex => ({ ...ex })),
+      isRest: false
+    }
+    wx.setStorageSync('weekly_plan', weeklyPlan)
+    this.setData({ showDayPicker: false })
+    wx.showToast({ title: '已保存至' + label + '计划', icon: 'none' })
   },
 
   goPlan() {

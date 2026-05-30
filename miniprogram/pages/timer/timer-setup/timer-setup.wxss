@@ -353,3 +353,71 @@
   display: block;
   letter-spacing: 1rpx;
 }
+
+/* 周几选择弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+}
+
+.modal-content {
+  background: var(--bg-base);
+  width: 100%;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 36rpx 28rpx;
+  border-top: 1rpx solid var(--border);
+}
+
+.modal-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: 28rpx;
+  display: block;
+  letter-spacing: 2rpx;
+}
+
+.day-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  justify-content: center;
+}
+
+.day-item {
+  width: calc(25% - 12rpx);
+  padding: 24rpx 0;
+  text-align: center;
+  border: 1rpx solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.day-today {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.day-text {
+  font-size: 28rpx;
+  color: var(--text-primary);
+}
+
+.modal-cancel {
+  margin-top: 24rpx;
+  padding: 22rpx;
+  text-align: center;
+}
+
+.modal-cancel-text {
+  font-size: 28rpx;
+  color: var(--text-hint);
+}
