@@ -379,12 +379,35 @@ class ModernRAG:
 
         new_files = []
         updated_files = []
+        deleted_files = []
 
         for file_path, file_hash in current_files.items():
             if file_path not in indexed_files:
                 new_files.append(file_path)
             elif indexed_files[file_path] != file_hash:
                 updated_files.append(file_path)
+
+        # 检测已删除的文件，从索引中清除
+        for file_path in list(indexed_files.keys()):
+            if file_path not in current_files:
+                deleted_files.append(file_path)
+
+        if deleted_files:
+            print(f"发现 {len(deleted_files)} 个已删除文件，正在清除索引...")
+            for file_path in deleted_files:
+                try:
+                    self.vectorstore.delete(where={"source": file_path})
+                    del indexed_files[file_path]
+                    print(f"  - 已清除: {os.path.basename(file_path)}")
+                except Exception as e:
+                    print(f"  - 清除失败: {os.path.basename(file_path)}: {e}")
+                    del indexed_files[file_path]
+            self._save_indexed_files(indexed_files)
+            # 清除 BM25 缓存
+            self.documents = [
+                doc for doc in self.documents
+                if doc.metadata.get("source") not in deleted_files
+            ]
 
         if not new_files and not updated_files:
             print("知识库没有新文档，无需更新索引")
