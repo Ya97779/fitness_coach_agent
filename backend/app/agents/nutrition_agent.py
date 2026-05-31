@@ -320,7 +320,9 @@ def search_nutrition_knowledge(query: str):
             continue
         if len(c) > 500:
             c = c[:500] + "..."
-        content_parts.append(f"[来源{i+1}] {c}")
+        heading = r.get("metadata", {}).get("heading_path", "")
+        prefix = f"[{heading}] " if heading else ""
+        content_parts.append(f"[来源{i+1}] {prefix}{c}")
         if len(content_parts) >= 3:
             break
 

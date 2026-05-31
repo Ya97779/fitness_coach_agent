@@ -50,6 +50,7 @@ from dotenv import load_dotenv
 from .modules import (
     DocumentLoader,
     IntelligentSplitter,
+    MarkdownSplitter,
     TextPreprocessor,
     HybridSearch,
     QueryExpander,
@@ -161,6 +162,10 @@ class ModernRAG:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
         )
+        self.markdown_splitter = MarkdownSplitter(
+            min_chunk_size=100,
+            max_chunk_size=1000
+        )
         self.preprocessor = TextPreprocessor(
             remove_duplicates=True,
             similarity_threshold=0.85
@@ -255,21 +260,33 @@ class ModernRAG:
 
         print(f"加载文档: {len(docs)} 个")
 
-        processor = AdvancedDocumentProcessor(
-            embeddings=self.embeddings,
-            use_semantic_chunking=True,
-            detect_tables=True,
-            detect_code=True,
-            analyze_structure=True
-        )
-        processed_docs = processor.process_documents(docs)
-        docs = processed_docs
-        print(f"高级处理后: {len(docs)} 个块")
+        # 按文件类型分流：.md 文件走 MarkdownSplitter，其他走原流程
+        md_docs = [d for d in docs if d.metadata.get("source", "").endswith(".md")]
+        other_docs = [d for d in docs if not d.metadata.get("source", "").endswith(".md")]
 
-        docs = self.splitter.split_documents(docs)
-        print(f"分割后: {len(docs)} 个块")
+        all_chunks = []
 
-        docs = self.preprocessor.preprocess_documents(docs)
+        # .md 文件：MarkdownSplitter（跳过 AdvancedDocumentProcessor 和 IntelligentSplitter）
+        if md_docs:
+            md_chunks = self.markdown_splitter.split_documents(md_docs)
+            all_chunks.extend(md_chunks)
+            print(f"Markdown 分块: {len(md_chunks)} 个块")
+
+        # 其他文件：原有流程
+        if other_docs:
+            processor = AdvancedDocumentProcessor(
+                embeddings=self.embeddings,
+                use_semantic_chunking=True,
+                detect_tables=True,
+                detect_code=True,
+                analyze_structure=True
+            )
+            processed_docs = processor.process_documents(other_docs)
+            other_chunks = self.splitter.split_documents(processed_docs)
+            all_chunks.extend(other_chunks)
+            print(f"其他文件分块: {len(other_chunks)} 个块")
+
+        docs = self.preprocessor.preprocess_documents(all_chunks)
         print(f"预处理后: {len(docs)} 个块")
 
         self.documents = docs
@@ -459,16 +476,20 @@ class ModernRAG:
             if not docs:
                 return []
 
-            processor = AdvancedDocumentProcessor(
-                embeddings=self.embeddings,
-                use_semantic_chunking=True,
-                detect_tables=True,
-                detect_code=True,
-                analyze_structure=True
-            )
-            processed_docs = processor.process_documents(docs)
+            # 按文件类型分流
+            if file_path.endswith(".md"):
+                chunks = self.markdown_splitter.split_documents(docs)
+            else:
+                processor = AdvancedDocumentProcessor(
+                    embeddings=self.embeddings,
+                    use_semantic_chunking=True,
+                    detect_tables=True,
+                    detect_code=True,
+                    analyze_structure=True
+                )
+                processed_docs = processor.process_documents(docs)
+                chunks = self.splitter.split_documents(processed_docs)
 
-            chunks = self.splitter.split_documents(processed_docs)
             chunks = self.preprocessor.preprocess_documents(chunks)
 
             if chunks:

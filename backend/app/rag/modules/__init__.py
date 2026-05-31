@@ -1,7 +1,7 @@
 """RAG 模块 - 模块导出"""
 
 from .loader import DocumentLoader
-from .splitter import IntelligentSplitter
+from .splitter import IntelligentSplitter, MarkdownSplitter
 from .preprocessor import TextPreprocessor
 from .bm25 import BM25, BM25Search
 from .hybrid_search import HybridSearch, create_hybrid_retriever
@@ -25,6 +25,7 @@ from .doc_processor import (
 __all__ = [
     "DocumentLoader",
     "IntelligentSplitter",
+    "MarkdownSplitter",
     "TextPreprocessor",
     "BM25",
     "BM25Search",

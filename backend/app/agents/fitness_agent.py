@@ -212,17 +212,20 @@ def search_fitness_knowledge(query: str):
         if any(spam in content for spam in spam_patterns):
             print(f"[RAG] 过滤垃圾内容: {content[:50]}...")
             continue
-        valid_results.append(content)
+        valid_results.append(r)
 
     if not valid_results:
         return f"【RAG检索】未在知识库中找到相关信息"
 
     # 返回前 3 条有效结果
     content_parts = []
-    for i, c in enumerate(valid_results[:3]):
+    for i, r in enumerate(valid_results[:3]):
+        c = r.get("content", "").strip()
         if len(c) > 500:
             c = c[:500] + "..."
-        content_parts.append(f"[来源{i+1}] {c}")
+        heading = r.get("metadata", {}).get("heading_path", "")
+        prefix = f"[{heading}] " if heading else ""
+        content_parts.append(f"[来源{i+1}] {prefix}{c}")
 
     return f"【RAG检索】\n" + "\n\n".join(content_parts)
 

@@ -59,6 +59,7 @@ class DocumentLoader:
         ".docx": Docx2txtLoader,
         ".doc": Docx2txtLoader,
         ".txt": TextLoader,
+        ".md": TextLoader,
         ".html": UnstructuredHTMLLoader,
         ".htm": UnstructuredHTMLLoader,
         ".jpg": UnstructuredImageLoader,
