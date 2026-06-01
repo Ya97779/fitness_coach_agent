@@ -10,6 +10,7 @@ from .hyde import HyDEGenerator, HyDERetriever
 from .cot import CoTReasoner, RAGCoT
 from .self_rag import SelfRAG, SelfRAGScorer
 from .agentic_rag import RouterAgent, AgenticRAG, AutoRAG, QueryClassifier
+from .reranker import JinaReranker
 from .doc_processor import (
     TableDetector,
     TableData,
@@ -51,5 +52,6 @@ __all__ = [
     "DocumentStructureAnalyzer",
     "Section",
     "ContextAwareCleaner",
-    "AdvancedDocumentProcessor"
+    "AdvancedDocumentProcessor",
+    "JinaReranker"
 ]

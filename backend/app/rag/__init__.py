@@ -60,7 +60,8 @@ from .modules import (
     RouterAgent,
     AgenticRAG,
     AutoRAG,
-    AdvancedDocumentProcessor
+    AdvancedDocumentProcessor,
+    JinaReranker
 )
 
 load_dotenv()
@@ -112,6 +113,7 @@ class ModernRAG:
         enable_cot: bool = False,
         enable_self_rag: bool = False,
         enable_agentic: bool = False,
+        enable_reranker: bool = False,
         llm_model: str = None,
         embedding_model: str = None
     ):
@@ -129,6 +131,7 @@ class ModernRAG:
             enable_hyde: 启用假设性文档嵌入
             enable_cot: 启用思维链推理
             enable_self_rag: 启用自我反思纠正
+            enable_reranker: 启用 Jina Reranker 精排
             llm_model: LLM 模型名称
             embedding_model: 嵌入模型名称
         """
@@ -144,6 +147,7 @@ class ModernRAG:
         self.enable_cot = enable_cot
         self.enable_self_rag = enable_self_rag
         self.enable_agentic = enable_agentic
+        self.enable_reranker = enable_reranker
 
         api_key = os.getenv("OPENAI_API_KEY")
         api_base = os.getenv("OPENAI_API_BASE")
@@ -201,6 +205,16 @@ class ModernRAG:
             self._setup_agentic_rag()
         else:
             self.agentic_rag = None
+
+        if enable_reranker:
+            try:
+                self.reranker = JinaReranker()
+                print("Jina Reranker 已启用")
+            except ValueError as e:
+                print(f"Reranker 初始化失败: {e}，将跳过精排")
+                self.reranker = None
+        else:
+            self.reranker = None
 
         # 查询缓存（LRU，5分钟过期）
         self._query_cache: Dict[str, Any] = {}
@@ -592,7 +606,9 @@ class ModernRAG:
         """
         try:
             if self.hybrid_search:
-                results = self.hybrid_search.search(query, top_k)
+                # 初排取更多结果用于精排
+                initial_k = top_k * 3 if self.reranker else top_k
+                results = self.hybrid_search.search(query, initial_k)
             else:
                 docs = self.vectorstore.similarity_search_with_score(query, k=top_k)
                 results = [
@@ -603,7 +619,12 @@ class ModernRAG:
                     }
                     for doc, score in docs
                 ]
-            return results
+
+            # Reranker 精排
+            if self.reranker and results:
+                results = self.reranker.rerank(query, results, top_n=top_k)
+
+            return results[:top_k]
         except Exception as e:
             print(f"检索错误: {e}")
             return []
@@ -936,7 +957,8 @@ class ModernRAG:
             "enable_hyde": self.enable_hyde,
             "enable_cot": self.enable_cot,
             "enable_self_rag": self.enable_self_rag,
-            "enable_agentic": self.enable_agentic
+            "enable_agentic": self.enable_agentic,
+            "enable_reranker": self.enable_reranker
         }
 
 
@@ -944,9 +966,29 @@ modern_rag_instance: Optional[ModernRAG] = None
 
 
 def get_rag_instance(**kwargs) -> ModernRAG:
-    """获取全局 RAG 实例（单例）"""
+    """获取全局 RAG 实例（单例）
+
+    支持通过环境变量控制功能开关：
+    - ENABLE_RERANKER=true 启用 Jina Reranker 精排（需配置 JINA_API_KEY）
+    - ENABLE_QUERY_EXPANSION=true 启用多查询扩展
+    - ENABLE_HYDE=true 启用 HyDE
+    - ENABLE_COT=true 启用思维链推理
+    - ENABLE_SELF_RAG=true 启用自我反思
+    """
     global modern_rag_instance
     if modern_rag_instance is None:
+        # 从环境变量读取功能开关（未显式传参时生效）
+        env_defaults = {
+            "enable_reranker": os.getenv("ENABLE_RERANKER", "false").lower() == "true",
+            "enable_query_expansion": os.getenv("ENABLE_QUERY_EXPANSION", "false").lower() == "true",
+            "enable_hyde": os.getenv("ENABLE_HYDE", "false").lower() == "true",
+            "enable_cot": os.getenv("ENABLE_COT", "false").lower() == "true",
+            "enable_self_rag": os.getenv("ENABLE_SELF_RAG", "false").lower() == "true",
+        }
+        for key, default_value in env_defaults.items():
+            if key not in kwargs:
+                kwargs[key] = default_value
+
         modern_rag_instance = ModernRAG(**kwargs)
     return modern_rag_instance
 
