@@ -78,4 +78,10 @@ fitagent.db
 chroma_db/
 checkpoints.db
 backend/checkpoints.db
-knowledge_base/
+knowledge_base/.superpowers/
+
+# =========================
+# Node.js
+# =========================
+node_modules/
+.superpowers/
