@@ -36,7 +36,7 @@
       },
       {
         "pagePath": "pages/chat/chat",
-        "text": "聊天",
+        "text": "健身知识库查询",
         "iconPath": "images/tab-chat.png",
         "selectedIconPath": "images/tab-chat-active.png"
       },
