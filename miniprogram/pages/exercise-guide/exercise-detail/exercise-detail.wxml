@@ -99,7 +99,7 @@
       <text class="bottom-btn-text">加入训练计划</text>
     </view>
     <view class="bottom-btn primary" bindtap="askAI">
-      <text class="bottom-btn-text">咨询 AI</text>
+      <text class="bottom-btn-text">查看解答</text>
     </view>
   </view>
 </view>

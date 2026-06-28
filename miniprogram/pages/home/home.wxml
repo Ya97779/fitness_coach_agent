@@ -9,7 +9,7 @@
   <!-- 未登录提示 -->
   <view class="login-card" wx:if="{{!loggedIn}}">
     <text class="login-card-title">登录解锁更多功能</text>
-    <text class="login-card-desc">登录后可使用 AI 助手、记录训练、查看统计等</text>
+    <text class="login-card-desc">登录后可使用知识库查询、记录训练、查看统计等</text>
     <view class="login-card-btn" bindtap="handleLogin">
       <text class="login-card-btn-text">立即登录</text>
     </view>

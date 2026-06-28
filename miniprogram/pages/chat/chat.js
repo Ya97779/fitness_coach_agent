@@ -209,7 +209,7 @@ Page({
       if (m.id === msgId) {
         // 如果最后仍是 status 消息（LLM 没返回真实内容），显示错误提示
         if (m._isStatus && !m._hasRealContent) {
-          return { ...m, loading: false, _streaming: false, content: '抱歉，AI 未能生成回复，请重试。', html: '<p>抱歉，AI 未能生成回复，请重试。</p>' }
+          return { ...m, loading: false, _streaming: false, content: '抱歉，未能获取回复，请重试。', html: '<p>抱歉，未能获取回复，请重试。</p>' }
         }
         return { ...m, loading: false, _streaming: false, _isStatus: false, html: parseMarkdown(m.content) }
       }

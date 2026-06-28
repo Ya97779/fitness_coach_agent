@@ -1,6 +1,6 @@
 <view class="page">
   <text class="title">设置个人信息</text>
-  <text class="desc">让 AI 助手更好地认识你</text>
+  <text class="desc">让智能助手更好地认识你</text>
 
   <!-- 昵称 -->
   <view class="nickname-section">

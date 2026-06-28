@@ -88,7 +88,7 @@ Page({
     request({ url: '/api/v1/food-log', method: 'POST', data }).then((res) => {
       wx.hideLoading()
       if (res.estimating) {
-        wx.showToast({ title: 'AI 正在估算热量，稍后刷新查看', icon: 'none', duration: 2500 })
+        wx.showToast({ title: '正在估算热量，稍后刷新查看', icon: 'none', duration: 2500 })
       } else {
         wx.showToast({ title: '记录成功', icon: 'success' })
       }
