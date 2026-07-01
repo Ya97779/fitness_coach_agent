@@ -63,5 +63,18 @@ Page({
     wx.navigateTo({
       url: `/pages/exercise-guide/exercise-detail/exercise-detail?id=${id}&group=${this.data.group.id}`
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 健身动作列表',
+      path: '/pages/exercise-guide/exercise-guide/exercise-guide'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 健身动作列表'
+    }
   }
 })

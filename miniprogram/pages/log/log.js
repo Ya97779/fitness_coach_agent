@@ -19,13 +19,9 @@ Page({
   },
 
   onLoad() {
-    if (!isLoggedIn()) {
-      showLoginPrompt().then(loggedIn => {
-        if (loggedIn) this.setData({ loggedIn: true })
-      })
-      return
+    if (isLoggedIn()) {
+      this.setData({ loggedIn: true })
     }
-    this.setData({ loggedIn: true })
   },
 
   switchTab(e) {
@@ -77,6 +73,17 @@ Page({
     const { foodName, mealType, portionQty, portionUnit } = this.data
     if (!foodName || !mealType) return
 
+    // 未登录时先登录
+    if (!isLoggedIn()) {
+      showLoginPrompt().then(loggedIn => {
+        if (loggedIn) {
+          this.setData({ loggedIn: true })
+          this.submitFood()
+        }
+      })
+      return
+    }
+
     const data = {
       name: foodName,
       meal_type: mealType,
@@ -103,6 +110,17 @@ Page({
     const { exerciseType, exerciseDuration } = this.data
     if (!exerciseType || !exerciseDuration) return
 
+    // 未登录时先登录
+    if (!isLoggedIn()) {
+      showLoginPrompt().then(loggedIn => {
+        if (loggedIn) {
+          this.setData({ loggedIn: true })
+          this.submitExercise()
+        }
+      })
+      return
+    }
+
     wx.showLoading({ title: '记录中...' })
     request({
       url: '/api/v1/exercise-log',
@@ -124,5 +142,18 @@ Page({
         this.setData({ loggedIn: true })
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 记录你的饮食和运动',
+      path: '/pages/log/log'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 记录你的饮食和运动'
+    }
   }
 })

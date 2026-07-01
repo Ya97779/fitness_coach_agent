@@ -12,22 +12,13 @@
   </view>
 
   <!-- 编辑 -->
-  <view class="edit-row" wx:if="{{loggedIn}}" bindtap="showEdit">
+  <view class="edit-row" bindtap="showEdit">
     <text class="edit-text">编辑个人信息及身体状况</text>
     <text class="edit-arrow">></text>
   </view>
 
-  <!-- 未登录提示 -->
-  <view class="login-card" wx:if="{{!loggedIn}}">
-    <text class="login-card-title">登录后可查看个人资料</text>
-    <text class="login-card-desc">管理身体数据、查看训练记录</text>
-    <view class="login-card-btn" bindtap="handleLogin">
-      <text class="login-card-btn-text">立即登录</text>
-    </view>
-  </view>
-
   <!-- BMI -->
-  <view class="card" wx:if="{{loggedIn && userInfo.bmiVal && userInfo.bmiVal !== '--'}}" bindtap="showEdit">
+  <view class="card" wx:if="{{userInfo.bmiVal && userInfo.bmiVal !== '--'}}" bindtap="showEdit">
     <text class="card-label">BMI 体质指数</text>
     <view class="bmi-row">
       <text class="bmi-val">{{userInfo.bmiVal}}</text>
@@ -51,7 +42,7 @@
   </view>
 
   <!-- 代谢数据 -->
-  <view class="card" wx:if="{{loggedIn}}" bindtap="showEdit">
+  <view class="card" bindtap="showEdit">
     <text class="card-label">代谢指标</text>
     <view class="data-grid">
       <view class="data-item">
@@ -66,7 +57,7 @@
   </view>
 
   <!-- 目标信息 -->
-  <view class="card" wx:if="{{loggedIn && (userInfo.goal || userInfo.target_weight || userInfo.allergies)}}" bindtap="showEdit">
+  <view class="card" wx:if="{{userInfo.goal || userInfo.target_weight || userInfo.allergies}}" bindtap="showEdit">
     <text class="card-label">目标信息</text>
     <view class="info-row" wx:if="{{userInfo.goal}}">
       <text class="info-key">健身目标</text>

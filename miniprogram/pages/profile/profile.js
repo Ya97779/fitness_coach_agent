@@ -15,7 +15,18 @@ Page({
 
   onShow() {
     if (!isLoggedIn()) {
-      this.setData({ loggedIn: false })
+      this.setData({
+        loggedIn: false,
+        userInfo: {
+          nickname: '',
+          avatar_url: '',
+          bmiVal: '--',
+          bmiCategory: '',
+          bmiLevel: '',
+          bmrRounded: '--',
+          tdeeRounded: '--'
+        }
+      })
       return
     }
     this.setData({ loggedIn: true })
@@ -23,7 +34,7 @@ Page({
   },
 
   loadProfile() {
-    request({ url: '/api/v1/user/me' }).then(user => {
+    return request({ url: '/api/v1/user/me' }).then(user => {
       user.bmrRounded = user.bmr ? Math.round(user.bmr) : '--'
       user.tdeeRounded = user.tdee ? Math.round(user.tdee) : '--'
       this._calcBmi(user)
@@ -57,6 +68,22 @@ Page({
   },
 
   showEdit() {
+    // 未登录时先登录
+    if (!isLoggedIn()) {
+      showLoginPrompt().then(loggedIn => {
+        if (loggedIn) {
+          this.setData({ loggedIn: true })
+          this.loadProfile().then(() => {
+            this._openEditModal()
+          })
+        }
+      })
+      return
+    }
+    this._openEditModal()
+  },
+
+  _openEditModal() {
     const { userInfo } = this.data
     this.setData({
       showEditModal: true,
@@ -164,5 +191,18 @@ Page({
         this.loadProfile()
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 查看我的健身数据',
+      path: '/pages/profile/profile'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 查看我的健身数据'
+    }
   }
 })

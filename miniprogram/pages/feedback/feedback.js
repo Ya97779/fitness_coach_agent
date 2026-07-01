@@ -48,5 +48,18 @@ Page({
     }).finally(() => {
       this.setData({ submitting: false })
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 提交反馈',
+      path: '/pages/home/home'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 你的健身助手'
+    }
   }
 })

@@ -346,5 +346,18 @@ Page({
       this.updateAiMessage(stream.aiMsgId, stream.pendingContent)
       stream.pendingContent = ''
     }
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 智能健身营养问答',
+      path: '/pages/chat/chat'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 智能健身营养问答'
+    }
   }
 })

@@ -182,5 +182,18 @@ Page({
         res.eventChannel.emit('trainingPlan', { exercises, defaultRest })
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 训练计时器',
+      path: '/pages/timer/timer-setup/timer-setup'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 训练计时器'
+    }
   }
 })

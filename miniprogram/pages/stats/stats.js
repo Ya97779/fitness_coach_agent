@@ -38,20 +38,12 @@ Page({
       selectedDate: this._formatDate(today)
     })
 
-    if (!isLoggedIn()) {
-      showLoginPrompt().then(loggedIn => {
-        if (loggedIn) {
-          this.setData({ loggedIn: true })
-          this._initData()
-        } else {
-          this.setData({ loading: false })
-        }
-        this._pageReady = true
-      })
-      return
+    if (isLoggedIn()) {
+      this.setData({ loggedIn: true })
+      this._initData()
+    } else {
+      this.setData({ loading: false })
     }
-    this.setData({ loggedIn: true })
-    this._initData()
     this._pageReady = true
   },
 
@@ -480,5 +472,18 @@ Page({
         this._initData()
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 查看健身统计',
+      path: '/pages/stats/stats'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 查看健身统计'
+    }
   }
 })

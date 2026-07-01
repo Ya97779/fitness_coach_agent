@@ -45,5 +45,18 @@ Page({
 
   skip() {
     wx.switchTab({ url: '/pages/home/home' })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 你的智能健身营养顾问',
+      path: '/pages/home/home'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 你的智能健身营养顾问'
+    }
   }
 })

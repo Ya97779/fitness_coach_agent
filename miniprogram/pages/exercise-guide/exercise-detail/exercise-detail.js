@@ -76,5 +76,20 @@ Page({
       }
     }
     wx.showToast({ title: '暂无该变体详情', icon: 'none' })
+  },
+
+  onShareAppMessage() {
+    const name = this.data.exercise ? this.data.exercise.name : '健身动作'
+    return {
+      title: `健身助手Agent - ${name} 动作指导`,
+      path: `/pages/exercise-guide/exercise-detail/exercise-detail?id=${this.data.exerciseId}&group=${this.data.groupId}`
+    }
+  },
+
+  onShareTimeline() {
+    const name = this.data.exercise ? this.data.exercise.name : '健身动作'
+    return {
+      title: `健身助手Agent - ${name} 动作指导`
+    }
   }
 })

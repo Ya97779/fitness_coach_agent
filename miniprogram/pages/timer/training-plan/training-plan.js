@@ -177,5 +177,18 @@ Page({
         res.eventChannel.emit('trainingPlan', { exercises: today.exercises, defaultRest: 60 })
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 周训练计划',
+      path: '/pages/timer/training-plan/training-plan'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 周训练计划'
+    }
   }
 })

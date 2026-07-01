@@ -86,5 +86,18 @@ Page({
 
   goHome() {
     wx.switchTab({ url: '/pages/home/home' })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 完成训练！',
+      path: '/pages/timer/timer-setup/timer-setup'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 完成训练！'
+    }
   }
 })

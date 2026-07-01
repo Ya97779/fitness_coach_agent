@@ -236,5 +236,18 @@ Page({
       app.globalData.trainingResult = result
       wx.redirectTo({ url: '/pages/timer/timer-summary/timer-summary' })
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 正在训练中',
+      path: '/pages/timer/timer-setup/timer-setup'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 训练计时器'
+    }
   }
 })

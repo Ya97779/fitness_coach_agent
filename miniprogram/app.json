@@ -18,7 +18,7 @@
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#f5f5f5",
-    "navigationBarTitleText": "FitCoach AI",
+    "navigationBarTitleText": "健身助手Agent",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f5f5f5"
   },

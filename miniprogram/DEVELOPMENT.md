@@ -1,4 +1,4 @@
-# FitCoach AI 小程序二次开发指南
+# 健身助手Agent 小程序二次开发指南
 
 本文档面向后续维护者，覆盖常见的修改场景。所有路径相对于 `miniprogram/` 目录。
 
@@ -10,7 +10,7 @@
 
 | 页面 | 文件 | 当前标题 |
 |------|------|----------|
-| 首页 | `pages/home/home.json` | FitCoach AI |
+| 首页 | `pages/home/home.json` | 健身助手Agent |
 | 聊天 | `pages/chat/chat.json` | AI 顾问 |
 | 训练计划 | `pages/timer/timer-setup/timer-setup.json` | 训练计划 |
 | 训练中 | `pages/timer/timer-training/timer-training.json` | 训练中 |

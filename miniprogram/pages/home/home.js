@@ -37,7 +37,18 @@ Page({
   onShow() {
     this.setGreeting()
     if (!isLoggedIn()) {
-      this.setData({ loggedIn: false, loading: false })
+      this.setData({
+        loggedIn: false,
+        loading: false,
+        intake: 0,
+        burn: 0,
+        hasTdee: false,
+        barPercent: 0,
+        gapText: 0,
+        isDeficit: true,
+        foodItems: [],
+        exerciseItems: []
+      })
       return
     }
     this.setData({ loggedIn: true })
@@ -347,5 +358,18 @@ Page({
         }
       }
     })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '健身助手Agent - 你的智能健身营养顾问',
+      path: '/pages/home/home'
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '健身助手Agent - 你的智能健身营养顾问'
+    }
   }
 })

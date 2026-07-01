@@ -2,7 +2,6 @@
   "navigationBarTitleText": "健身知识库",
   "enablePullDownRefresh": true,
   "usingComponents": {
-    "mp-html": "/components/mp-html/index",
     "floating-timer": "/components/floating-timer/floating-timer"
   }
 }
