@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 评测系统 — 流程与缺陷分析</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --orange: #db6d28;
+    --purple: #bc8cff;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Header */
+  .hero {
+    text-align: center;
+    padding: 60px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+  }
+  .hero h1 {
+    font-size: 2.2em;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero p { color: var(--text-muted); font-size: 1.1em; }
+
+  /* Navigation */
+  .nav-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    backdrop-filter: blur(12px);
+  }
+  .nav-bar a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 12px 16px;
+    font-size: 0.9em;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .nav-bar a:hover, .nav-bar a.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Sections */
+  section { margin-bottom: 56px; }
+  section > h2 {
+    font-size: 1.6em;
+    font-weight: 600;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  section > h2 .icon {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    flex-shrink: 0;
+  }
+  h3 {
+    font-size: 1.15em;
+    font-weight: 600;
+    margin: 24px 0 12px;
+    color: var(--text);
+  }
+  p { margin-bottom: 12px; }
+
+  /* Flowchart */
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 24px 0;
+  }
+  .flow-node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 24px;
+    text-align: center;
+    min-width: 320px;
+    max-width: 480px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .flow-node:hover { border-color: var(--accent); }
+  .flow-node .node-title {
+    font-weight: 600;
+    font-size: 1em;
+    margin-bottom: 4px;
+  }
+  .flow-node .node-desc {
+    font-size: 0.85em;
+    color: var(--text-muted);
+  }
+  .flow-node .node-file {
+    font-size: 0.75em;
+    color: var(--purple);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    margin-top: 6px;
+  }
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.8em;
+    padding: 4px 0;
+  }
+  .flow-arrow::before {
+    content: '';
+    width: 2px;
+    height: 20px;
+    background: var(--border);
+  }
+  .flow-arrow .arrow-label {
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* Branch layout */
+  .flow-branch {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 8px 0;
+  }
+  .flow-branch .flow-node { min-width: 200px; max-width: 240px; }
+  .branch-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+  .branch-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+
+  /* Metric cards */
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .metric-card:hover { border-color: var(--accent); }
+  .metric-card .metric-name {
+    font-weight: 600;
+    font-size: 1em;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .metric-card .metric-en {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-family: monospace;
+    margin-bottom: 10px;
+  }
+  .metric-card .metric-desc { font-size: 0.9em; }
+  .metric-card .metric-formula {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8em;
+    color: var(--green);
+    border: 1px solid var(--border);
+  }
+
+  /* Module cards */
+  .module-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .module-card h3 {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .module-card .file-path {
+    font-size: 0.75em;
+    color: var(--purple);
+    font-family: monospace;
+    margin-bottom: 12px;
+  }
+  .module-card ul {
+    padding-left: 20px;
+    margin-bottom: 12px;
+  }
+  .module-card li { margin-bottom: 6px; font-size: 0.9em; }
+  .module-card code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+    border: 1px solid var(--border);
+  }
+
+  /* Defect table */
+  .defect-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+  }
+  .defect-table th {
+    background: var(--surface);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 45px;
+  }
+  .defect-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .defect-table tr:hover td { background: rgba(88,166,255,0.04); }
+  .severity {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .severity.high { background: rgba(248,81,73,0.15); color: var(--red); }
+  .severity.medium { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .severity.low { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+
+  /* Dataset table */
+  .dataset-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85em;
+  }
+  .dataset-table th {
+    background: var(--surface);
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+  }
+  .dataset-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dataset-table tr:hover td { background: rgba(88,166,255,0.04); }
+  .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    margin-right: 4px;
+    border: 1px solid;
+  }
+  .tag.nutrition { border-color: var(--green); color: var(--green); }
+  .tag.exercise { border-color: var(--accent); color: var(--accent); }
+  .tag.theory { border-color: var(--purple); color: var(--purple); }
+  .tag.supplement { border-color: var(--orange); color: var(--orange); }
+  .tag.recovery { border-color: var(--yellow); color: var(--yellow); }
+  .tag.programming { border-color: var(--red); color: var(--red); }
+  .tag.health { border-color: var(--text-muted); color: var(--text-muted); }
+
+  /* Code block */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.82em;
+    overflow-x: auto;
+    margin: 12px 0;
+    line-height: 1.7;
+  }
+  .code-block .comment { color: var(--text-muted); }
+  .code-block .keyword { color: var(--red); }
+  .code-block .string { color: var(--green); }
+  .code-block .func { color: var(--purple); }
+  .code-block .num { color: var(--orange); }
+
+  /* Summary box */
+  .summary-box {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 16px 0;
+    font-size: 0.9em;
+  }
+  .summary-box.warn { border-left-color: var(--yellow); }
+  .summary-box.error { border-left-color: var(--red); }
+
+  /* Stats row */
+  .stats-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+  .stat-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 24px;
+    text-align: center;
+    flex: 1;
+    min-width: 140px;
+  }
+  .stat-item .stat-num {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-item .stat-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8em;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 24px 16px; }
+    .hero h1 { font-size: 1.6em; }
+    .flow-node { min-width: 260px; }
+    .flow-branch { flex-direction: column; align-items: center; }
+    .defect-table { font-size: 0.8em; }
+    .defect-table td, .defect-table th { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- Hero -->
+<div class="hero">
+  <h1>RAG 评测系统</h1>
+  <p>FitCoach AI — RAG 检索增强生成的评测流程、模块架构与已知缺陷分析</p>
+</div>
+
+<!-- Nav -->
+<nav class="nav-bar" id="nav">
+  <a href="#flow" class="active">评测流程</a>
+  <a href="#metrics">评测指标</a>
+  <a href="#modules">模块架构</a>
+  <a href="#dataset">数据集</a>
+  <a href="#defects">缺陷分析</a>
+</nav>
+
+<!-- Section 1: Flow -->
+<section id="flow">
+  <h2><span class="icon" style="background:rgba(88,166,255,0.15);color:var(--accent)">&#9654;</span> 评测全流程</h2>
+
+  <p>评测入口为 <code>backend/tests/test_rag_evaluation.py</code>，基于 <strong>RAGAS</strong>（Retrieval Augmented Generation Assessment）框架实现。以下为完整执行链路：</p>
+
+  <div class="flow-container">
+
+    <div class="flow-node" style="border-color: var(--green);">
+      <div class="node-title">1. CLI 入口</div>
+      <div class="node-desc">解析参数：--quick / --output / --metrics / --dataset</div>
+      <div class="node-file">main() → RAGEvaluator().run()</div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">加载 JSON</span></div>
+
+    <div class="flow-node">
+      <div class="node-title">2. 加载评估数据集</div>
+      <div class="node-desc">读取 eval_dataset.json，15 条测试用例（question + ground_truth + expected_topics）</div>
+      <div class="node-file">load_dataset() → List[Dict]</div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">逐条处理</span></div>
+
+    <div class="flow-node">
+      <div class="node-title">3. RAG 查询执行</div>
+      <div class="node-desc">对每个 question 调用 ModernRAG，收集 answer + contexts</div>
+      <div class="node-file">run_rag_query() → {"answer", "contexts"}</div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">内部调用</span></div>
+
+    <div class="branch-wrapper">
+      <div class="branch-label">ModernRAG 内部</div>
+      <div class="flow-branch">
+        <div class="flow-node" style="min-width:200px">
+          <div class="node-title">search()</div>
+          <div class="node-desc">向量检索 + BM25<br>RRF 融合排序</div>
+          <div class="node-file">hybrid_search.py</div>
+        </div>
+        <div class="flow-node" style="min-width:200px">
+          <div class="node-title">query()</div>
+          <div class="node-desc">拼接上下文<br>LLM 生成回答</div>
+          <div class="node-file">rag/__init__.py</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">构建 Dataset</span></div>
+
+    <div class="flow-node">
+      <div class="node-title">4. 构建 RAGAS 数据集</div>
+      <div class="node-desc">将 question / answer / contexts / ground_truth 组装为 HuggingFace Dataset 格式</div>
+      <div class="node-file">build_ragas_dataset() → Dataset</div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">ragas.evaluate()</span></div>
+
+    <div class="flow-node">
+      <div class="node-title">5. RAGAS 自动评分</div>
+      <div class="node-desc">调用 RAGAS 框架，用 glm-4-flash 作为评判模型，embedding-2 作为嵌入模型</div>
+      <div class="node-file">evaluate() → EvaluationResult</div>
+    </div>
+
+    <div class="flow-arrow"><span class="arrow-label">格式化输出</span></div>
+
+    <div class="flow-node" style="border-color: var(--green);">
+      <div class="node-title">6. 生成评估报告</div>
+      <div class="node-desc">计算各指标均值 + 综合分 + 逐题详情，支持 JSON 导出和控制台打印</div>
+      <div class="node-file">format_report() → print_report()</div>
+    </div>
+
+  </div>
+
+  <div class="summary-box">
+    <strong>关键设计决策：</strong>评估模型选用 <code>glm-4-flash</code> 而非主模型 <code>glm-4.7</code>，避免推理模型的 reasoning_tokens 耗尽 token 预算。每条查询间 sleep 0.5s 防止 API 限流。
+  </div>
+</section>
+
+<!-- Section 2: Metrics -->
+<section id="metrics">
+  <h2><span class="icon" style="background:rgba(63,185,80,0.15);color:var(--green)">&#9632;</span> 四大评测指标</h2>
+
+  <p>RAGAS 框架从<strong>检索质量</strong>和<strong>生成质量</strong>两个维度评估 RAG 系统，共 4 个指标：</p>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-name">忠实度</div>
+      <div class="metric-en">Faithfulness</div>
+      <div class="metric-desc">回答是否忠于检索到的上下文，衡量幻觉程度。将回答拆分为独立声明，逐一验证是否能从 contexts 中推导。</div>
+      <div class="metric-formula">= |supported claims| / |total claims|</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">回答相关性</div>
+      <div class="metric-en">Answer Relevancy</div>
+      <div class="metric-desc">回答与原始问题的相关程度。用 LLM 从回答反推可能的问题，计算生成问题与原始问题的余弦相似度。</div>
+      <div class="metric-formula">= mean(cos_sim(q_gen, q_orig))</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">上下文精确度</div>
+      <div class="metric-en">Context Precision</div>
+      <div class="metric-desc">检索结果的排序质量。相关文档是否排在前面？采用加权精度公式，排名靠前的相关文档得分更高。</div>
+      <div class="metric-formula">= Σ(precision@k × rel_k) / |relevant|</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">上下文召回率</div>
+      <div class="metric-en">Context Recall</div>
+      <div class="metric-desc">ground_truth 中的正确信息被检索到的比例。将标准答案拆分为声明，逐一检查是否出现在 contexts 中。</div>
+      <div class="metric-formula">= |recovered claims| / |gt claims|</div>
+    </div>
+  </div>
+
+  <h3>评分维度拆解</h3>
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--green)">2</div>
+      <div class="stat-label">生成质量指标<br>Faithfulness + Relevancy</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--accent)">2</div>
+      <div class="stat-label">检索质量指标<br>Precision + Recall</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--purple)">1</div>
+      <div class="stat-label">综合分<br>四项均值</div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: Modules -->
+<section id="modules">
+  <h2><span class="icon" style="background:rgba(188,140,255,0.15);color:var(--purple)">&#9670;</span> 模块架构</h2>
+
+  <div class="module-card">
+    <h3>ModernRAG — 主入口</h3>
+    <div class="file-path">backend/app/rag/__init__.py</div>
+    <p>统一检索入口，支持 5 种检索模式，内部管理所有子模块的初始化和生命周期。</p>
+    <ul>
+      <li><strong>search(query, mode)</strong> — 检索接口，返回 List[Dict]，每个结果含 content + score + metadata</li>
+      <li><strong>query(query)</strong> — 检索 + 生成，返回 answer + contexts</li>
+      <li><strong>LRU 缓存</strong> — 128 条，5 分钟 TTL，key = <code>{query}|{top_k}|{mode}</code></li>
+      <li><strong>增量索引</strong> — 启动时扫描 knowledge_base/，MD5 对比，新增/更新/删除</li>
+    </ul>
+    <div class="code-block">
+<span class="comment"># 5 种检索模式</span>
+mode = <span class="string">"hybrid"</span>       <span class="comment"># 向量 + BM25，RRF 融合（默认）</span>
+mode = <span class="string">"vector"</span>        <span class="comment"># 仅 Chroma 向量检索</span>
+mode = <span class="string">"bm25"</span>          <span class="comment"># 仅 BM25 关键词检索</span>
+mode = <span class="string">"query_expansion"</span> <span class="comment"># 多查询扩展</span>
+mode = <span class="string">"hyde"</span>           <span class="comment"># 假设性文档嵌入</span>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <h3>HybridSearch — 混合检索</h3>
+    <div class="file-path">backend/app/rag/modules/hybrid_search.py</div>
+    <p>通过 <strong>Reciprocal Rank Fusion (RRF)</strong> 融合向量检索和 BM25 检索结果。</p>
+    <ul>
+      <li>向量检索和 BM25 各取 <code>top_k × 2</code> 候选</li>
+      <li>通过精确内容匹配（<code>page_content</code> 字符串比对）关联两个结果集</li>
+      <li>RRF 公式：<code>score = weight × 1/(k + rank)</code>，k 默认 60</li>
+      <li>最终按融合分排序（Chroma 使用 L2 距离，越小越好）</li>
+    </ul>
+  </div>
+
+  <div class="module-card">
+    <h3>BM25Search — 关键词检索</h3>
+    <div class="file-path">backend/app/rag/modules/bm25.py</div>
+    <p>从零实现的 BM25 算法，使用 jieba 中文分词。</p>
+    <ul>
+      <li><strong>分词</strong>：<code>jieba.lcut()</code> + 小写归一化</li>
+      <li><strong>TF 饱和</strong>：<code>tf × (k1+1) / (tf + k1×(1-b+b×dl/avgdl))</code>，k1=1.5, b=0.75</li>
+      <li><strong>IDF</strong>：<code>log((N-df+0.5)/(df+0.5) + 1)</code></li>
+      <li>无停用词过滤，无标点清洗，无最小 token 长度过滤</li>
+    </ul>
+  </div>
+
+  <div class="module-card">
+    <h3>HyDE — 假设性文档嵌入</h3>
+    <div class="file-path">backend/app/rag/modules/hyde.py</div>
+    <p>用 LLM 生成一个「假设性答案」，再用这个答案去向量检索，缩小查询与文档的语义差距。</p>
+    <ul>
+      <li>LLM 生成 100-300 字的假设文档（temperature=0.8）</li>
+      <li>分别用假设文档和原始查询做向量检索</li>
+      <li>分数合并：<code>0.5 × hyde_score + 0.5 × original_score</code></li>
+      <li><code>retrieve_with_alternatives</code> 参数 <code>num_alternatives</code> 实际未生效</li>
+    </ul>
+  </div>
+
+  <div class="module-card">
+    <h3>Self-RAG — 自我反思</h3>
+    <div class="file-path">backend/app/rag/modules/self_rag.py</div>
+    <p>通过 LLM 自我评估实现检索-生成-反思-纠正的闭环。</p>
+    <ul>
+      <li><strong>should_retrieve</strong> — LLM 判断是否需要检索</li>
+      <li><strong>score_relevance</strong> — 对每个检索片段打分 0-4，过滤低于 2.0 的</li>
+      <li><strong>score_utility</strong> — 对生成的回答打分 0-4，低于 2.5 触发纠正</li>
+      <li><strong>correct_answer</strong> — 纠正循环最多 2 次</li>
+      <li>每次查询最少 3 次 LLM 调用，纠正时可达 7+ 次</li>
+    </ul>
+  </div>
+
+  <div class="module-card">
+    <h3>Agentic RAG — 智能路由</h3>
+    <div class="file-path">backend/app/rag/modules/agentic_rag.py</div>
+    <p>LLM 自主决策检索策略和生成策略。</p>
+    <ul>
+      <li><strong>RouterAgent</strong> — 分析查询，输出 JSON 决策（检索策略 + 生成策略 + 优先级）</li>
+      <li>检索策略：no_retrieval / basic / hyde / query_expansion / cot / self_rag</li>
+      <li>生成策略：direct / rag_based / cot / self_reflect</li>
+      <li><strong>QueryClassifier</strong> 已定义但从未被调用（死代码）</li>
+      <li>cot 和 self_rag 策略实际都走 hybrid 检索，仅生成阶段不同</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Section 4: Dataset -->
+<section id="dataset">
+  <h2><span class="icon" style="background:rgba(210,153,34,0.15);color:var(--yellow)">&#9650;</span> 评估数据集</h2>
+
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num">15</div>
+      <div class="stat-label">测试用例</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">6</div>
+      <div class="stat-label">覆盖类别</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">0</div>
+      <div class="stat-label">边界/对抗用例</div>
+    </div>
+  </div>
+
+  <table class="dataset-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>问题</th>
+        <th>类别</th>
+        <th>期望主题词</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>蛋白质的每日推荐摄入量是多少？</td><td><span class="tag nutrition">营养</span></td><td>蛋白质、摄入量、每公斤体重、增肌</td></tr>
+      <tr><td>2</td><td>上斜卧推的正确姿势是什么？</td><td><span class="tag exercise">动作</span></td><td>上斜卧推、角度、肩胛骨、握距</td></tr>
+      <tr><td>3</td><td>减脂期间应该如何控制饮食？</td><td><span class="tag nutrition">营养</span></td><td>减脂、热量缺口、蛋白质、碳水</td></tr>
+      <tr><td>4</td><td>深蹲的常见错误有哪些？</td><td><span class="tag exercise">动作</span></td><td>深蹲、膝盖内扣、脚跟、腰部</td></tr>
+      <tr><td>5</td><td>肌酸的作用和使用方法是什么？</td><td><span class="tag supplement">补剂</span></td><td>肌酸、力量、爆发力、恢复</td></tr>
+      <tr><td>6</td><td>如何制定一份合理的健身训练计划？</td><td><span class="tag programming">计划</span></td><td>训练计划、目标、肌群分配</td></tr>
+      <tr><td>7</td><td>碳水化合物在运动中的作用是什么？</td><td><span class="tag nutrition">营养</span></td><td>碳水化合物、能量、糖原</td></tr>
+      <tr><td>8</td><td>硬拉的标准动作要领是什么？</td><td><span class="tag exercise">动作</span></td><td>硬拉、屈髋、背部挺直</td></tr>
+      <tr><td>9</td><td>增肌期间每天需要摄入多少热量？</td><td><span class="tag nutrition">营养</span></td><td>增肌、热量盈余、TDEE</td></tr>
+      <tr><td>10</td><td>有氧运动和无氧运动的区别是什么？</td><td><span class="tag theory">理论</span></td><td>有氧、无氧、心率、供能</td></tr>
+      <tr><td>11</td><td>训练后应该吃什么？</td><td><span class="tag nutrition">营养</span></td><td>训练后、蛋白质、碳水、恢复窗口</td></tr>
+      <tr><td>12</td><td>平板支撑的正确姿势是什么？</td><td><span class="tag exercise">动作</span></td><td>平板支撑、核心、脊柱中立</td></tr>
+      <tr><td>13</td><td>什么是渐进超负荷原则？</td><td><span class="tag theory">理论</span></td><td>渐进超负荷、重量、次数、适应</td></tr>
+      <tr><td>14</td><td>睡眠对健身有什么影响？</td><td><span class="tag recovery">恢复</span></td><td>睡眠、恢复、激素、肌肉生长</td></tr>
+      <tr><td>15</td><td>BMI 怎么计算，正常范围是多少？</td><td><span class="tag health">健康</span></td><td>BMI、体重、身高、公式</td></tr>
+    </tbody>
+  </table>
+
+  <div class="summary-box warn">
+    <strong>数据集局限：</strong>仅 15 条用例，RAGAS 官方建议 50+ 条才能获得统计显著性。且 <code>expected_topics</code> 字段在评测代码中从未被使用，属于死数据。无负面/边界/对抗性测试用例。
+  </div>
+</section>
+
+<!-- Section 5: Defects -->
+<section id="defects">
+  <h2><span class="icon" style="background:rgba(248,81,73,0.15);color:var(--red)">&#9888;</span> 已知缺陷分析</h2>
+
+  <h3>按严重程度分布</h3>
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--red)">2</div>
+      <div class="stat-label">高危</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--yellow)">8</div>
+      <div class="stat-label">中危</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num" style="color:var(--text-muted)">5</div>
+      <div class="stat-label">低危</div>
+    </div>
+  </div>
+
+  <table class="defect-table">
+    <thead>
+      <tr>
+        <th>严重度</th>
+        <th>模块</th>
+        <th>缺陷描述</th>
+        <th>影响</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="severity high">高</span></td>
+        <td><code>__init__.py</code></td>
+        <td>BM25-only 模式每次调用都重建索引：<code>BM25Search()</code> + <code>index()</code> 在每次 <code>search(mode="bm25")</code> 时重新执行</td>
+        <td>严重性能浪费，hybrid 路径已有 BM25 索引却未复用</td>
+      </tr>
+      <tr>
+        <td><span class="severity high">高</span></td>
+        <td><code>self_rag.py</code></td>
+        <td>评分解析脆弱：<code>score_relevance</code> 和 <code>score_utility</code> 依赖 LLM 输出格式（中文关键词 + 数字），格式不符则默认 2 分</td>
+        <td>评分静默失败，导致低质量内容被保留或高质量内容被过滤</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>hybrid_search.py</code></td>
+        <td>向量/BM25 结果关联依赖精确字符串匹配（<code>page_content</code> 比对），格式微差即匹配失败</td>
+        <td>静默退化为单路检索，RRF 融合失效</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>bm25.py</code></td>
+        <td>无停用词过滤、无标点清洗、无最小 token 长度过滤，jieba 单字 token 全部保留</td>
+        <td>BM25 检索精度下降，噪声 token 干扰 TF/IDF 计算</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>agentic_rag.py</code></td>
+        <td>cot 和 self_rag 检索策略实际都调用 <code>search(mode="hybrid")</code>，与 basic 策略完全相同</td>
+        <td>路由决策形同虚设，检索阶段无差异化</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>agentic_rag.py</code></td>
+        <td><code>QueryClassifier</code> 已定义但 <code>RouterAgent.decide()</code> 从未调用其 <code>classify()</code> 方法</td>
+        <td>死代码，浪费初始化开销</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>self_rag.py</code></td>
+        <td>纠正循环无收敛检查：即使纠正后分数未提升，仍会继续消耗 LLM 调用</td>
+        <td>浪费 token，最多白跑 2 次纠正</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>__init__.py</code></td>
+        <td><code>force_rebuild</code> 参数被构造函数接受但从未传递给 <code>_init_components()</code></td>
+        <td>死代码，无法通过参数强制重建索引</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>test_rag_evaluation.py</code></td>
+        <td>使用 RAGAS 私有 API（<code>_Faithfulness</code>、<code>_AnswerRelevancy</code> 等下划线前缀）</td>
+        <td>RAGAS 版本升级后可能直接报错</td>
+      </tr>
+      <tr>
+        <td><span class="severity medium">中</span></td>
+        <td><code>eval_dataset.json</code></td>
+        <td>仅 15 条测试用例，RAGAS 官方建议 50+ 条</td>
+        <td>评估结果缺乏统计显著性</td>
+      </tr>
+      <tr>
+        <td><span class="severity low">低</span></td>
+        <td><code>hyde.py</code></td>
+        <td><code>retrieve_with_alternatives</code> 的 <code>num_alternatives</code> 参数被忽略，实际只生成 1 个</td>
+        <td>功能名与实现不符</td>
+      </tr>
+      <tr>
+        <td><span class="severity low">低</span></td>
+        <td><code>agentic_rag.py</code></td>
+        <td>置信度估算使用硬编码增量（+0.2/+0.1/-0.1），无证据支撑</td>
+        <td>置信度数值无实际参考价值</td>
+      </tr>
+      <tr>
+        <td><span class="severity low">低</span></td>
+        <td><code>test_rag_evaluation.py</code></td>
+        <td>NaN 过滤使用 <code>v == v</code> 技巧而非 <code>math.isnan()</code></td>
+        <td>可读性差，功能正确</td>
+      </tr>
+      <tr>
+        <td><span class="severity low">低</span></td>
+        <td><code>test_rag_evaluation.py</code></td>
+        <td>fallback 链每次触发都新建 <code>ChatOpenAI</code> 实例</td>
+        <td>资源浪费，但 fallback 触发频率低</td>
+      </tr>
+      <tr>
+        <td><span class="severity low">低</span></td>
+        <td><code>eval_dataset.json</code></td>
+        <td><code>expected_topics</code> 字段在评测代码中从未使用</td>
+        <td>死数据，可扩展为自定义 topic-coverage 指标</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+
+<footer>
+  <p>FitCoach AI — RAG Evaluation Guide &middot; Generated from codebase analysis</p>
+</footer>
+
+<script>
+// Sticky nav active state
+const navLinks = document.querySelectorAll('.nav-bar a');
+const sections = document.querySelectorAll('section');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(link => link.classList.remove('active'));
+      const id = entry.target.id;
+      const active = document.querySelector(`.nav-bar a[href="#${id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

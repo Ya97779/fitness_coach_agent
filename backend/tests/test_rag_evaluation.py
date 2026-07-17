@@ -62,7 +62,7 @@ class RAGEvaluator:
                 base_url=os.getenv("OPENAI_API_BASE")
             )
             # RAGAS 评估用非推理模型，避免 reasoning_tokens 耗尽 token 预算
-            eval_model = os.getenv("RAGAS_EVAL_MODEL", "glm-4-flash")
+            eval_model = os.getenv("RAGAS_EVAL_MODEL", "glm-5.1-flash")
             print(f"RAGAS 评估模型: {eval_model}")
             self.llm = llm_factory(
                 model=eval_model,
@@ -113,7 +113,7 @@ class RAGEvaluator:
             from langchain_core.output_parsers import StrOutputParser
 
             llm = ChatOpenAI(
-                model=os.getenv("LLM_MODEL", "glm-4.7"),
+                model=os.getenv("LLM_MODEL", "glm-5.1"),
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=os.getenv("OPENAI_API_BASE"),
                 temperature=0.0
