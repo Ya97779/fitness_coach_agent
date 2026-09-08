@@ -43,12 +43,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
-from dotenv import load_dotenv
 import os
 import json
-
-load_dotenv()
-
 
 ROUTER_SYSTEM_PROMPT = """你是一个专业的 RAG 策略规划助手。你的任务是根据用户问题，自主决定最佳的信息获取和回答策略。
 
@@ -98,14 +94,14 @@ ROUTER_SYSTEM_PROMPT = """你是一个专业的 RAG 策略规划助手。你的�
 请严格按以下 JSON 格式输出（不要输出其他内容）：
 
 ```json
-{
+{{
   "need_retrieval": true/false,
   "retrieval_strategy": "no_retrieval/basic/hyde/query_expansion/cot/self_rag",
   "generation_strategy": "direct/rag_based/cot/self_reflect",
   "reasoning": "决策理由（1-2句话）",
   "suggested_top_k": 3-5,
   "priority": "high/medium/low"
-}
+}}
 ```"""
 
 

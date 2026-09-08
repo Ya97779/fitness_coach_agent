@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Boolean, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
@@ -32,6 +32,9 @@ class User(Base):
 
 class DailyLog(Base):
     __tablename__ = "daily_logs"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_daily_log_user_date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
@@ -95,8 +98,60 @@ class ConversationLog(Base):
 
     user = relationship("User")
 
+
+class ConversationSession(Base):
+    """会话级工作记忆。
+
+    ConversationLog 继续作为逐轮情景记忆的事实来源；本表只保存会话
+    状态、路由和幂等游标，避免再复制一份完整聊天记录。
+    """
+
+    __tablename__ = "conversation_sessions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "session_id", name="uq_conversation_session_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    session_id = Column(String, nullable=False, index=True)
+    summary = Column(Text, nullable=True)
+    last_agent = Column(String, nullable=True)
+    last_route_json = Column(Text, nullable=True)
+    working_memory_json = Column(Text, nullable=True)
+    last_request_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+
+class UserMemory(Base):
+    """用户确认或高可信的语义记忆，不重复存储业务日志事实。"""
+
+    __tablename__ = "user_memories"
+    __table_args__ = (
+        UniqueConstraint("user_id", "memory_key", name="uq_user_memory_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    memory_key = Column(String, nullable=False)
+    memory_value = Column(Text, nullable=False)
+    memory_type = Column(String, nullable=False, default="semantic")
+    source = Column(String, nullable=True)
+    confidence = Column(Float, nullable=False, default=0.5)
+    confirmed = Column(Boolean, nullable=False, default=False)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
 class FoodCalorieCache(Base):
     __tablename__ = "food_calorie_cache"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_food_calorie_cache_name"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)

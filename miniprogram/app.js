@@ -6,6 +6,7 @@ App({
     chatStream: {
       active: false,
       requestTask: null,
+      requestId: '',
       messages: [],
       pendingContent: '',
       aiMsgId: ''

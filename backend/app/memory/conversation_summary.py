@@ -4,10 +4,6 @@ from typing import List, Dict, Any, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 class ConversationSummarizer:
     """对话历史摘要器

@@ -20,6 +20,13 @@ if not JWT_SECRET_KEY or len(JWT_SECRET_KEY) < 32:
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 async def wx_code_to_session(code: str) -> dict:
     """调用微信 jscode2session 接口，换取 openid 和 session_key"""
     url = "https://api.weixin.qq.com/sns/jscode2session"
@@ -69,14 +76,19 @@ def decode_access_token(token: str) -> int:
 
 
 def get_current_user(
-    request: Request,
+    request: Request = None,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(database.get_db),
 ) -> models.User:
     """FastAPI 依赖：从 Authorization header 解析当前用户"""
-    # 本地调试放行：127.0.0.1 请求无 token 时使用 user_id=1
-    client_ip = request.client.host if request.client else ""
-    if client_ip in ("127.0.0.1", "::1") and not credentials:
+    # 仅开发 profile 允许本机无 Token 调试。生产 profile 明确关闭，
+    # 避免反向代理把真实请求转发成 127.0.0.1 后形成认证绕过。
+    client_ip = request.client.host if request and request.client else ""
+    if (
+        _env_bool("ALLOW_LOCAL_AUTH", default=False)
+        and client_ip in ("127.0.0.1", "::1")
+        and not credentials
+    ):
         user = db.query(models.User).filter(models.User.id == 1).first()
         if user:
             return user

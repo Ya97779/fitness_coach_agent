@@ -5,9 +5,6 @@ import json
 import http.client
 import urllib
 import time
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # 内存缓存（food_name → {result, expire_time}）
 _cache = {}

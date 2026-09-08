@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.agents.base import (
     AgentConfig, AgentResponse, MultiAgentState,
-    AGENT_SYSTEM_PROMPTS
+    AGENT_SYSTEM_PROMPTS, StreamedToolCall
 )
 from app.agents.router import route_with_context
 from app.agents.chat_agent import chat_with_user, format_memory_context
@@ -29,7 +29,86 @@ from app.agents.graph import (
     expert_review, should_continue_nutrition, should_continue_fitness,
     route_after_router, build_graph, MAX_RETRIES, MIN_APPROVAL_SCORE
 )
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage, SystemMessage
+
+
+class TestStreamedToolCall(unittest.TestCase):
+    """工具决策流的增量合并测试"""
+
+    def test_reassembles_tool_call_chunks(self):
+        llm = MagicMock()
+        bound_llm = MagicMock()
+        bound_llm.stream.return_value = iter([
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{
+                    "name": "demo_tool",
+                    "args": '{"value": ',
+                    "id": "call_1",
+                    "index": 0,
+                }],
+            ),
+            AIMessageChunk(
+                content="",
+                tool_call_chunks=[{
+                    "name": None,
+                    "args": "1}",
+                    "id": None,
+                    "index": 0,
+                }],
+            ),
+        ])
+        llm.bind_tools.return_value = bound_llm
+
+        stream = StreamedToolCall(llm, [], [])
+        chunks = list(stream)
+
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(stream.chunk_count, 2)
+        self.assertEqual(stream.response.tool_calls[0]["name"], "demo_tool")
+        self.assertEqual(stream.response.tool_calls[0]["args"], {"value": 1})
+
+
+class TestAgentStreaming(unittest.TestCase):
+    """专业 Agent 首轮无工具响应也必须逐块透传。"""
+
+    @patch("app.llm_manager.LLMManager.get_llm")
+    def test_fitness_stream_does_not_buffer_first_response(self, mock_get_llm):
+        llm = MagicMock()
+        llm.bind_tools.return_value = llm
+        llm.stream.return_value = iter([
+            AIMessageChunk(content="A"),
+            AIMessageChunk(content="B"),
+        ])
+        mock_get_llm.return_value = llm
+
+        result = list(fitness_with_user(
+            [HumanMessage(content="training advice")],
+            user_id=1,
+            stream=True,
+        ))
+
+        self.assertEqual(result, ["A", "B"])
+        self.assertEqual(llm.stream.call_count, 1)
+
+    @patch("app.llm_manager.LLMManager.get_llm")
+    def test_nutrition_stream_does_not_buffer_first_response(self, mock_get_llm):
+        llm = MagicMock()
+        llm.bind_tools.return_value = llm
+        llm.stream.return_value = iter([
+            AIMessageChunk(content="A"),
+            AIMessageChunk(content="B"),
+        ])
+        mock_get_llm.return_value = llm
+
+        result = list(nutrition_with_user(
+            [HumanMessage(content="food advice")],
+            user_id=1,
+            stream=True,
+        ))
+
+        self.assertEqual(result, ["A", "B"])
+        self.assertEqual(llm.stream.call_count, 1)
 
 
 class TestAgentConfig(unittest.TestCase):

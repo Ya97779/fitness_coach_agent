@@ -11,11 +11,7 @@
 from typing import List, Dict, Any, Optional, Callable
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
-
 
 QUERY_EXPANSION_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """你是一个专业的查询优化助手。你的任务是根据用户输入，生成多个不同的查询变体，

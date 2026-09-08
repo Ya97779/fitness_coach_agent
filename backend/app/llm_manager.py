@@ -2,12 +2,13 @@
 
 import os
 import threading
+import time
+import logging
+from contextvars import ContextVar
 from typing import Dict, Callable, Optional, Any
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 
-load_dotenv()
-
+logger = logging.getLogger("fitcoach.llm")
 
 class _LLMQueue:
     """LLM 并发队列，追踪等待人数"""
@@ -17,12 +18,17 @@ class _LLMQueue:
 
     @classmethod
     def acquire(cls, on_queue: Optional[Callable[[int], None]] = None):
-        """获取许可，如果需要排队则通过 on_queue 回调通知前面有几人"""
+        """获取许可，许可覆盖整个 invoke/stream 生命周期。"""
+        # 先尝试无阻塞获取；只有确实没有名额时才计入等待队列。
+        if cls._semaphore.acquire(blocking=False):
+            return
+
         with cls._lock:
-            position = cls._waiting
             cls._waiting += 1
-        if position > 0 and on_queue:
+            position = cls._waiting
+        if on_queue:
             on_queue(position)
+
         cls._semaphore.acquire()
         with cls._lock:
             cls._waiting -= 1
@@ -40,26 +46,74 @@ class _LLMQueue:
 class _LLMProxy:
     """ChatOpenAI 代理包装，自动限流 + 排队通知"""
 
-    def __init__(self, llm: ChatOpenAI, queue_callback: Optional[Callable[[int], None]] = None):
+    def __init__(self, llm: Any, queue_callback: Optional[Callable[[int], None]] = None):
         object.__setattr__(self, '_llm', llm)
         object.__setattr__(self, '_queue_callback', queue_callback)
 
     def invoke(self, *args, **kwargs):
         _LLMQueue.acquire(on_queue=self._queue_callback)
+        started_at = time.perf_counter()
+        request_id = None
         try:
-            return self._llm.invoke(*args, **kwargs)
+            from .runtime_context import get_request_context
+            request_id = get_request_context().request_id
+        except Exception:
+            pass
+        logger.info(
+            "llm_request_started request_id=%s mode=invoke",
+            request_id or "-",
+        )
+        try:
+            result = self._llm.invoke(*args, **kwargs)
+            logger.info(
+                "provider_response request_id=%s mode=invoke elapsed=%.3fs",
+                request_id or "-", time.perf_counter() - started_at,
+            )
+            return result
         finally:
             _LLMQueue.release()
 
     def stream(self, *args, **kwargs):
         _LLMQueue.acquire(on_queue=self._queue_callback)
-        try:
-            return self._llm.stream(*args, **kwargs)
-        finally:
-            _LLMQueue.release()
+
+        def iterate():
+            started_at = time.perf_counter()
+            first_chunk = False
+            request_id = None
+            try:
+                from .runtime_context import get_request_context
+                request_id = get_request_context().request_id
+            except Exception:
+                pass
+            logger.info(
+                "llm_request_started request_id=%s mode=stream",
+                request_id or "-",
+            )
+            try:
+                # ChatOpenAI.stream() 返回迭代器；必须在消费完迭代器后
+                # 才释放并发许可，不能在返回迭代器时提前释放。
+                for chunk in self._llm.stream(*args, **kwargs):
+                    if not first_chunk:
+                        first_chunk = True
+                        logger.info(
+                            "provider_first_chunk request_id=%s elapsed=%.3fs",
+                            request_id or "-", time.perf_counter() - started_at,
+                        )
+                    yield chunk
+            finally:
+                logger.info(
+                    "provider_stream_completed request_id=%s elapsed=%.3fs",
+                    request_id or "-", time.perf_counter() - started_at,
+                )
+                _LLMQueue.release()
+
+        return iterate()
 
     def bind_tools(self, *args, **kwargs):
-        return self._llm.bind_tools(*args, **kwargs)
+        # 工具绑定会返回一个新的 Runnable。继续包在代理中，避免
+        # bind_tools().invoke/stream 绕过统一限流、超时和队列通知。
+        bound_llm = self._llm.bind_tools(*args, **kwargs)
+        return _LLMProxy(bound_llm, self._queue_callback)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._llm, name)
@@ -80,12 +134,21 @@ class LLMManager:
     """
 
     _instances: Dict[float, ChatOpenAI] = {}
-    _queue_callback: Optional[Callable[[int], None]] = None
+    _instance_lock = threading.Lock()
+    _queue_callback_var: ContextVar[Optional[Callable[[int], None]]] = ContextVar(
+        "llm_queue_callback", default=None
+    )
 
     @classmethod
     def set_queue_callback(cls, callback: Optional[Callable[[int], None]]):
-        """设置排队回调，当 LLM 调用需要排队时触发 callback(前面等待人数)"""
-        cls._queue_callback = callback
+        """设置当前执行上下文的排队回调并返回可用于恢复的 token。"""
+        return cls._queue_callback_var.set(callback)
+
+    @classmethod
+    def reset_queue_callback(cls, token):
+        """恢复当前执行上下文之前的排队回调。"""
+        if token is not None:
+            cls._queue_callback_var.reset(token)
 
     @classmethod
     def get_llm(cls, temperature: float = 0.7):
@@ -95,21 +158,24 @@ class LLMManager:
             _LLMProxy 代理对象，支持 invoke/stream/bind_tools
         """
         if temperature not in cls._instances:
-            cls._instances[temperature] = ChatOpenAI(
-                model=os.getenv("LLM_MODEL", "glm-4.7"),
-                api_key=os.getenv("OPENAI_API_KEY"),
-                base_url=os.getenv("OPENAI_API_BASE"),
-                temperature=temperature,
-                request_timeout=30,
-                max_retries=2,
-                extra_body={"thinking": {"type": "disabled"}}
-            )
-        return _LLMProxy(cls._instances[temperature], cls._queue_callback)
+            with cls._instance_lock:
+                if temperature not in cls._instances:
+                    cls._instances[temperature] = ChatOpenAI(
+                        model=os.getenv("LLM_MODEL", "glm-4.7"),
+                        api_key=os.getenv("OPENAI_API_KEY"),
+                        base_url=os.getenv("OPENAI_API_BASE"),
+                        temperature=temperature,
+                        request_timeout=30,
+                        max_retries=2,
+                        extra_body={"thinking": {"type": "disabled"}}
+                    )
+        return _LLMProxy(cls._instances[temperature], cls._queue_callback_var.get())
 
     @classmethod
     def clear(cls):
         """清空缓存（用于测试或配置变更后）"""
-        cls._instances.clear()
+        with cls._instance_lock:
+            cls._instances.clear()
 
     @staticmethod
     def queue_depth() -> int:

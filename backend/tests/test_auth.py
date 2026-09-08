@@ -8,29 +8,31 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import jwt
 
+TEST_JWT_SECRET = "test-secret-key-for-unit-tests-32-characters"
+
 
 class TestCreateAccessToken(unittest.TestCase):
     """测试 JWT token 生成"""
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_create_token_returns_string(self):
         from app.auth import create_access_token
         token = create_access_token(user_id=42)
         self.assertIsInstance(token, str)
         self.assertGreater(len(token), 0)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_token_contains_user_id(self):
         from app.auth import create_access_token
         token = create_access_token(user_id=42)
-        payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
+        payload = jwt.decode(token, TEST_JWT_SECRET, algorithms=["HS256"])
         self.assertEqual(payload["sub"], "42")
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_token_has_expiry(self):
         from app.auth import create_access_token
         token = create_access_token(user_id=1)
-        payload = jwt.decode(token, "test-secret-key", algorithms=["HS256"])
+        payload = jwt.decode(token, TEST_JWT_SECRET, algorithms=["HS256"])
         self.assertIn("exp", payload)
         exp_time = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         self.assertGreater(exp_time, datetime.now(timezone.utc))
@@ -39,14 +41,14 @@ class TestCreateAccessToken(unittest.TestCase):
 class TestDecodeAccessToken(unittest.TestCase):
     """测试 JWT token 解析"""
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_decode_valid_token(self):
         from app.auth import create_access_token, decode_access_token
         token = create_access_token(user_id=99)
         user_id = decode_access_token(token)
         self.assertEqual(user_id, 99)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_decode_expired_token_raises_401(self):
         from app.auth import decode_access_token
         from fastapi import HTTPException
@@ -54,13 +56,13 @@ class TestDecodeAccessToken(unittest.TestCase):
             "sub": "1",
             "exp": datetime.now(timezone.utc) - timedelta(hours=1),
         }
-        token = jwt.encode(expired_payload, "test-secret-key", algorithm="HS256")
+        token = jwt.encode(expired_payload, TEST_JWT_SECRET, algorithm="HS256")
         with self.assertRaises(HTTPException) as ctx:
             decode_access_token(token)
         self.assertEqual(ctx.exception.status_code, 401)
         self.assertIn("过期", ctx.exception.detail)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_decode_invalid_token_raises_401(self):
         from app.auth import decode_access_token
         from fastapi import HTTPException
@@ -68,7 +70,7 @@ class TestDecodeAccessToken(unittest.TestCase):
             decode_access_token("invalid.token.here")
         self.assertEqual(ctx.exception.status_code, 401)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_decode_wrong_secret_raises_401(self):
         from app.auth import decode_access_token
         from fastapi import HTTPException
@@ -80,7 +82,7 @@ class TestDecodeAccessToken(unittest.TestCase):
 class TestGetCurrentUser(unittest.TestCase):
     """测试 get_current_user 依赖"""
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     @patch("app.auth.database.SessionLocal")
     def test_valid_token_returns_user(self, mock_session_local):
         from app.auth import get_current_user, create_access_token
@@ -98,7 +100,7 @@ class TestGetCurrentUser(unittest.TestCase):
         result = get_current_user(credentials=creds, db=mock_db)
         self.assertEqual(result.id, 42)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_invalid_token_raises_401(self):
         from app.auth import get_current_user
         from fastapi import HTTPException
@@ -109,7 +111,7 @@ class TestGetCurrentUser(unittest.TestCase):
         with self.assertRaises(HTTPException):
             get_current_user(credentials=creds, db=mock_db)
 
-    @patch.dict(os.environ, {"JWT_SECRET_KEY": "test-secret-key", "JWT_EXPIRE_HOURS": "24"})
+    @patch.dict(os.environ, {"JWT_SECRET_KEY": TEST_JWT_SECRET, "JWT_EXPIRE_HOURS": "24"})
     def test_user_not_found_raises_401(self):
         from app.auth import get_current_user, create_access_token
         from fastapi import HTTPException

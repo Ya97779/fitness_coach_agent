@@ -175,7 +175,9 @@ fitness_coach/
 │   └── app.py                       # Streamlit 前端
 ├── knowledge_base/                   # RAG 知识库（PDF/DOCX）
 ├── chroma_db/                       # ChromaDB 向量库
-├── .env                            # 环境变量（需手动创建）
+├── config.yaml                     # profile、运行参数和功能开关
+├── .env.example                    # 密钥/连接串模板
+├── .env / .env.dev                 # 本地或生产密钥（不提交）
 ├── requirements.txt                 # 依赖
 └── README.md
 ```
@@ -198,28 +200,27 @@ cd fitness_coach_agent
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
+### 2. 配置
 
-创建 `.env`：
+复制 `.env.example` 为 `.env.dev`，只填写 API Key、JWT Secret、微信密钥和数据库连接串等敏感值。
+模型、路径、CORS 和 RAG 功能开关统一修改 `config.yaml`；它默认包含 `dev` 和 `prod` 两个 profile。
 
 ```env
-# LLM 配置
-LLM_MODEL=glm-4.7
 OPENAI_API_KEY=your_zhipu_api_key
-#对应的API Base URL,
-OPENAI_API_BASE=https://open.bigmodel.cn/api/paas/v4
-# 食物营养API（天行数据）（注册后每日免费100次查询）
 TianxingFood_API_KEY=your_food_api_key_here
-# Embedding模型
-EMBEDDING_MODEL=embedding-2
+JWT_SECRET_KEY=replace_with_a_random_secret_of_at_least_32_characters
+DATABASE_URL=sqlite:///./fitness_coach_dev.db
 
 ```
 
 ### 3. 启动服务
 
 ```bash
-# 终端 1 - 后端
-uvicorn backend.app.main:app --reload --port 8000
+# 终端 1 - 后端（Windows，自动使用 dev profile）
+.\scripts\dev-backend.ps1
+
+# 其他环境可显式选择 profile
+FITNESS_PROFILE=prod uvicorn backend.app.main:app --reload --port 8000
 
 # 终端 2 - 前端
 streamlit run frontend/app.py

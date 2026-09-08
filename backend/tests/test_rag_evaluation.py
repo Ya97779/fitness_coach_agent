@@ -27,8 +27,8 @@ from typing import Dict, List, Any, Optional
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from dotenv import load_dotenv
-load_dotenv()
+from app.config import load_environment
+load_environment()
 
 
 class RAGEvaluator:

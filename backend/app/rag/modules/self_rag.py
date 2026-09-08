@@ -15,11 +15,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
-
 
 ISRETRIEVAL_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """你是一个专业的 RAG 评估助手。判断给定问题是否需要检索外部知识来回答。

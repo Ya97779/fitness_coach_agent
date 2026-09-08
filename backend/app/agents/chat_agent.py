@@ -5,10 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from typing import Dict, Any, Iterator
 import re
 import os
-from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
-
-load_dotenv()
 
 # 意图检测正则
 _INTENT_PATTERN = re.compile(r'\n?\[INTENT:(food|exercise)\](.+?)(?:\n|$)')

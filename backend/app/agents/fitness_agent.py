@@ -1,19 +1,17 @@
 """健身教练 Agent - 负责健身计划、动作指导"""
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
 import re
-from dotenv import load_dotenv
-from .base import AGENT_SYSTEM_PROMPTS
+from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
 from .. import models, database
+from ..runtime_context import get_effective_user_id
 from ..rag import get_rag_instance
 from ..calorie_calculator import estimate_calories as calc_calories, MET_VALUES, STRENGTH_CALORIES_PER_SET
 from datetime import date
-
-load_dotenv()
 
 # 记录意图关键词
 _EXERCISE_RECORD_PATTERNS = [
@@ -89,6 +87,21 @@ def _extract_exercise_info(user_message: str) -> tuple:
     if m2:
         duration = int(m2.group(1)) * 60
 
+    # 记录语句经常同时包含饮食内容（如“吃了苹果，顺便跑了5公里”），
+        # 不能从整句用宽泛正则截取。先从明确的运动实体中提取，并支持组数/距离。
+    known_names = [
+        "引体向上", "俯卧撑", "哑铃卧推", "杠铃卧推", "卧推", "深蹲", "硬拉",
+        "跑步", "游泳", "骑行", "瑜伽", "普拉提", "跳绳", "跑", "游", "骑",
+    ]
+    for name in sorted(known_names, key=len, reverse=True):
+        if name in user_message:
+            if not m and not m2:
+                distance = re.search(r'(\d+(?:\.\d+)?)\s*(公里|千米|km|KM)', user_message)
+                if distance:
+                    duration = max(5, round(float(distance.group(1)) * 6))
+            normalized_name = {"跑": "跑步", "游": "游泳", "骑": "骑行"}.get(name, name)
+            return normalized_name, duration
+
     # 匹配已知运动（按长度降序）
     all_exercise_names = set(MET_VALUES.keys()) | set(STRENGTH_CALORIES_PER_SET.keys())
     for name in sorted(all_exercise_names, key=len, reverse=True):
@@ -112,6 +125,18 @@ def _extract_exercise_info(user_message: str) -> tuple:
     return "运动", duration
 
 
+def _extract_training_parameters(user_message: str) -> tuple:
+    """Extract optional sets/reps/weight without changing the old helper API."""
+
+    sets_match = re.search(r"(\d+)\s*组", user_message)
+    reps_match = re.search(r"(\d+)\s*(?:次|个)", user_message)
+    weight_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)", user_message, re.I)
+    sets = int(sets_match.group(1)) if sets_match else None
+    reps = int(reps_match.group(1)) if reps_match else None
+    weight = float(weight_match.group(1)) if weight_match else None
+    return sets, reps, weight
+
+
 def get_rag():
     """获取 RAG 实例（使用全局单例）"""
     return get_rag_instance(enable_agentic=True)
@@ -120,6 +145,7 @@ def get_rag():
 @tool
 def get_user_fitness_info(user_id: int):
     """获取用户的健身相关信息（身高、体重、年龄、体能水平）"""
+    user_id = get_effective_user_id(user_id)
     db = database.SessionLocal()
     try:
         user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -138,27 +164,31 @@ def get_user_fitness_info(user_id: int):
 
 
 @tool
-def log_exercise(user_id: int, exercise_type: str, duration: int, calories: float, sets: int = None, reps: int = None):
+def log_exercise(
+    user_id: int,
+    exercise_type: str,
+    duration: int,
+    calories: float,
+    sets: Optional[int] = None,
+    reps: Optional[int] = None,
+    weight: Optional[float] = None,
+):
     """记录用户进行的运动及消耗的热量到数据库"""
+    user_id = get_effective_user_id(user_id)
     db = database.SessionLocal()
     try:
         today = date.today()
-        log = db.query(models.DailyLog).filter(
-            models.DailyLog.user_id == user_id,
-            models.DailyLog.date == today
-        ).first()
-
-        if not log:
-            log = models.DailyLog(user_id=user_id, date=today)
-            db.add(log)
-            db.commit()
-            db.refresh(log)
+        log = database.get_or_create_daily_log(
+            db, models.DailyLog, user_id, today
+        )
+        db.flush()
 
         exercise_item = models.ExerciseItem(
             log_id=log.id,
             type=exercise_type,
             sets=sets,
             reps=reps,
+            weight=weight,
             duration=duration,
             calories=calories
         )
@@ -330,9 +360,60 @@ def fitness_with_user(
 
     def generate_response():
         called_tools = set()
+        initial_content_streamed = False
+
+        # 明确的运动记录复用现有解析、热量计算和记录工具，直接走确定性
+        # 快速路径；训练计划/动作咨询继续使用原有模型工具循环。
+        if stream and want_record:
+            ex_name, duration = _extract_exercise_info(user_message)
+            sets, reps, weight = _extract_training_parameters(user_message)
+            has_explicit_duration = bool(
+                re.search(r"\d+\s*(?:分钟|小时)", user_message)
+            )
+            if sets and not has_explicit_duration:
+                # 数据表要求 duration 非空；力量训练按每组约 5 分钟
+                # 记录一个保守占位时长，热量仍优先按组数计算。
+                duration = max(5, sets * 5)
+            calories = calc_calories(
+                ex_name,
+                duration=duration,
+                sets=sets,
+            )
+            result = log_exercise.invoke({
+                "user_id": user_id,
+                "exercise_type": ex_name,
+                "duration": duration,
+                "calories": float(calories),
+                "sets": sets,
+                "reps": reps,
+                "weight": weight,
+            })
+            print(f"[fitness_agent] 快速记录: {result}", flush=True)
+            detail = f"{sets}组" if sets else f"{duration}分钟"
+            if reps:
+                detail += f"×{reps}次"
+            yield f"已为你记录：{ex_name} {detail}，约消耗 {calories} kcal。"
+            return
 
         try:
-            response = llm.bind_tools(fitness_tools).invoke(chat_history)
+            if stream:
+                # 工具选择本身也使用流式调用；工具参数需要等模型完整
+                # 输出后才能执行，但不会再用 invoke 阻塞整个首轮请求。
+                plan_stream = StreamedToolCall(llm, fitness_tools, chat_history)
+                print("[fitness_agent] 第一轮 LLM 流式工具决策", flush=True)
+                for chunk in plan_stream:
+                    if getattr(chunk, "content", None):
+                        initial_content_streamed = True
+                        yield chunk.content
+                response = plan_stream.response or AIMessage(content="")
+                print(
+                    f"[fitness_agent] 第一轮 LLM 流式完成: "
+                    f"{plan_stream.chunk_count} chunks, "
+                    f"tool_calls={len(response.tool_calls or [])}",
+                    flush=True,
+                )
+            else:
+                response = llm.bind_tools(fitness_tools).invoke(chat_history)
         except Exception as e:
             error_msg = str(e)
             if "1214" in error_msg or "messages" in error_msg.lower():
@@ -355,13 +436,14 @@ def fitness_with_user(
                     "calories": float(calories)
                 })
                 print(f"[fitness_agent] 兜底记录结果: {fallback_result}")
-                if content:
+                if content and not initial_content_streamed:
                     yield content
+                if content or initial_content_streamed:
                     yield f"\n\n已自动记录：{ex_name} {duration}分钟，约消耗 {calories} kcal"
                 else:
                     yield f"已为你记录 {ex_name} {duration}分钟，约消耗 {calories} kcal。"
             else:
-                if content:
+                if content and not initial_content_streamed:
                     yield content
             return
 
@@ -416,36 +498,27 @@ def fitness_with_user(
             has_content = False
             llm_with_tools = llm.bind_tools(fitness_tools)
             if stream:
-                chunk_count = 0
-                accumulated_tool_calls = []
                 print(f"[fitness_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
-                for chunk in llm_with_tools.stream(chat_history):
-                    chunk_count += 1
-                    # 详细日志前 5 个 chunk
-                    if chunk_count <= 5:
-                        tc = getattr(chunk, 'tool_call_chunks', None)
-                        tcs = getattr(chunk, 'tool_calls', None)
-                        print(f"[fitness_agent] chunk[{chunk_count}]: content='{chunk.content[:50] if chunk.content else ''}', tool_calls={tcs}, tool_call_chunks={tc}", flush=True)
-                    # 收集 tool_call_chunks（流式工具调用）
-                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
-                        for tc in chunk.tool_call_chunks:
-                            accumulated_tool_calls.append(tc)
-                            print(f"[fitness_agent] 收集 tool_call_chunk: {tc}", flush=True)
-                    # 收集完整 tool_calls
-                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                        for tc in chunk.tool_calls:
-                            accumulated_tool_calls.append(tc)
-                            print(f"[fitness_agent] 收集 tool_call: {tc}", flush=True)
-                    if chunk.content:
+                final_stream = StreamedToolCall(llm, fitness_tools, chat_history)
+                for chunk in final_stream:
+                    if getattr(chunk, "content", None):
                         has_content = True
                         yield chunk.content
-                print(f"[fitness_agent] 第二轮 LLM 流式完成: {chunk_count} chunks, has_content={has_content}, tool_calls={len(accumulated_tool_calls)}", flush=True)
+                final_response = final_stream.response or AIMessage(content="")
+                accumulated_tool_calls = final_response.tool_calls or []
+                print(
+                    f"[fitness_agent] 第二轮 LLM 流式完成: "
+                    f"{final_stream.chunk_count} chunks, "
+                    f"has_content={has_content}, "
+                    f"tool_calls={len(accumulated_tool_calls)}",
+                    flush=True,
+                )
 
                 # bind_tools + stream 返回空内容且无工具调用 → 去掉 tools 重试
                 if not has_content and not accumulated_tool_calls:
                     print(f"[fitness_agent] bind_tools 流式无内容，去掉 tools 重试", flush=True)
                     for chunk in llm.stream(chat_history):
-                        if chunk.content:
+                        if getattr(chunk, "content", None):
                             has_content = True
                             yield chunk.content
                     print(f"[fitness_agent] 无 tools 流式重试完成, has_content={has_content}", flush=True)
@@ -453,14 +526,16 @@ def fitness_with_user(
                 # 第二轮返回了 tool_calls → 执行后第三轮调用
                 if accumulated_tool_calls and not has_content:
                     print(f"[fitness_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    chat_history.append(final_response)
                     _extra_tool_msgs = _execute_tool_calls(accumulated_tool_calls, fitness_tools)
                     tool_messages.extend(_extra_tool_msgs)
                     chat_history.extend(_extra_tool_msgs)
 
                     # 第三轮 LLM 调用
                     print(f"[fitness_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
-                    for chunk in llm_with_tools.stream(chat_history):
-                        if chunk.content:
+                    third_stream = StreamedToolCall(llm, fitness_tools, chat_history)
+                    for chunk in third_stream:
+                        if getattr(chunk, "content", None):
                             has_content = True
                             yield chunk.content
                     print(f"[fitness_agent] 第三轮 LLM 流式完成, has_content={has_content}", flush=True)

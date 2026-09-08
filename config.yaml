@@ -1,0 +1,64 @@
+# FitCoach 运行配置（不包含任何密钥）
+#
+# 默认 profile 设为 prod，避免直接启动后误连接开发数据库。
+# 本地开发请运行 .\scripts\dev-backend.ps1，它会临时选择 dev profile。
+# 也可以通过 FITNESS_PROFILE=dev|prod 覆盖 active_profile。
+
+active_profile: prod
+
+profiles:
+  dev:
+    env_file: .env.dev
+    settings:
+      llm_model: glm-5.3-flash
+      openai_api_base: https://open.bigmodel.cn/api/paas/v4
+      embedding_model: embedding-3
+      knowledge_base_dir: ./knowledgebase
+      chroma_dir: ./chroma_db_dev
+      cors_origins:
+        - http://localhost:8501
+        - http://127.0.0.1:8501
+      backend_url: http://127.0.0.1:8000
+      api_base_url: http://127.0.0.1:8000
+      ssl_verify: true
+      jwt_expire_hours: 24
+      allow_local_auth: true
+      db_pool_size: 5
+      db_max_overflow: 5
+      db_pool_timeout: 30
+    features:
+      rag_startup_index: false
+      reranker: false
+      query_expansion: false
+      hyde: false
+      cot: false
+      self_rag: false
+
+  prod:
+    env_file: .env
+    settings:
+      llm_model: glm-5.3-flash
+      openai_api_base: https://open.bigmodel.cn/api/paas/v4
+      embedding_model: embedding-3
+      knowledge_base_dir: ./knowledgebase
+      chroma_dir: ./chroma_db
+      cors_origins:
+        - https://gzyhm.xyz
+        - https://www.gzyhm.xyz
+      backend_url: https://gzyapi.gzyhm.xyz
+      api_base_url: https://gzyapi.gzyhm.xyz
+      ssl_verify: true
+      jwt_expire_hours: 24
+      allow_local_auth: false
+      db_pool_size: 5
+      db_max_overflow: 10
+      db_pool_timeout: 30
+    features:
+      # Gunicorn 多 worker 不应在每个进程启动时并发重建/检查索引。
+      # 文档更新时在发布阶段单独执行一次索引任务。
+      rag_startup_index: false
+      reranker: true
+      query_expansion: false
+      hyde: false
+      cot: false
+      self_rag: false
