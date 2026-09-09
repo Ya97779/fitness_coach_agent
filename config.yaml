@@ -11,6 +11,9 @@ profiles:
     env_file: .env.dev
     settings:
       llm_model: glm-5.3-flash
+      llm_reasoning_effort: low
+      llm_thinking_type: enabled
+      llm_clear_thinking: false
       openai_api_base: https://open.bigmodel.cn/api/paas/v4
       embedding_model: embedding-3
       knowledge_base_dir: ./knowledgebase
@@ -38,6 +41,9 @@ profiles:
     env_file: .env
     settings:
       llm_model: glm-5.3-flash
+      llm_reasoning_effort: low
+      llm_thinking_type: enabled
+      llm_clear_thinking: false
       openai_api_base: https://open.bigmodel.cn/api/paas/v4
       embedding_model: embedding-3
       knowledge_base_dir: ./knowledgebase

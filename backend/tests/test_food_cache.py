@@ -14,6 +14,7 @@ from app import models
 from app.food_cache import (
     LEGACY_UNKNOWN,
     PER_100G,
+    PER_100ML,
     PER_UNIT,
     build_calorie_basis,
     get_cached_calorie_reference,
@@ -23,7 +24,10 @@ from app.food_cache import (
     seed_common_food_calorie_cache,
     upsert_food_calorie_basis,
 )
-from scripts.migrate_phase02 import _replace_legacy_food_cache
+from scripts.migrate_phase02 import (
+    _ensure_food_item_estimation_columns,
+    _replace_legacy_food_cache,
+)
 
 
 class TestFoodCalorieCache(unittest.TestCase):
@@ -57,6 +61,26 @@ class TestFoodCalorieCache(unittest.TestCase):
 
         calories = get_cached_total_calories(self.db, " 鸡胸肉 ", 150, "g")
         self.assertEqual(calories, 247.5)
+
+    def test_liquid_basis_maps_grams_and_milliliters(self):
+        basis = build_calorie_basis("牛奶", 61, 100, "ml")
+        self.assertEqual(basis.basis_type, PER_100ML)
+        self.assertEqual(basis.portion_qty, 100)
+        self.assertEqual(basis.portion_unit, "ml")
+
+        upsert_food_calorie_basis(
+            self.db, "牛奶", 61, 100, "ml", "curated_reference_v1"
+        )
+        self.db.commit()
+
+        self.assertEqual(
+            get_cached_total_calories(self.db, "牛奶", 200, "克"),
+            122,
+        )
+        self.assertEqual(
+            get_cached_total_calories(self.db, "牛奶", 0.2, "升"),
+            122,
+        )
 
     def test_unit_basis_upserts_and_scales(self):
         upsert_food_calorie_basis(self.db, "鸡蛋", 144, 2, "个", "llm")
@@ -152,6 +176,31 @@ class TestFoodCalorieCache(unittest.TestCase):
 
 
 class TestFoodCacheMigration(unittest.TestCase):
+    def test_adds_persistent_estimation_status_to_legacy_food_items(self):
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as connection:
+            connection.execute(text(
+                """
+                CREATE TABLE food_items (
+                    id INTEGER PRIMARY KEY,
+                    calories FLOAT NOT NULL
+                )
+                """
+            ))
+            connection.execute(text(
+                "INSERT INTO food_items (id, calories) VALUES (1, 100), (2, 0)"
+            ))
+
+            _ensure_food_item_estimation_columns(connection)
+
+            rows = connection.execute(text(
+                "SELECT id, calorie_status, calorie_error "
+                "FROM food_items ORDER BY id"
+            )).fetchall()
+            self.assertEqual(rows[0], (1, "ready", None))
+            self.assertEqual(rows[1], (2, "failed", "历史估算未完成"))
+        engine.dispose()
+
     def test_archives_old_table_and_creates_empty_v2_table(self):
         engine = create_engine("sqlite:///:memory:")
         with engine.begin() as connection:

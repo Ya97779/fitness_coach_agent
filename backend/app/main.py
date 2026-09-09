@@ -23,7 +23,7 @@ import os
 import threading
 import uuid
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger("food_estimate")
@@ -229,6 +229,8 @@ class FoodLogResponse(BaseModel):
     estimating: bool = False
     portion_qty: Optional[float] = None
     portion_unit: Optional[str] = None
+    calorie_status: Literal["pending", "ready", "failed"] = "ready"
+    calorie_error: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -520,9 +522,117 @@ def get_current_user_today(
         )
         db.commit()
         db.refresh(log)
+    else:
+        stale_cutoff = datetime.utcnow() - timedelta(minutes=2)
+        stale_items = [
+            item for item in log.food_items
+            if item.calorie_status == "pending"
+            and (
+                item.calorie_status_updated_at is None
+                or item.calorie_status_updated_at < stale_cutoff
+            )
+        ]
+        if stale_items:
+            for item in stale_items:
+                item.calorie_status = "failed"
+                item.calorie_error = "热量估算超时，请编辑记录后重试"
+                item.calorie_status_updated_at = datetime.utcnow()
+            db.commit()
     return log
 
 # ----- 快捷记录 -----
+def _mark_food_estimation_failed(item_id: int, reason: str) -> None:
+    db = database.SessionLocal()
+    try:
+        item = db.query(models.FoodItem).get(item_id)
+        if item:
+            item.calorie_status = "failed"
+            item.calorie_error = reason[:500]
+            item.calorie_status_updated_at = datetime.utcnow()
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "[食物热量估算] 写入失败状态异常: item_id=%s", item_id
+        )
+    finally:
+        db.close()
+
+
+def _start_food_estimation(
+    item_id: int,
+    food_name: str,
+    portion_qty: Optional[float],
+    portion_unit: Optional[str],
+) -> None:
+    """Estimate calories asynchronously and persist a terminal status."""
+
+    logger.info(
+        "[食物热量估算] 启动后台线程: item_id=%s, name='%s', qty=%s, unit=%s",
+        item_id,
+        food_name,
+        portion_qty,
+        portion_unit,
+    )
+
+    def worker():
+        try:
+            logger.info("[食物热量估算] 开始 LLM 调用: '%s'", food_name)
+            estimated = _estimate_food_calories_via_llm(
+                food_name, portion_qty, portion_unit
+            )
+        except Exception:
+            logger.exception("[食物热量估算] 后台估算失败: '%s'", food_name)
+            _mark_food_estimation_failed(item_id, "模型估算失败，请稍后重试")
+            return
+
+        db = database.SessionLocal()
+        try:
+            item = db.query(models.FoodItem).get(item_id)
+            if not item:
+                logger.warning(
+                    "[食物热量估算] item_id=%s 不存在，可能已被删除",
+                    item_id,
+                )
+                return
+            log = db.query(models.DailyLog).get(item.log_id)
+            old_calories = item.calories or 0
+            item.calories = estimated
+            item.calorie_status = "ready"
+            item.calorie_error = None
+            item.calorie_status_updated_at = datetime.utcnow()
+            if log:
+                log.intake_calories = (
+                    (log.intake_calories or 0) - old_calories + estimated
+                )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "[食物热量估算] 更新记录失败: item_id=%s", item_id
+            )
+            _mark_food_estimation_failed(item_id, "热量结果保存失败，请稍后重试")
+            return
+        finally:
+            db.close()
+
+        cache_saved = save_food_calorie_basis(
+            food_name,
+            estimated,
+            portion_qty,
+            portion_unit,
+            source="llm",
+        )
+        logger.info(
+            "[食物热量估算] DB 更新成功: '%s' → %s kcal, cache_saved=%s",
+            food_name,
+            estimated,
+            cache_saved,
+        )
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
 @router.post("/food-log", response_model=FoodLogResponse)
 def create_food_log(
     data: FoodLogCreate,
@@ -563,6 +673,9 @@ def create_food_log(
         meal_type=data.meal_type,
         portion_qty=qty,
         portion_unit=unit,
+        calorie_status="pending" if need_llm else "ready",
+        calorie_error=None,
+        calorie_status_updated_at=datetime.utcnow(),
     )
     db.add(item)
     log.intake_calories = (log.intake_calories or 0) + calories
@@ -570,55 +683,15 @@ def create_food_log(
     db.refresh(item)
 
     if need_llm:
-        # 后台线程调 LLM 估算，算完更新记录
-        _item_id = item.id
-        _food_name = data.name
-        logger.info(f"[食物热量估算] 启动后台线程: item_id={_item_id}, name='{_food_name}', qty={qty}, unit={unit}")
-
-        def _bg_estimate():
-            try:
-                logger.info(f"[食物热量估算] 开始 LLM 调用: '{_food_name}'")
-                estimated = _estimate_food_calories_via_llm(_food_name, qty, unit)
-                logger.info(f"[食物热量估算] LLM 返回: '{_food_name}' → {estimated} kcal")
-                if estimated:
-                    _db = database.SessionLocal()
-                    try:
-                        _item = _db.query(models.FoodItem).get(_item_id)
-                        if _item:
-                            _log = _db.query(models.DailyLog).get(_item.log_id)
-                            _old = _item.calories or 0
-                            _item.calories = estimated
-                            if _log:
-                                _log.intake_calories = (_log.intake_calories or 0) - _old + estimated
-                            _db.commit()
-                            cache_saved = save_food_calorie_basis(
-                                _food_name,
-                                estimated,
-                                qty,
-                                unit,
-                                source="llm",
-                            )
-                            logger.info(
-                                "[食物热量估算] DB 更新成功: '%s' → %s kcal, cache_saved=%s",
-                                _food_name,
-                                estimated,
-                                cache_saved,
-                            )
-                        else:
-                            logger.warning(f"[食物热量估算] item_id={_item_id} 不存在，可能已被删除")
-                    finally:
-                        _db.close()
-                else:
-                    logger.warning(f"[食物热量估算] LLM 返回 0，跳过更新: '{_food_name}'")
-            except Exception as e:
-                logger.error(f"[食物热量估算] 后台估算失败: '{_food_name}' → {e}", exc_info=True)
-        threading.Thread(target=_bg_estimate, daemon=True).start()
+        _start_food_estimation(item.id, data.name, qty, unit)
 
     return FoodLogResponse(
         id=item.id, name=item.name, calories=item.calories,
         meal_type=item.meal_type, log_id=item.log_id,
         estimating=need_llm,
         portion_qty=item.portion_qty, portion_unit=item.portion_unit,
+        calorie_status=item.calorie_status,
+        calorie_error=item.calorie_error,
     )
 
 @router.patch("/food-log/{item_id}", response_model=FoodLogResponse)
@@ -643,10 +716,14 @@ def update_food_log(
 
     # 份量变更或手动热量变更
     portion_changed = data.portion_qty is not None or data.portion_unit is not None
+    estimation_task = None
     if data.calories is not None:
         item.calories = data.calories
-    elif portion_changed:
-        # 份量变更时重新估算热量
+        item.calorie_status = "ready"
+        item.calorie_error = None
+        item.calorie_status_updated_at = datetime.utcnow()
+    elif portion_changed or data.name is not None:
+        # 名称或份量变更时重新计算热量。
         new_qty = data.portion_qty if data.portion_qty is not None else item.portion_qty
         new_unit = data.portion_unit if data.portion_unit is not None else item.portion_unit
         new_name = data.name if data.name is not None else item.name
@@ -655,35 +732,15 @@ def update_food_log(
         )
         if cached_calories is not None:
             item.calories = round(cached_calories)
+            item.calorie_status = "ready"
+            item.calorie_error = None
+            item.calorie_status_updated_at = datetime.utcnow()
         else:
             item.calories = 0
-            # 后台 LLM 估算
-            _item_id = item.id
-            def _bg():
-                try:
-                    est = _estimate_food_calories_via_llm(new_name, new_qty, new_unit)
-                    _db = database.SessionLocal()
-                    try:
-                        _it = _db.query(models.FoodItem).get(_item_id)
-                        if _it and est:
-                            _old = _it.calories or 0
-                            _it.calories = est
-                            _log = _db.query(models.DailyLog).get(_it.log_id)
-                            if _log:
-                                _log.intake_calories = (_log.intake_calories or 0) - _old + est
-                            _db.commit()
-                            save_food_calorie_basis(
-                                new_name,
-                                est,
-                                new_qty,
-                                new_unit,
-                                source="llm",
-                            )
-                    finally:
-                        _db.close()
-                except Exception as e:
-                    logger.error(f"[编辑热量估算] 异常: {e}")
-            threading.Thread(target=_bg, daemon=True).start()
+            item.calorie_status = "pending"
+            item.calorie_error = None
+            item.calorie_status_updated_at = datetime.utcnow()
+            estimation_task = (item.id, new_name, new_qty, new_unit)
     if data.portion_qty is not None:
         item.portion_qty = data.portion_qty
     if data.portion_unit is not None:
@@ -695,10 +752,15 @@ def update_food_log(
 
     db.commit()
     db.refresh(item)
+    if estimation_task:
+        _start_food_estimation(*estimation_task)
     return FoodLogResponse(
         id=item.id, name=item.name, calories=item.calories,
         meal_type=item.meal_type, log_id=item.log_id,
         portion_qty=item.portion_qty, portion_unit=item.portion_unit,
+        estimating=item.calorie_status == "pending",
+        calorie_status=item.calorie_status,
+        calorie_error=item.calorie_error,
     )
 
 @router.delete("/food-log/{item_id}", status_code=204)
@@ -1363,13 +1425,14 @@ def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, p
         match = re.search(r'[\d.]+', text)
         if match:
             result = float(match.group())
+            if result <= 0:
+                raise ValueError("模型返回的热量必须大于 0")
             logger.info(f"[LLM] 解析结果: {result}")
             return result
-        else:
-            logger.warning(f"[LLM] 无法从返回中解析数字: '{text}'")
+        raise ValueError(f"无法从模型返回中解析热量数字: {text[:100]!r}")
     except Exception as e:
         logger.error(f"[LLM] 调用异常: {e}", exc_info=True)
-    return 0
+        raise
 
 class CalorieEstimateRequest(BaseModel):
     exercises: List[dict]

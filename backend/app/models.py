@@ -53,6 +53,12 @@ class DailyLog(Base):
 
 class FoodItem(Base):
     __tablename__ = "food_items"
+    __table_args__ = (
+        CheckConstraint(
+            "calorie_status IN ('pending', 'ready', 'failed')",
+            name="ck_food_items_calorie_status",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     log_id = Column(Integer, ForeignKey("daily_logs.id"))
@@ -61,6 +67,9 @@ class FoodItem(Base):
     meal_type = Column(String, nullable=True)  # breakfast/lunch/dinner/snack
     portion_qty = Column(Float, nullable=True)
     portion_unit = Column(String, nullable=True)
+    calorie_status = Column(String, nullable=False, default="ready")
+    calorie_error = Column(String, nullable=True)
+    calorie_status_updated_at = Column(DateTime, default=datetime.utcnow)
 
     log = relationship("DailyLog", back_populates="food_items")
 
@@ -154,7 +163,7 @@ class FoodCalorieCache(Base):
     __tablename__ = "food_calorie_cache"
     __table_args__ = (
         CheckConstraint(
-            "basis_type IN ('per_100g', 'per_unit', 'legacy_unknown')",
+            "basis_type IN ('per_100g', 'per_100ml', 'per_unit', 'legacy_unknown')",
             name="ck_food_calorie_cache_basis_type",
         ),
         CheckConstraint("portion_qty > 0", name="ck_food_calorie_cache_portion_qty"),
@@ -173,7 +182,8 @@ class FoodCalorieCache(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
     normalized_name = Column(String, nullable=False, index=True)
-    # per_100g: calories 是每 100g；per_unit: calories 是每 1 个/份/碗；
+    # per_100g/per_100ml: calories 是每 100g/100ml；
+    # per_unit: calories 是每 1 个/份/碗；
     # legacy_unknown: 旧数据口径不明确，只保留审计，不参与自动命中。
     basis_type = Column(String, nullable=False, default="legacy_unknown", index=True)
     portion_qty = Column(Float, nullable=False)

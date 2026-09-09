@@ -148,11 +148,14 @@ router -> chat
 - 后台线程自行创建和关闭数据库 Session，不复用请求线程 Session。
 
 `FoodItem.calories` 表示用户本次摄入的总热量；`FoodCalorieCache` 只保存可复用
-的热量基准。重量统一换算成 `per_100g + g`，个/份/碗等单位统一换算成
-`per_unit + 单位`，查询必须同时匹配规范化名称、基准类型和单位。所有缓存读写
+的热量基准。固体重量统一换算成 `per_100g + g`，液体换算成
+`per_100ml + ml`，产品规则允许液体查询按 `1g = 1ml` 交叉匹配；个/份/碗等单位
+使用 `per_unit + 单位`。查询必须同时匹配规范化名称、基准类型和单位。所有缓存读写
 复用 `backend/app/food_cache.py`，缓存失败不能回滚用户的饮食记录。版本控制中的
 `backend/data/common_food_calories.json` 是基础参考数据；生产迁移会幂等导入，
 人工数据优先级高于参考数据，参考数据优先级高于 API、LLM 和本地降级值。
+`FoodItem.calorie_status` 必须在 `pending`、`ready`、`failed` 中取值。后台估算无论
+成功或失败都要写入终态；读取今日记录时会把超时的 `pending` 转为 `failed`。
 
 ### 3.6 RAG
 
@@ -186,7 +189,10 @@ RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩�
 
 ### LLM 与 Embedding
 
-- `OPENAI_API_BASE`、`LLM_MODEL`、`EMBEDDING_MODEL`、`API_BASE_URL`：由 `config.yaml` 管理。
+- `OPENAI_API_BASE`、`LLM_MODEL`、`LLM_REASONING_EFFORT`、`LLM_THINKING_TYPE`、
+  `LLM_CLEAR_THINKING`、`EMBEDDING_MODEL`、`API_BASE_URL`：由 `config.yaml` 管理。
+- `glm-5.3-flash` 只支持开启思考；当前固定 `thinking.type=enabled`、
+  `reasoning_effort=low`。不要为该模型配置 `disabled`。
 
 ### 微信与 Web
 
@@ -300,7 +306,7 @@ git diff --check
 ```
 
 当前本地基线：`python -m unittest discover -s backend/tests -p 'test_*.py' -q`
-共 175 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
+共 178 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
 退出状态；涉及真实模型的评估仍需单独配置测试 Key。
 
 RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；如果真实模型不可用，

@@ -114,7 +114,10 @@ Page({
       })
 
       // 有"计算中..."的食物时启动轮询
-      const hasEstimating = foodItems.some(item => !item.calories || item.calories <= 0)
+      const hasEstimating = foodItems.some(item =>
+        item.calorie_status === 'pending' ||
+        (!item.calorie_status && (!item.calories || item.calories <= 0))
+      )
       if (hasEstimating) {
         this._startPoll()
       } else {
@@ -131,6 +134,12 @@ Page({
     this._pollTimer = setInterval(() => {
       this._pollCount++
       if (this._pollCount > 10) {
+        const foodItems = this.data.foodItems.map(item => (
+          item.calorie_status === 'pending'
+            ? { ...item, calorie_status: 'failed', calorie_error: '热量估算超时，请编辑记录后重试' }
+            : item
+        ))
+        this.setData({ foodItems })
         this._stopPoll()
         return
       }
@@ -139,7 +148,10 @@ Page({
           ...item,
           meal_type_text: MEAL_TYPE_MAP[item.meal_type] || item.meal_type
         }))
-        const hasEstimating = foodItems.some(item => !item.calories || item.calories <= 0)
+        const hasEstimating = foodItems.some(item =>
+          item.calorie_status === 'pending' ||
+          (!item.calorie_status && (!item.calories || item.calories <= 0))
+        )
         if (!hasEstimating || this._pollCount > 10) {
           this._stopPoll()
         }

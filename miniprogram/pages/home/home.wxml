@@ -67,7 +67,8 @@
           <text class="record-name">{{item.name}}</text>
           <text class="record-meta">{{item.meal_type_text}}</text>
         </view>
-        <text class="record-val" wx:if="{{item.calories > 0}}">{{item.calories}} kcal</text>
+        <text class="record-val" wx:if="{{(item.calorie_status === 'ready' || !item.calorie_status) && item.calories > 0}}">{{item.calories}} kcal</text>
+        <text class="record-val record-estimating" wx:elif="{{item.calorie_status === 'failed'}}">{{item.calorie_error || '估算失败'}}</text>
         <text class="record-val record-estimating" wx:else>计算中...</text>
       </view>
       <view class="record-delete-btn" wx:if="{{swipeIndex === 'food-' + index}}"

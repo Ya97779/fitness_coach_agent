@@ -68,6 +68,80 @@ def _replace_legacy_food_cache(connection):
     return backup_name
 
 
+def _ensure_food_item_estimation_columns(connection) -> None:
+    """Add persistent estimation state to existing food_items tables."""
+
+    columns = {
+        column["name"]
+        for column in inspect(connection).get_columns("food_items")
+    }
+    status_added = "calorie_status" not in columns
+    if status_added:
+        connection.execute(text(
+            "ALTER TABLE food_items ADD COLUMN calorie_status "
+            "VARCHAR(16) NOT NULL DEFAULT 'ready'"
+        ))
+    if "calorie_error" not in columns:
+        connection.execute(text(
+            "ALTER TABLE food_items ADD COLUMN calorie_error VARCHAR"
+        ))
+    if "calorie_status_updated_at" not in columns:
+        timestamp_default = (
+            "" if connection.dialect.name == "sqlite"
+            else " DEFAULT CURRENT_TIMESTAMP"
+        )
+        connection.execute(text(
+            "ALTER TABLE food_items ADD COLUMN calorie_status_updated_at "
+            f"TIMESTAMP{timestamp_default}"
+        ))
+
+    if status_added:
+        connection.execute(text(
+            "UPDATE food_items SET calorie_status = "
+            "CASE WHEN calories > 0 THEN 'ready' ELSE 'failed' END"
+        ))
+    connection.execute(text(
+        "UPDATE food_items SET calorie_error = '历史估算未完成' "
+        "WHERE calorie_status = 'failed' AND calorie_error IS NULL"
+    ))
+    connection.execute(text(
+        "UPDATE food_items SET calorie_status_updated_at = CURRENT_TIMESTAMP "
+        "WHERE calorie_status_updated_at IS NULL"
+    ))
+
+    if connection.dialect.name == "postgresql":
+        connection.execute(text(
+            "ALTER TABLE food_items "
+            "DROP CONSTRAINT IF EXISTS ck_food_items_calorie_status"
+        ))
+        connection.execute(text(
+            "ALTER TABLE food_items ADD CONSTRAINT "
+            "ck_food_items_calorie_status CHECK "
+            "(calorie_status IN ('pending', 'ready', 'failed'))"
+        ))
+
+
+def _upgrade_food_cache_volume_basis(connection) -> None:
+    """Allow per-100ml rows and remove obsolete per-one-ml cache rows."""
+
+    if connection.dialect.name == "postgresql":
+        connection.execute(text(
+            "ALTER TABLE food_calorie_cache DROP CONSTRAINT IF EXISTS "
+            "ck_food_calorie_cache_basis_type"
+        ))
+        connection.execute(text(
+            "ALTER TABLE food_calorie_cache ADD CONSTRAINT "
+            "ck_food_calorie_cache_basis_type CHECK "
+            "(basis_type IN "
+            "('per_100g', 'per_100ml', 'per_unit', 'legacy_unknown'))"
+        ))
+
+    connection.execute(text(
+        "DELETE FROM food_calorie_cache "
+        "WHERE basis_type = 'per_unit' AND portion_unit IN ('ml', 'l')"
+    ))
+
+
 def main() -> None:
     # Validate version-controlled seed data before making schema changes.
     load_common_food_calorie_seeds()
@@ -101,6 +175,8 @@ def main() -> None:
             )
 
         food_cache_backup = _replace_legacy_food_cache(connection)
+        _ensure_food_item_estimation_columns(connection)
+        _upgrade_food_cache_volume_basis(connection)
 
         connection.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_log_user_date "
@@ -132,6 +208,11 @@ def main() -> None:
         connection.execute(text(
             "INSERT INTO fitcoach_schema_migrations(version) VALUES "
             "('phase0_2_food_cache_basis_v2') "
+            "ON CONFLICT (version) DO NOTHING"
+        ))
+        connection.execute(text(
+            "INSERT INTO fitcoach_schema_migrations(version) VALUES "
+            "('food_estimation_status_and_volume_v3') "
             "ON CONFLICT (version) DO NOTHING"
         ))
 
