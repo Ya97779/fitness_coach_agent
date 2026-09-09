@@ -10,6 +10,13 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger("fitcoach.llm")
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().casefold() in {"1", "true", "yes", "on"}
+
 class _LLMQueue:
     """LLM 并发队列，追踪等待人数"""
     _semaphore = threading.Semaphore(3)
@@ -160,14 +167,30 @@ class LLMManager:
         if temperature not in cls._instances:
             with cls._instance_lock:
                 if temperature not in cls._instances:
+                    thinking_type = os.getenv(
+                        "LLM_THINKING_TYPE", "enabled"
+                    ).strip().casefold()
+                    extra_body = None
+                    if thinking_type:
+                        extra_body = {
+                            "thinking": {
+                                "type": thinking_type,
+                                "clear_thinking": _env_bool(
+                                    "LLM_CLEAR_THINKING", False
+                                ),
+                            }
+                        }
                     cls._instances[temperature] = ChatOpenAI(
                         model=os.getenv("LLM_MODEL", "glm-4.7"),
                         api_key=os.getenv("OPENAI_API_KEY"),
                         base_url=os.getenv("OPENAI_API_BASE"),
                         temperature=temperature,
+                        reasoning_effort=os.getenv(
+                            "LLM_REASONING_EFFORT", "low"
+                        ),
                         request_timeout=30,
                         max_retries=2,
-                        extra_body={"thinking": {"type": "disabled"}}
+                        extra_body=extra_body,
                     )
         return _LLMProxy(cls._instances[temperature], cls._queue_callback_var.get())
 

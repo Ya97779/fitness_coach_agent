@@ -24,7 +24,9 @@ GLM-4.7 默认开启 thinking 模式，模型在流式输出时产生大量 thin
 
 ### 解决方案
 
-**根因修复**：在 `LLMManager` 创建 `ChatOpenAI` 实例时，通过 `extra_body` 注入 `thinking: {type: disabled}`，禁用 GLM thinking 模式。
+**历史修复**：旧模型曾通过 `thinking: {type: disabled}` 禁用思考。该方案不适用于
+当前的 `glm-5.3-flash`；此模型必须使用 `thinking.type=enabled`，项目当前将
+`reasoning_effort` 配置为 `low`。
 
 ```python
 # backend/app/llm_manager.py
@@ -121,7 +123,7 @@ const data = trimmed.slice(6).replace(/\\n/g, '\n').replace(/\\\\/g, '\\')
 **排查思路**：流式输出问题需要逐层检查 — LLM 层（chunk 内容）→ 传输层（SSE 编码）→ 前端层（解析渲染）。日志是最有效的定位手段。
 
 **GLM-4.7 流式输出注意事项**：
-1. 必须用 `extra_body={"thinking": {"type": "disabled"}}` 禁用 thinking 模式
+1. 思考参数必须按具体模型能力配置；`glm-5.3-flash` 不支持 `disabled`
 2. LLM 输出中的 `\n` 可能是字面量两字符，需要解码后再传输
 3. SSE 传输中真正的换行符需要转义，否则被当作消息分隔符
 

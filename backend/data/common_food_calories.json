@@ -29,8 +29,11 @@
   {"name": "北豆腐", "calories": 116, "portion_qty": 100, "portion_unit": "g"},
   {"name": "南豆腐", "calories": 57, "portion_qty": 100, "portion_unit": "g"},
   {"name": "豆浆（无糖）", "calories": 33, "portion_qty": 100, "portion_unit": "ml"},
+  {"name": "豆浆", "calories": 33, "portion_qty": 100, "portion_unit": "ml"},
   {"name": "纯牛奶", "calories": 61, "portion_qty": 100, "portion_unit": "ml"},
+  {"name": "牛奶", "calories": 61, "portion_qty": 100, "portion_unit": "ml"},
   {"name": "纯牛奶", "calories": 153, "portion_qty": 1, "portion_unit": "杯"},
+  {"name": "牛奶", "calories": 153, "portion_qty": 1, "portion_unit": "杯"},
   {"name": "原味酸奶", "calories": 63, "portion_qty": 100, "portion_unit": "g"},
 
   {"name": "苹果", "calories": 52, "portion_qty": 100, "portion_unit": "g"},

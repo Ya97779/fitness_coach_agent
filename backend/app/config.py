@@ -27,6 +27,9 @@ _selected_profile: Optional[str] = None
 
 _SETTING_ENV_NAMES = {
     "llm_model": "LLM_MODEL",
+    "llm_reasoning_effort": "LLM_REASONING_EFFORT",
+    "llm_thinking_type": "LLM_THINKING_TYPE",
+    "llm_clear_thinking": "LLM_CLEAR_THINKING",
     "openai_api_base": "OPENAI_API_BASE",
     "embedding_model": "EMBEDDING_MODEL",
     "knowledge_base_dir": "KNOWLEDGE_BASE_DIR",

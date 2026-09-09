@@ -1,8 +1,9 @@
 """Food calorie cache with explicit measurement semantics.
 
 ``FoodItem.calories`` always represents the total calories consumed in one log
-entry.  Cache rows store a reusable basis instead: calories per 100g or per one
-named unit.  Legacy rows are retained for audit but never used for calculations.
+entry. Cache rows store a reusable basis instead: calories per 100g, per 100ml,
+or per one named unit. Liquid lookups may use the product rule 1g = 1ml.
+Legacy rows are retained for audit but never used for calculations.
 """
 
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from . import database, models
 logger = logging.getLogger(__name__)
 
 PER_100G = "per_100g"
+PER_100ML = "per_100ml"
 PER_UNIT = "per_unit"
 LEGACY_UNKNOWN = "legacy_unknown"
 DEFAULT_PORTION_UNIT = "份"
@@ -35,6 +37,11 @@ COMMON_FOOD_DATA_FILE = (
 _WEIGHT_TO_GRAMS = {
     "g": 1.0,
     "kg": 1000.0,
+}
+
+_VOLUME_TO_MILLILITERS = {
+    "ml": 1.0,
+    "l": 1000.0,
 }
 
 _UNIT_ALIASES = {
@@ -59,6 +66,9 @@ _UNIT_ALIASES = {
     "瓶": "瓶",
     "毫升": "ml",
     "ml": "ml",
+    "升": "l",
+    "公升": "l",
+    "l": "l",
 }
 
 
@@ -183,6 +193,16 @@ def build_calorie_basis(
             calories=calories * 100.0 / grams,
         )
 
+    if unit in _VOLUME_TO_MILLILITERS:
+        milliliters = quantity * _VOLUME_TO_MILLILITERS[unit]
+        return CalorieBasis(
+            normalized_name=normalized_name,
+            basis_type=PER_100ML,
+            portion_qty=100.0,
+            portion_unit="ml",
+            calories=calories * 100.0 / milliliters,
+        )
+
     return CalorieBasis(
         normalized_name=normalized_name,
         basis_type=PER_UNIT,
@@ -200,6 +220,12 @@ def _requested_basis(
     unit = normalize_portion_unit(portion_unit)
     if unit in _WEIGHT_TO_GRAMS:
         return PER_100G, "g", quantity * _WEIGHT_TO_GRAMS[unit]
+    if unit in _VOLUME_TO_MILLILITERS:
+        return (
+            PER_100ML,
+            "ml",
+            quantity * _VOLUME_TO_MILLILITERS[unit],
+        )
     return PER_UNIT, unit, quantity
 
 
@@ -219,18 +245,34 @@ def get_cached_total_calories(
     except (TypeError, ValueError):
         return None
 
-    cached = db.query(models.FoodCalorieCache).filter(
+    query = db.query(models.FoodCalorieCache).filter(
         models.FoodCalorieCache.normalized_name == normalized_name,
         models.FoodCalorieCache.basis_type == basis_type,
         models.FoodCalorieCache.portion_unit == unit,
-    ).order_by(
+    )
+    cached = query.order_by(
         models.FoodCalorieCache.updated_at.desc(),
         models.FoodCalorieCache.id.desc(),
     ).first()
 
+    # Product requirement: for known liquids, gram and milliliter quantities
+    # are treated as equivalent. Only cross-map when a matching opposite basis
+    # exists, so solid foods are never silently interpreted as volume.
+    if not cached and basis_type in {PER_100G, PER_100ML}:
+        alternate_type = PER_100ML if basis_type == PER_100G else PER_100G
+        alternate_unit = "ml" if basis_type == PER_100G else "g"
+        cached = db.query(models.FoodCalorieCache).filter(
+            models.FoodCalorieCache.normalized_name == normalized_name,
+            models.FoodCalorieCache.basis_type == alternate_type,
+            models.FoodCalorieCache.portion_unit == alternate_unit,
+        ).order_by(
+            models.FoodCalorieCache.updated_at.desc(),
+            models.FoodCalorieCache.id.desc(),
+        ).first()
+
     if not cached:
         return None
-    if basis_type == PER_100G:
+    if cached.basis_type in {PER_100G, PER_100ML}:
         return float(cached.calories) * requested_quantity / 100.0
     return float(cached.calories) * requested_quantity
 
@@ -253,7 +295,11 @@ def get_cached_calorie_reference(db: Session, name: str) -> Optional[dict]:
     cached = max(
         candidates,
         key=lambda row: (
-            row.basis_type == PER_100G,
+            {
+                PER_100G: 3,
+                PER_100ML: 2,
+                PER_UNIT: 1,
+            }.get(row.basis_type, 0),
             _source_priority(row.source),
             row.updated_at or row.created_at or datetime.min,
             row.id or 0,

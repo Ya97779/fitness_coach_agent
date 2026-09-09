@@ -1,0 +1,41 @@
+"""LLM provider configuration tests."""
+
+import os
+import sys
+import unittest
+from unittest.mock import patch
+
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app.llm_manager import LLMManager
+
+
+class TestLLMManager(unittest.TestCase):
+    def tearDown(self):
+        LLMManager.clear()
+
+    @patch("app.llm_manager.ChatOpenAI")
+    def test_glm_thinking_is_enabled_with_low_reasoning(self, mock_chat_openai):
+        with patch.dict(os.environ, {
+            "LLM_MODEL": "glm-5.3-flash",
+            "LLM_REASONING_EFFORT": "low",
+            "LLM_THINKING_TYPE": "enabled",
+            "LLM_CLEAR_THINKING": "false",
+        }):
+            LLMManager.clear()
+            LLMManager.get_llm(temperature=0.1)
+
+        kwargs = mock_chat_openai.call_args.kwargs
+        self.assertEqual(kwargs["model"], "glm-5.3-flash")
+        self.assertEqual(kwargs["reasoning_effort"], "low")
+        self.assertEqual(kwargs["extra_body"], {
+            "thinking": {
+                "type": "enabled",
+                "clear_thinking": False,
+            }
+        })
+
+
+if __name__ == "__main__":
+    unittest.main()
