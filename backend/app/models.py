@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, DateTime, Boolean, Text, UniqueConstraint
+from sqlalchemy import (
+    Column, Integer, String, Float, Date, ForeignKey, DateTime, Boolean,
+    Text, UniqueConstraint, Index, CheckConstraint, text,
+)
 from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
@@ -150,13 +153,32 @@ class UserMemory(Base):
 class FoodCalorieCache(Base):
     __tablename__ = "food_calorie_cache"
     __table_args__ = (
-        UniqueConstraint("name", name="uq_food_calorie_cache_name"),
+        CheckConstraint(
+            "basis_type IN ('per_100g', 'per_unit', 'legacy_unknown')",
+            name="ck_food_calorie_cache_basis_type",
+        ),
+        CheckConstraint("portion_qty > 0", name="ck_food_calorie_cache_portion_qty"),
+        CheckConstraint("calories > 0", name="ck_food_calorie_cache_calories"),
+        Index(
+            "uq_food_calorie_cache_basis",
+            "normalized_name",
+            "basis_type",
+            "portion_unit",
+            unique=True,
+            postgresql_where=text("basis_type <> 'legacy_unknown'"),
+            sqlite_where=text("basis_type <> 'legacy_unknown'"),
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
-    portion_qty = Column(Float, nullable=True)
-    portion_unit = Column(String, nullable=True)
+    normalized_name = Column(String, nullable=False, index=True)
+    # per_100g: calories 是每 100g；per_unit: calories 是每 1 个/份/碗；
+    # legacy_unknown: 旧数据口径不明确，只保留审计，不参与自动命中。
+    basis_type = Column(String, nullable=False, default="legacy_unknown", index=True)
+    portion_qty = Column(Float, nullable=False)
+    portion_unit = Column(String, nullable=False)
     calories = Column(Float, nullable=False)
-    source = Column(String, nullable=False, default="llm")  # "api" or "llm"
+    source = Column(String, nullable=False, default="llm")
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

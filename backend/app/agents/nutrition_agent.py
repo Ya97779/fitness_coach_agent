@@ -10,6 +10,7 @@ from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
 from .. import models, database
 from ..runtime_context import get_effective_user_id
 from ..food_api import search_food_nutrient
+from ..food_cache import get_cached_total_calories, save_food_calorie_basis
 from ..rag import ModernRAG
 from datetime import date
 
@@ -130,16 +131,15 @@ def _estimate_calories(food_name: str) -> int:
 
 
 def _get_food_nutrition(food_name: str) -> dict:
-    """获取食物每100g营养数据：DB 缓存 → 本地估算（不调外部 API）"""
-    from .. import database, models
+    """获取默认一份食物的热量：明确份量缓存 → 本地估算。"""
     db = database.SessionLocal()
     try:
-        cached = db.query(models.FoodCalorieCache).filter(
-            models.FoodCalorieCache.name == food_name,
-        ).first()
-        if cached:
-            print(f"[nutrition_agent] DB 缓存命中: '{food_name}' → {cached.calories}kcal/100g")
-            return {"calories": cached.calories, "protein": 0, "fat": 0, "carbs": 0}
+        cached_calories = get_cached_total_calories(
+            db, food_name, 1, "份"
+        )
+        if cached_calories is not None:
+            print(f"[nutrition_agent] DB 缓存命中: '{food_name}' → {cached_calories}kcal/份")
+            return {"calories": cached_calories, "protein": 0, "fat": 0, "carbs": 0}
     finally:
         db.close()
 
@@ -150,28 +150,21 @@ def _get_food_nutrition(food_name: str) -> dict:
     }
 
 
-def _save_food_cache(food_name: str, calories: float):
-    """写入/更新 FoodCalorieCache 表（按 name 去重）"""
-    from .. import database, models
-    db = database.SessionLocal()
-    try:
-        existing = db.query(models.FoodCalorieCache).filter(
-            models.FoodCalorieCache.name == food_name,
-        ).first()
-        if existing:
-            existing.calories = calories
-            existing.source = "llm"
-        else:
-            db.add(models.FoodCalorieCache(
-                name=food_name, calories=calories, source="llm"
-            ))
-        db.commit()
-        print(f"[nutrition_agent] 缓存已更新: '{food_name}' → {calories}kcal")
-    except Exception as e:
-        db.rollback()
-        print(f"[nutrition_agent] 缓存写入失败: {e}")
-    finally:
-        db.close()
+def _save_food_cache(
+    food_name: str,
+    calories: float,
+    portion_qty: Optional[float] = None,
+    portion_unit: Optional[str] = None,
+):
+    """独立写入明确口径的食物热量缓存。"""
+
+    return save_food_calorie_basis(
+        food_name,
+        calories,
+        portion_qty,
+        portion_unit,
+        source="llm",
+    )
 
 
 def _detect_meal_type(user_message: str) -> str:
@@ -219,18 +212,25 @@ def get_user_nutrition_info(user_id: int):
 
 
 @tool
-def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: str = "lunch"):
+def log_food_intake(
+    user_id: int,
+    food_name: str,
+    calories: float,
+    meal_type: str = "lunch",
+    portion_qty: float = 1,
+    portion_unit: str = "份",
+):
     """记录用户摄入的食物到数据库，并缓存热量数据。
 
     calories 为该份食物的总热量（如1个鸡蛋≈72kcal, 1碗兰州拉面≈550kcal）。
-    工具会自动缓存，下次同一食物直接命中。
+    portion_qty 和 portion_unit 描述本次摄入份量。工具会换算成每 100g 或
+    每 1 单位的缓存基准，同名食物只有单位一致时才会命中。
 
     meal_type: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)
     """
     user_id = get_effective_user_id(user_id)
-    # 缓存热量
-    _save_food_cache(food_name, calories)
-
+    if portion_qty <= 0:
+        raise ValueError("portion_qty 必须大于 0")
     db = database.SessionLocal()
     try:
         today = date.today()
@@ -239,10 +239,20 @@ def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: st
         )
         db.flush()
 
-        food_item = models.FoodItem(log_id=log.id, name=food_name, calories=calories, meal_type=meal_type)
+        food_item = models.FoodItem(
+            log_id=log.id,
+            name=food_name,
+            calories=calories,
+            meal_type=meal_type,
+            portion_qty=portion_qty,
+            portion_unit=portion_unit,
+        )
         log.intake_calories += calories
         db.add(food_item)
         db.commit()
+
+        # 缓存使用独立事务；缓存失败不能回滚用户的饮食记录。
+        _save_food_cache(food_name, calories, portion_qty, portion_unit)
 
         return f"已记录: {food_name}, {calories} kcal, 餐次: {meal_type}"
     finally:
@@ -283,13 +293,27 @@ def search_food_nutrition(food_name: str):
     result = search_food_nutrient(food_name)
     if not result:
         return f"未找到{food_name}的营养数据"
+    calories = result.get("calories", 0)
+    portion_qty = result.get("portion_qty")
+    portion_unit = result.get("portion_unit")
+    if calories and portion_qty and portion_unit:
+        save_food_calorie_basis(
+            food_name,
+            calories,
+            portion_qty,
+            portion_unit,
+            source=result.get("source", "fallback"),
+        )
     return {
         "food_name": food_name,
-        "calories": result.get("calories", 0),
+        "calories": calories,
         "protein": result.get("protein", 0),
         "fat": result.get("fat", 0),
         "carbs": result.get("carbs", 0),
         "source": result.get("source", "本地数据"),
+        "basis_type": result.get("basis_type"),
+        "portion_qty": portion_qty,
+        "portion_unit": portion_unit,
     }
 
 

@@ -147,6 +147,11 @@ router -> chat
 - 失败时回滚 Session。
 - 后台线程自行创建和关闭数据库 Session，不复用请求线程 Session。
 
+`FoodItem.calories` 表示用户本次摄入的总热量；`FoodCalorieCache` 只保存可复用
+的热量基准。重量统一换算成 `per_100g + g`，个/份/碗等单位统一换算成
+`per_unit + 单位`，查询必须同时匹配规范化名称、基准类型和单位。所有缓存读写
+复用 `backend/app/food_cache.py`，缓存失败不能回滚用户的饮食记录。
+
 ### 3.6 RAG
 
 RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩展、HyDE、CoT、Self-RAG、Agentic RAG 和可选 Jina 重排。
@@ -264,9 +269,10 @@ wx.removeStorageSync('DEV_API_BASE_URL')
 该覆盖只对微信 `develop` 环境生效，体验版和正式版始终使用生产地址。本地设置中还需勾选“不校验合法域名、TLS 版本及 HTTPS 证书”。切换本地后清除旧登录 Token，避免把生产 JWT 发给本地后端。
 
 后端启动仍会执行 `Base.metadata.create_all()`，它只负责兼容创建缺失表，不能替代
-生产迁移。阶段 0–2 的会话/语义记忆表及每日记录、食物缓存唯一索引由
-`scripts/migrate_phase02.py` 单独执行；脚本发现旧数据重复键会停止，不会删除或
-合并数据。后续若增加非兼容字段，仍应引入正式迁移版本和回滚方案。
+生产迁移。阶段 0–2 的会话/语义记忆表及每日记录、食物缓存结构由
+`scripts/migrate_phase02.py` 单独执行。脚本发现重复每日记录时会停止；发现旧版
+食物缓存表时会将其完整复制到带时间戳的备份表，重建空的 v2 缓存表。后续若
+增加非兼容字段，仍应引入正式迁移版本和回滚方案。
 
 ## 6. 测试与检查
 
@@ -292,7 +298,7 @@ git diff --check
 ```
 
 当前本地基线：`python -m unittest discover -s backend/tests -p 'test_*.py' -q`
-共 167 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
+共 173 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
 退出状态；涉及真实模型的评估仍需单独配置测试 Key。
 
 RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；如果真实模型不可用，

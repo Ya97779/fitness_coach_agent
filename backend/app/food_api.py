@@ -15,16 +15,25 @@ API_KEY = os.getenv("TianxingFood_API_KEY")
 API_HOST = "apis.tianapi.com"
 API_PATH = "/nutrient/index"
 
-# 备用本地数据（当API不可用时使用）
+# 备用本地数据（当 API 不可用时使用）。每条数据都显式声明热量口径，
+# 避免把“一份”和“每 100g”混为一谈。
 FALLBACK_DATA = {
-    "苹果": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
-    "香蕉": {"calories": 91, "protein": 1.1, "fat": 0.3, "carbs": 23},
-    "米饭": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
-    "鸡蛋": {"calories": 78, "protein": 6.3, "fat": 5.3, "carbs": 0.6},
-    "鸡胸肉": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
-    "兰州拉面": {"calories": 500, "protein": 15, "fat": 15, "carbs": 70},
-    "可乐": {"calories": 150, "protein": 0, "fat": 0, "carbs": 39},
-    "油条": {"calories": 385, "protein": 6, "fat": 17, "carbs": 51}
+    "苹果": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14,
+             "basis_type": "per_100g", "portion_qty": 100, "portion_unit": "g"},
+    "香蕉": {"calories": 91, "protein": 1.1, "fat": 0.3, "carbs": 23,
+             "basis_type": "per_100g", "portion_qty": 100, "portion_unit": "g"},
+    "米饭": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28,
+             "basis_type": "per_100g", "portion_qty": 100, "portion_unit": "g"},
+    "鸡蛋": {"calories": 78, "protein": 6.3, "fat": 5.3, "carbs": 0.6,
+             "basis_type": "per_unit", "portion_qty": 1, "portion_unit": "个"},
+    "鸡胸肉": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0,
+              "basis_type": "per_100g", "portion_qty": 100, "portion_unit": "g"},
+    "兰州拉面": {"calories": 500, "protein": 15, "fat": 15, "carbs": 70,
+               "basis_type": "per_unit", "portion_qty": 1, "portion_unit": "碗"},
+    "可乐": {"calories": 150, "protein": 0, "fat": 0, "carbs": 39,
+             "basis_type": "per_unit", "portion_qty": 1, "portion_unit": "罐"},
+    "油条": {"calories": 385, "protein": 6, "fat": 17, "carbs": 51,
+             "basis_type": "per_100g", "portion_qty": 100, "portion_unit": "g"},
 }
 
 
@@ -129,7 +138,10 @@ def search_food_nutrient(food_name: str) -> dict:
                         "protein": float(protein),
                         "fat": float(fat),
                         "carbs": float(carbs),
-                        "source": "天行数据API"
+                        "source": "天行数据API",
+                        "basis_type": "per_100g",
+                        "portion_qty": 100,
+                        "portion_unit": "g",
                     }
                     _cache[food_name] = {'result': result, 'expire_time': time.time() + _CACHE_TTL}
                     return result
@@ -157,7 +169,14 @@ def search_food_calories(food_name: str) -> str:
     result = search_food_nutrient(food_name)
     
     if result:
-        return f"食物: {food_name}, 热量: {result['calories']} kcal, 蛋白质: {result['protein']}g, 脂肪: {result['fat']}g, 碳水: {result['carbs']}g (来源: {result.get('source', '本地')})"
+        portion_qty = result.get("portion_qty")
+        portion_unit = result.get("portion_unit")
+        basis = (
+            f"/{portion_qty:g}{portion_unit}"
+            if isinstance(portion_qty, (int, float)) and portion_unit
+            else ""
+        )
+        return f"食物: {food_name}, 热量: {result['calories']} kcal{basis}, 蛋白质: {result['protein']}g, 脂肪: {result['fat']}g, 碳水: {result['carbs']}g (来源: {result.get('source', '本地')})"
     
     # 返回None表示未找到，让大模型直接回答
     return None
@@ -170,10 +189,17 @@ def get_food_details(food_name: str) -> str:
     if not result:
         return f"未找到'{food_name}'的营养信息"
     
+    portion_qty = result.get("portion_qty")
+    portion_unit = result.get("portion_unit")
+    basis_label = (
+        f"{portion_qty:g}{portion_unit}"
+        if isinstance(portion_qty, (int, float)) and portion_unit
+        else "数据来源口径"
+    )
     return (
         f"🍽️ **{food_name}**\n"
         f"数据来源: {result.get('source', '本地数据')}\n"
-        f"🔥 热量: {result.get('calories', 0)} kcal/100g\n"
+        f"🔥 热量: {result.get('calories', 0)} kcal/{basis_label}\n"
         f"💪 蛋白质: {result.get('protein', 0)} g\n"
         f"🥑 脂肪: {result.get('fat', 0)} g\n"
         f"🍞 碳水: {result.get('carbs', 0)} g"
