@@ -18,6 +18,10 @@ if str(REPOSITORY_ROOT / "backend") not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT / "backend"))
 
 from app import database, models  # noqa: E402
+from app.food_cache import (  # noqa: E402
+    load_common_food_calorie_seeds,
+    seed_common_food_calorie_cache_database,
+)
 
 
 def _duplicate_keys(connection, query):
@@ -65,6 +69,9 @@ def _replace_legacy_food_cache(connection):
 
 
 def main() -> None:
+    # Validate version-controlled seed data before making schema changes.
+    load_common_food_calorie_seeds()
+
     # Creates only missing tables, including ConversationSession/UserMemory.
     models.Base.metadata.create_all(bind=database.engine)
 
@@ -128,8 +135,11 @@ def main() -> None:
             "ON CONFLICT (version) DO NOTHING"
         ))
 
+    seeded_count = seed_common_food_calorie_cache_database()
+
     if food_cache_backup:
         print(f"legacy food cache archived as {food_cache_backup}")
+    print(f"common food calorie cache seeded: {seeded_count} rows")
     print("phase0_2_memory_and_idempotency migration applied")
 
 

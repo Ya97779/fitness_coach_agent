@@ -381,6 +381,28 @@ class TestNutritionTools(unittest.TestCase):
         self.assertIn("intake_calories", result)
         self.assertIn("net_calories", result)
 
+    @patch('app.agents.nutrition_agent.search_food_nutrient')
+    @patch('app.agents.nutrition_agent.get_cached_calorie_reference')
+    @patch('app.agents.nutrition_agent.database.SessionLocal')
+    def test_search_food_nutrition_prefers_database_cache(
+        self, mock_db, mock_cache, mock_food_api
+    ):
+        mock_cache.return_value = {
+            "food_name": "苹果",
+            "calories": 52,
+            "basis_type": "per_100g",
+            "portion_qty": 100,
+            "portion_unit": "g",
+            "source": "curated_reference_v1",
+        }
+
+        result = search_food_nutrition.invoke({"food_name": "苹果"})
+
+        self.assertEqual(result["calories"], 52)
+        self.assertEqual(result["portion_unit"], "g")
+        mock_food_api.assert_not_called()
+        mock_db.return_value.close.assert_called_once()
+
     def test_nutrition_tools_list_contains_required_tools(self):
         """测试 nutrition_tools 包含必需的 tools"""
         tool_names = [t.name for t in nutrition_tools]

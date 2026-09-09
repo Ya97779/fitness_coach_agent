@@ -10,7 +10,11 @@ from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
 from .. import models, database
 from ..runtime_context import get_effective_user_id
 from ..food_api import search_food_nutrient
-from ..food_cache import get_cached_total_calories, save_food_calorie_basis
+from ..food_cache import (
+    get_cached_calorie_reference,
+    get_cached_total_calories,
+    save_food_calorie_basis,
+)
 from ..rag import ModernRAG
 from datetime import date
 
@@ -289,6 +293,19 @@ def get_daily_nutrition_summary(user_id: int):
 @tool
 def search_food_nutrition(food_name: str):
     """查询具体食物的热量和三大营养素（按每 100g 或 API 返回口径）。"""
+
+    db = database.SessionLocal()
+    try:
+        cached = get_cached_calorie_reference(db, food_name)
+    finally:
+        db.close()
+    if cached:
+        return {
+            **cached,
+            "protein": None,
+            "fat": None,
+            "carbs": None,
+        }
 
     result = search_food_nutrient(food_name)
     if not result:

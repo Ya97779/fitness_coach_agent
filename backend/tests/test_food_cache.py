@@ -16,8 +16,11 @@ from app.food_cache import (
     PER_100G,
     PER_UNIT,
     build_calorie_basis,
+    get_cached_calorie_reference,
     get_cached_total_calories,
+    load_common_food_calorie_seeds,
     normalize_food_name,
+    seed_common_food_calorie_cache,
     upsert_food_calorie_basis,
 )
 from scripts.migrate_phase02 import _replace_legacy_food_cache
@@ -104,6 +107,47 @@ class TestFoodCalorieCache(unittest.TestCase):
 
         self.assertIsNone(
             get_cached_total_calories(self.db, "苹果", 1, "个")
+        )
+
+    def test_common_food_seed_is_valid_and_idempotent(self):
+        seeds = load_common_food_calorie_seeds()
+        seeded_count = seed_common_food_calorie_cache(self.db)
+        self.db.commit()
+
+        self.assertEqual(seeded_count, len(seeds))
+        self.assertEqual(
+            self.db.query(models.FoodCalorieCache).count(),
+            len(seeds),
+        )
+        self.assertEqual(
+            get_cached_total_calories(self.db, "苹果", 200, "克"),
+            104,
+        )
+        self.assertEqual(
+            get_cached_total_calories(self.db, "苹果", 2, "个"),
+            190,
+        )
+        reference = get_cached_calorie_reference(self.db, "苹果")
+        self.assertEqual(reference["calories"], 52)
+        self.assertEqual(reference["portion_qty"], 100)
+        self.assertEqual(reference["portion_unit"], "g")
+
+        seed_common_food_calorie_cache(self.db)
+        self.db.commit()
+        self.assertEqual(
+            self.db.query(models.FoodCalorieCache).count(),
+            len(seeds),
+        )
+
+        upsert_food_calorie_basis(
+            self.db, "苹果", 60, 100, "g", "manual"
+        )
+        self.db.commit()
+        seed_common_food_calorie_cache(self.db)
+        self.db.commit()
+        self.assertEqual(
+            get_cached_total_calories(self.db, "苹果", 100, "g"),
+            60,
         )
 
 
