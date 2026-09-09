@@ -32,6 +32,9 @@ if not logger.handlers:
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
     logger.addHandler(_handler)
+SHOW_MODEL_REASONING = os.getenv("SHOW_MODEL_REASONING", "false").strip().casefold() in {
+    "1", "true", "yes", "on"
+}
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
@@ -1038,6 +1041,7 @@ async def chat_stream(
 
         started_at = time.perf_counter()
         first_data_logged = False
+        first_reasoning_logged = False
         q = queue.Queue()
 
         # 先发首个状态事件，再做数据库上下文装配；用户不再需要等待
@@ -1114,6 +1118,17 @@ async def chat_stream(
                     event_type, content = data
                     if event_type == "status":
                         yield f"event: status\ndata: {content}\n\n"
+                    elif event_type == "thinking":
+                        if SHOW_MODEL_REASONING:
+                            safe_reasoning = _decode_llm_content(content)
+                            if safe_reasoning:
+                                if not first_reasoning_logged:
+                                    first_reasoning_logged = True
+                                    logger.info(
+                                        "[chat_stream] request_id=%s first_reasoning=%.3fs",
+                                        request_id, time.perf_counter() - started_at,
+                                    )
+                                yield f"event: thinking\ndata: {safe_reasoning}\n\n"
                     elif event_type == "intent":
                         import json as _json
                         yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"

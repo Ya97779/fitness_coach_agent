@@ -52,6 +52,7 @@ _FEATURE_ENV_NAMES = {
     "hyde": "ENABLE_HYDE",
     "cot": "ENABLE_COT",
     "self_rag": "ENABLE_SELF_RAG",
+    "show_model_reasoning": "SHOW_MODEL_REASONING",
 }
 
 

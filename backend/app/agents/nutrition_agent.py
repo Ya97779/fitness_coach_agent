@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
 import re
-from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
+from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall, chunk_stream_events
 from .. import models, database
 from ..runtime_context import get_effective_user_id
 from ..food_api import search_food_nutrient
@@ -529,9 +529,10 @@ def nutrition_with_user(
                 plan_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
                 print("[nutrition_agent] 第一轮 LLM 流式工具决策", flush=True)
                 for chunk in plan_stream:
-                    if getattr(chunk, "content", None):
-                        initial_content_streamed = True
-                        yield chunk.content
+                    for event in chunk_stream_events(chunk):
+                        if not isinstance(event, tuple):
+                            initial_content_streamed = True
+                        yield event
                 response = plan_stream.response or AIMessage(content="")
                 print(
                     f"[nutrition_agent] 第一轮 LLM 流式完成: "
@@ -665,10 +666,11 @@ def nutrition_with_user(
                 print(f"[nutrition_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 final_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
                 for chunk in final_stream:
-                    if getattr(chunk, "content", None):
-                        has_content = True
-                        streamed_text += chunk.content
-                        yield chunk.content
+                    for event in chunk_stream_events(chunk):
+                        if not isinstance(event, tuple):
+                            has_content = True
+                            streamed_text += event
+                        yield event
                 final_response = final_stream.response or AIMessage(content="")
                 accumulated_tool_calls = final_response.tool_calls or []
                 print(
@@ -690,10 +692,11 @@ def nutrition_with_user(
                     print(f"[nutrition_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                     third_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
                     for chunk in third_stream:
-                        if getattr(chunk, "content", None):
-                            has_content = True
-                            streamed_text += chunk.content
-                            yield chunk.content
+                        for event in chunk_stream_events(chunk):
+                            if not isinstance(event, tuple):
+                                has_content = True
+                                streamed_text += event
+                            yield event
                     print(f"[nutrition_agent] 第三轮 LLM 流式完成, has_content={has_content}", flush=True)
             else:
                 final_response = llm_with_tools.invoke(chat_history)

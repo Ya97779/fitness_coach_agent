@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from typing import Dict, Any, Iterator
 import re
 import os
-from .base import AGENT_SYSTEM_PROMPTS
+from .base import AGENT_SYSTEM_PROMPTS, chunk_stream_events
 
 # 意图检测正则
 _INTENT_PATTERN = re.compile(r'\n?\[INTENT:(food|exercise)\](.+?)(?:\n|$)')
@@ -114,8 +114,7 @@ def chat_with_user(messages: list, user_id: int, memory_summary: Dict[str, Any] 
         try:
             if stream:
                 for chunk in llm.stream([system_msg] + messages):
-                    if chunk.content:
-                        yield chunk.content
+                    yield from chunk_stream_events(chunk)
             else:
                 response = llm.invoke([system_msg] + messages)
                 yield response.content

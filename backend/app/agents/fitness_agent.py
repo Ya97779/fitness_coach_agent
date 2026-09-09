@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
 import re
-from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
+from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall, chunk_stream_events
 from .. import models, database
 from ..runtime_context import get_effective_user_id
 from ..rag import get_rag_instance
@@ -402,9 +402,10 @@ def fitness_with_user(
                 plan_stream = StreamedToolCall(llm, fitness_tools, chat_history)
                 print("[fitness_agent] 第一轮 LLM 流式工具决策", flush=True)
                 for chunk in plan_stream:
-                    if getattr(chunk, "content", None):
-                        initial_content_streamed = True
-                        yield chunk.content
+                    for event in chunk_stream_events(chunk):
+                        if not isinstance(event, tuple):
+                            initial_content_streamed = True
+                        yield event
                 response = plan_stream.response or AIMessage(content="")
                 print(
                     f"[fitness_agent] 第一轮 LLM 流式完成: "
@@ -501,9 +502,10 @@ def fitness_with_user(
                 print(f"[fitness_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                 final_stream = StreamedToolCall(llm, fitness_tools, chat_history)
                 for chunk in final_stream:
-                    if getattr(chunk, "content", None):
-                        has_content = True
-                        yield chunk.content
+                    for event in chunk_stream_events(chunk):
+                        if not isinstance(event, tuple):
+                            has_content = True
+                        yield event
                 final_response = final_stream.response or AIMessage(content="")
                 accumulated_tool_calls = final_response.tool_calls or []
                 print(
@@ -518,9 +520,10 @@ def fitness_with_user(
                 if not has_content and not accumulated_tool_calls:
                     print(f"[fitness_agent] bind_tools 流式无内容，去掉 tools 重试", flush=True)
                     for chunk in llm.stream(chat_history):
-                        if getattr(chunk, "content", None):
-                            has_content = True
-                            yield chunk.content
+                        for event in chunk_stream_events(chunk):
+                            if not isinstance(event, tuple):
+                                has_content = True
+                            yield event
                     print(f"[fitness_agent] 无 tools 流式重试完成, has_content={has_content}", flush=True)
 
                 # 第二轮返回了 tool_calls → 执行后第三轮调用
@@ -535,9 +538,10 @@ def fitness_with_user(
                     print(f"[fitness_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
                     third_stream = StreamedToolCall(llm, fitness_tools, chat_history)
                     for chunk in third_stream:
-                        if getattr(chunk, "content", None):
-                            has_content = True
-                            yield chunk.content
+                        for event in chunk_stream_events(chunk):
+                            if not isinstance(event, tuple):
+                                has_content = True
+                            yield event
                     print(f"[fitness_agent] 第三轮 LLM 流式完成, has_content={has_content}", flush=True)
             else:
                 final_response = llm_with_tools.invoke(chat_history)

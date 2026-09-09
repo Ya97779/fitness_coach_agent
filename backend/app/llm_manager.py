@@ -4,11 +4,53 @@ import os
 import threading
 import time
 import logging
+import uuid
 from contextvars import ContextVar
 from typing import Dict, Callable, Optional, Any
 from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger("fitcoach.llm")
+logger.setLevel(logging.INFO)
+
+
+def get_chunk_reasoning_content(chunk: Any) -> str:
+    """Return provider reasoning text preserved on a LangChain message chunk."""
+
+    additional_kwargs = getattr(chunk, "additional_kwargs", None) or {}
+    value = additional_kwargs.get("reasoning_content")
+    if not value:
+        value = getattr(chunk, "reasoning_content", None)
+    return value if isinstance(value, str) else ""
+
+
+class GLMChatOpenAI(ChatOpenAI):
+    """Keep GLM's OpenAI-compatible ``reasoning_content`` vendor extension.
+
+    ``langchain-openai`` 1.2.x ignores unknown fields in ``choice.delta``.
+    Preserving the field in ``additional_kwargs`` lets the existing agent
+    stream and message accumulator handle it without replacing LangChain.
+    """
+
+    def _convert_chunk_to_generation_chunk(
+        self,
+        chunk: dict,
+        default_chunk_class: type,
+        base_generation_info: Optional[dict],
+    ):
+        generation_chunk = super()._convert_chunk_to_generation_chunk(
+            chunk,
+            default_chunk_class,
+            base_generation_info,
+        )
+        if generation_chunk is None:
+            return None
+
+        choices = chunk.get("choices") or chunk.get("chunk", {}).get("choices") or []
+        delta = choices[0].get("delta") if choices else None
+        reasoning = delta.get("reasoning_content") if isinstance(delta, dict) else None
+        if reasoning:
+            generation_chunk.message.additional_kwargs["reasoning_content"] = reasoning
+        return generation_chunk
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -86,15 +128,19 @@ class _LLMProxy:
         def iterate():
             started_at = time.perf_counter()
             first_chunk = False
+            first_reasoning = False
+            first_content = False
             request_id = None
+            call_id = uuid.uuid4().hex[:8]
             try:
                 from .runtime_context import get_request_context
                 request_id = get_request_context().request_id
             except Exception:
                 pass
             logger.info(
-                "llm_request_started request_id=%s mode=stream",
+                "llm_request_started request_id=%s call_id=%s mode=stream",
                 request_id or "-",
+                call_id,
             )
             try:
                 # ChatOpenAI.stream() 返回迭代器；必须在消费完迭代器后
@@ -103,14 +149,27 @@ class _LLMProxy:
                     if not first_chunk:
                         first_chunk = True
                         logger.info(
-                            "provider_first_chunk request_id=%s elapsed=%.3fs",
-                            request_id or "-", time.perf_counter() - started_at,
+                            "provider_first_chunk request_id=%s call_id=%s elapsed=%.3fs",
+                            request_id or "-", call_id, time.perf_counter() - started_at,
+                        )
+                    reasoning = get_chunk_reasoning_content(chunk)
+                    if reasoning and not first_reasoning:
+                        first_reasoning = True
+                        logger.info(
+                            "provider_first_reasoning request_id=%s call_id=%s elapsed=%.3fs",
+                            request_id or "-", call_id, time.perf_counter() - started_at,
+                        )
+                    if getattr(chunk, "content", None) and not first_content:
+                        first_content = True
+                        logger.info(
+                            "provider_first_content request_id=%s call_id=%s elapsed=%.3fs",
+                            request_id or "-", call_id, time.perf_counter() - started_at,
                         )
                     yield chunk
             finally:
                 logger.info(
-                    "provider_stream_completed request_id=%s elapsed=%.3fs",
-                    request_id or "-", time.perf_counter() - started_at,
+                    "provider_stream_completed request_id=%s call_id=%s elapsed=%.3fs",
+                    request_id or "-", call_id, time.perf_counter() - started_at,
                 )
                 _LLMQueue.release()
 
@@ -180,7 +239,7 @@ class LLMManager:
                                 ),
                             }
                         }
-                    cls._instances[temperature] = ChatOpenAI(
+                    cls._instances[temperature] = GLMChatOpenAI(
                         model=os.getenv("LLM_MODEL", "glm-4.7"),
                         api_key=os.getenv("OPENAI_API_KEY"),
                         base_url=os.getenv("OPENAI_API_BASE"),

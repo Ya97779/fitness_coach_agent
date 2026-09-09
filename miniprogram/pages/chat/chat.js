@@ -147,6 +147,9 @@ Page({
       id: createMessageId('ai'),
       role: 'ai',
       content: '',
+      statusText: '',
+      reasoningContent: '',
+      reasoningExpanded: true,
       loading: true,
       _streaming: true,
       timestamp
@@ -173,8 +176,10 @@ Page({
     app.globalData.chatStream.messages = messages
     app.globalData.chatStream.aiMsgId = aiMsg.id
     app.globalData.chatStream.pendingContent = ''
+    app.globalData.chatStream.pendingReasoning = ''
 
     let fullContent = ''
+    let fullReasoning = ''
     let lineBuffer = ''
     let currentEventType = 'data'
     const requestTask = streamRequest(
@@ -207,6 +212,13 @@ Page({
             }
             if (currentEventType === 'status') {
               this.updateAiMessage(aiMsg.id, data, true)
+              currentEventType = 'data'
+              continue
+            }
+            if (currentEventType === 'thinking') {
+              fullReasoning += data
+              this.updateAiReasoning(aiMsg.id, fullReasoning)
+              app.globalData.chatStream.pendingReasoning = fullReasoning
               currentEventType = 'data'
               continue
             }
@@ -267,6 +279,7 @@ Page({
     stream.requestId = ''
     stream.messages = this.data.messages
     stream.pendingContent = ''
+    stream.pendingReasoning = ''
   },
 
   updateAiMessage(msgId, content, isStatus) {
@@ -276,19 +289,56 @@ Page({
     if (index < 0) return
     const messages = [...this.data.messages]
     const message = messages[index]
-    messages[index] = {
-      ...message,
-      content,
-      _streaming: true,
-      _isStatus: !!isStatus,
-      _hasRealContent: message._hasRealContent || !isStatus
-    }
+    messages[index] = isStatus
+      ? {
+          ...message,
+          statusText: content,
+          _streaming: true,
+          _isStatus: true
+        }
+      : {
+          ...message,
+          content,
+          statusText: '',
+          reasoningExpanded: message.reasoningContent ? false : message.reasoningExpanded,
+          _streaming: true,
+          _isStatus: false,
+          _hasRealContent: true
+        }
     this.setData({ messages })
     const stream = getApp().globalData.chatStream
     if (stream.active && stream.aiMsgId === msgId) {
       stream.messages = messages
     }
     this.saveMessagesToCache()
+  },
+
+  updateAiReasoning(msgId, reasoningContent) {
+    const index = this.data.messages.findIndex(message => message.id === msgId)
+    if (index < 0) return
+    const messages = [...this.data.messages]
+    const message = messages[index]
+    messages[index] = {
+      ...message,
+      reasoningContent,
+      reasoningExpanded: !message._hasRealContent,
+      statusText: '',
+      _streaming: true
+    }
+    this.setData({ messages })
+    const stream = getApp().globalData.chatStream
+    if (stream.active && stream.aiMsgId === msgId) {
+      stream.messages = messages
+    }
+  },
+
+  toggleReasoning(e) {
+    const msgId = e.currentTarget.dataset.id
+    const index = this.data.messages.findIndex(message => message.id === msgId)
+    if (index < 0) return
+    this.setData({
+      [`messages[${index}].reasoningExpanded`]: !this.data.messages[index].reasoningExpanded
+    })
   },
 
   finishAiMessage(msgId) {
@@ -303,6 +353,7 @@ Page({
         ...message,
         loading: false,
         _streaming: false,
+        statusText: '',
         content: '抱歉，未能获取回复，请重试。',
         html: '<p>抱歉，未能获取回复，请重试。</p>'
       }
@@ -312,6 +363,8 @@ Page({
         loading: false,
         _streaming: false,
         _isStatus: false,
+        statusText: '',
+        reasoningExpanded: false,
         html: parseMarkdown(message.content)
       }
     }
@@ -457,8 +510,21 @@ Page({
         }
       }
     }
+    if (stream.pendingReasoning && stream.aiMsgId) {
+      const index = messages.findIndex(message => message.id === stream.aiMsgId)
+      if (index >= 0) {
+        messages = [...messages]
+        messages[index] = {
+          ...messages[index],
+          reasoningContent: stream.pendingReasoning,
+          reasoningExpanded: !messages[index]._hasRealContent,
+          _streaming: true
+        }
+      }
+    }
     stream.messages = messages
     stream.pendingContent = ''
+    stream.pendingReasoning = ''
     if (messages.length > 0) {
       this.setData({ messages, sending: true })
     }

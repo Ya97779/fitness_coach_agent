@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.agents.base import (
     AgentConfig, AgentResponse, MultiAgentState,
-    AGENT_SYSTEM_PROMPTS, StreamedToolCall
+    AGENT_SYSTEM_PROMPTS, StreamedToolCall, chunk_stream_events
 )
 from app.agents.router import route_with_context
 from app.agents.chat_agent import chat_with_user, format_memory_context
@@ -67,6 +67,17 @@ class TestStreamedToolCall(unittest.TestCase):
         self.assertEqual(stream.chunk_count, 2)
         self.assertEqual(stream.response.tool_calls[0]["name"], "demo_tool")
         self.assertEqual(stream.response.tool_calls[0]["args"], {"value": 1})
+
+    def test_exposes_reasoning_as_a_separate_stream_event(self):
+        chunk = AIMessageChunk(
+            content="answer",
+            additional_kwargs={"reasoning_content": "reason"},
+        )
+
+        self.assertEqual(
+            list(chunk_stream_events(chunk)),
+            [("thinking", "reason"), "answer"],
+        )
 
 
 class TestAgentStreaming(unittest.TestCase):
