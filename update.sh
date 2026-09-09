@@ -17,8 +17,24 @@ echo "==> 安装依赖..."
 source "$VENV_DIR/bin/activate"
 pip install -r requirements.txt -q
 
+echo "==> 停止后端并执行数据库迁移..."
+service_stopped=0
+restart_if_stopped() {
+    if [ "$service_stopped" -eq 1 ]; then
+        echo "==> 迁移未完成，尝试恢复后端服务..."
+        sudo systemctl restart fitcoach || true
+    fi
+}
+trap restart_if_stopped EXIT
+
+sudo systemctl stop fitcoach
+service_stopped=1
+"$VENV_DIR/bin/python" scripts/migrate_phase02.py
+
 echo "==> 重启后端..."
 sudo systemctl restart fitcoach
+service_stopped=0
+trap - EXIT
 
 echo "==> 检查状态..."
 sleep 2

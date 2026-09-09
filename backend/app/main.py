@@ -13,6 +13,7 @@ from .calorie_calculator import (
     classify_exercise,
 )
 from .llm_manager import LLMManager
+from .food_cache import get_cached_total_calories, save_food_calorie_basis
 import json as _json
 from .food_api import search_food_nutrient
 from pydantic import BaseModel, Field
@@ -287,7 +288,7 @@ class FoodLogCreate(BaseModel):
     name: str
     calories: Optional[float] = None
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
-    portion_qty: Optional[float] = None
+    portion_qty: Optional[float] = Field(default=None, gt=0)
     portion_unit: Optional[str] = None
 
 class ExerciseLogCreate(BaseModel):
@@ -303,7 +304,7 @@ class FoodLogUpdate(BaseModel):
     name: Optional[str] = None
     calories: Optional[float] = None
     meal_type: Optional[str] = None
-    portion_qty: Optional[float] = None
+    portion_qty: Optional[float] = Field(default=None, gt=0)
     portion_unit: Optional[str] = None
 
 class ExerciseLogUpdate(BaseModel):
@@ -541,16 +542,11 @@ def create_food_log(
     unit = data.portion_unit
 
     if calories is None:
-        # 先查缓存（按食物名匹配）
-        cached = db.query(models.FoodCalorieCache).filter(
-            models.FoodCalorieCache.name == data.name,
-        ).first()
-        if cached:
-            # 如果有份量倍数，按比例换算
-            if qty and qty != 1:
-                calories = round(cached.calories * qty)
-            else:
-                calories = round(cached.calories)
+        cached_calories = get_cached_total_calories(
+            db, data.name, qty, unit
+        )
+        if cached_calories is not None:
+            calories = round(cached_calories)
             logger.info(f"[food-log] 缓存命中: '{data.name}' → {calories} kcal (份量×{qty or 1})")
         else:
             need_llm = True
@@ -594,19 +590,20 @@ def create_food_log(
                             _item.calories = estimated
                             if _log:
                                 _log.intake_calories = (_log.intake_calories or 0) - _old + estimated
-                            # 保存到食物热量缓存（按食物名去重）
-                            existing_cache = _db.query(models.FoodCalorieCache).filter(
-                                models.FoodCalorieCache.name == _food_name,
-                            ).first()
-                            if existing_cache:
-                                existing_cache.calories = estimated
-                                existing_cache.source = "llm"
-                            else:
-                                _db.add(models.FoodCalorieCache(
-                                    name=_food_name, calories=estimated, source="llm",
-                                ))
                             _db.commit()
-                            logger.info(f"[食物热量估算] DB 更新成功 + 已缓存: '{_food_name}' → {estimated} kcal")
+                            cache_saved = save_food_calorie_basis(
+                                _food_name,
+                                estimated,
+                                qty,
+                                unit,
+                                source="llm",
+                            )
+                            logger.info(
+                                "[食物热量估算] DB 更新成功: '%s' → %s kcal, cache_saved=%s",
+                                _food_name,
+                                estimated,
+                                cache_saved,
+                            )
                         else:
                             logger.warning(f"[食物热量估算] item_id={_item_id} 不存在，可能已被删除")
                     finally:
@@ -653,16 +650,11 @@ def update_food_log(
         new_qty = data.portion_qty if data.portion_qty is not None else item.portion_qty
         new_unit = data.portion_unit if data.portion_unit is not None else item.portion_unit
         new_name = data.name if data.name is not None else item.name
-        # 查缓存
-        cached = None
-        if new_qty and new_unit:
-            cached = db.query(models.FoodCalorieCache).filter(
-                models.FoodCalorieCache.name == new_name,
-                models.FoodCalorieCache.portion_unit == new_unit,
-                models.FoodCalorieCache.portion_qty != None,
-            ).first()
-        if cached and cached.portion_qty:
-            item.calories = round(cached.calories * new_qty / cached.portion_qty)
+        cached_calories = get_cached_total_calories(
+            db, new_name, new_qty, new_unit
+        )
+        if cached_calories is not None:
+            item.calories = round(cached_calories)
         else:
             item.calories = 0
             # 后台 LLM 估算
@@ -679,16 +671,14 @@ def update_food_log(
                             _log = _db.query(models.DailyLog).get(_it.log_id)
                             if _log:
                                 _log.intake_calories = (_log.intake_calories or 0) - _old + est
-                            # 保存到食物热量缓存
-                            cache = models.FoodCalorieCache(
-                                name=new_name,
-                                portion_qty=new_qty,
-                                portion_unit=new_unit,
-                                calories=est,
+                            _db.commit()
+                            save_food_calorie_basis(
+                                new_name,
+                                est,
+                                new_qty,
+                                new_unit,
                                 source="llm",
                             )
-                            _db.add(cache)
-                            _db.commit()
                     finally:
                         _db.close()
                 except Exception as e:
@@ -1342,8 +1332,8 @@ def _estimate_exercise_via_llm(exercise_name: str, user_weight: float, duration:
 
 def _estimate_food_calories_via_llm(food_name: str, portion_qty: float = None, portion_unit: str = None) -> float:
     """调用 LLM 估算食物总热量（带超时保护）"""
-    if portion_qty and portion_unit:
-        desc = f"{portion_qty}{portion_unit}{food_name}"
+    if portion_qty is not None or portion_unit:
+        desc = f"{portion_qty or 1}{portion_unit or '份'}{food_name}"
     else:
         desc = food_name
     prompt = f"""你是食物营养专家。估算以下食物的总热量（kcal）。
