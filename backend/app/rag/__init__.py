@@ -68,6 +68,8 @@ KNOWLEDGE_BASE_DIR = os.getenv("KNOWLEDGE_BASE_DIR", "./knowledgebase")
 
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
+# 智谱 Embedding 接口单次最多接收 64 条输入；超过该值会返回 400。
+DEFAULT_EMBEDDING_BATCH_SIZE = 64
 
 
 class ModernRAG:
@@ -152,7 +154,8 @@ class ModernRAG:
         self.embeddings = OpenAIEmbeddings(
             model=embedding_model or os.getenv("EMBEDDING_MODEL", "embedding-2"),
             api_key=api_key,
-            base_url=api_base
+            base_url=api_base,
+            chunk_size=DEFAULT_EMBEDDING_BATCH_SIZE,
         )
 
         from ..llm_manager import LLMManager
@@ -176,7 +179,7 @@ class ModernRAG:
         self.vectorstore: Optional[Chroma] = None
         self.documents: List[Document] = []
 
-        self._init_components()
+        self._init_components(force_rebuild=force_rebuild)
 
         if enable_query_expansion:
             self.query_expander = QueryExpander(llm=self.llm)
