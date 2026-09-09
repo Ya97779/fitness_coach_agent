@@ -214,6 +214,41 @@
   font-style: italic;
 }
 
+.reasoning-panel {
+  margin-bottom: 16rpx;
+  padding: 14rpx 16rpx;
+  border-left: 4rpx solid var(--accent);
+  border-radius: 8rpx;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  color: var(--text-secondary);
+  font-size: 24rpx;
+}
+
+.reasoning-toggle {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.reasoning-text {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--text-secondary);
+  font-size: 24rpx;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.status-text {
+  color: var(--text-secondary);
+}
+
 /* 加载动画 */
 .msg-loading {
   display: flex;

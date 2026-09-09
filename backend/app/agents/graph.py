@@ -696,7 +696,9 @@ def chat_stream(state: AgentState):
             return
 
     for chunk in response_generator:
-        if chunk:
+        if isinstance(chunk, tuple):
+            yield chunk
+        elif chunk:
             yield from emit_safe_text(chunk)
 
     if pending:
@@ -906,14 +908,6 @@ def _stream_user_message_impl(
         "enhanced_prompts": enhanced_prompts
     }
 
-    # 统一状态消息，给用户即时反馈降低感知等待
-    _status_messages = {
-        "nutrition": "Agent正在思考...",
-        "fitness": "Agent正在思考...",
-        "chat": "Agent正在思考...",
-    }
-    yield ("status", _status_messages.get(agent, "Agent正在思考..."))
-
     print(f"[stream] 开始调用 {agent} agent...", flush=True)
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
@@ -934,8 +928,8 @@ def _stream_user_message_impl(
 
             if isinstance(chunk, tuple):
                 event_type, event_value = chunk
-                if event_type == "intent":
-                    yield ("intent", event_value)
+                if event_type in {"intent", "thinking"}:
+                    yield (event_type, event_value)
                 continue
 
             full_response += chunk

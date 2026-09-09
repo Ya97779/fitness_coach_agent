@@ -4,6 +4,19 @@ from typing import TypedDict, Annotated, List, Dict, Any, Optional
 from dataclasses import dataclass
 from langchain_core.messages import AIMessage, BaseMessage
 
+from ..llm_manager import get_chunk_reasoning_content
+
+
+def chunk_stream_events(chunk: Any):
+    """Yield a separate reasoning event followed by visible answer content."""
+
+    reasoning = get_chunk_reasoning_content(chunk)
+    if reasoning:
+        yield ("thinking", reasoning)
+    content = getattr(chunk, "content", None)
+    if content:
+        yield content
+
 
 @dataclass
 class AgentConfig:

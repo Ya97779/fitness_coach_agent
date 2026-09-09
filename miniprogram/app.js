@@ -9,6 +9,7 @@ App({
       requestId: '',
       messages: [],
       pendingContent: '',
+      pendingReasoning: '',
       aiMsgId: ''
     },
     training: {
