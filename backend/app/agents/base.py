@@ -2,7 +2,7 @@
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional
 from dataclasses import dataclass
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage
 
 
 @dataclass
@@ -22,6 +22,59 @@ class AgentResponse:
     response: str
     needs_review: bool = False
     review_feedback: Optional[str] = None
+
+
+class StreamedToolCall:
+    """Stream a tool-enabled model call and expose its final AI message.
+
+    Tool selection is an internal step, so callers consume the provider
+    chunks immediately while this helper incrementally rebuilds the final
+    ``AIMessage`` needed by the existing tool loop.  This keeps the current
+    agent architecture and removes the blocking ``bind_tools().invoke()``
+    from streaming requests.
+    """
+
+    def __init__(self, llm: Any, tools: list, messages: list):
+        self._runnable = llm.bind_tools(tools)
+        self._messages = messages
+        self.response: Optional[AIMessage] = None
+        self.chunk_count = 0
+
+    def __iter__(self):
+        accumulated = None
+        try:
+            for chunk in self._runnable.stream(self._messages):
+                self.chunk_count += 1
+                if accumulated is None:
+                    accumulated = chunk
+                else:
+                    try:
+                        accumulated = accumulated + chunk
+                    except TypeError:
+                        # Keep the first chunk if a provider returns a
+                        # non-addable custom chunk type.
+                        pass
+                yield chunk
+        finally:
+            if accumulated is not None:
+                self.response = self._to_message(accumulated)
+
+    @staticmethod
+    def _to_message(chunk: Any) -> AIMessage:
+        if isinstance(chunk, AIMessage):
+            return chunk
+
+        content = getattr(chunk, "content", "") or ""
+        try:
+            tool_calls = list(getattr(chunk, "tool_calls", None) or [])
+        except Exception:
+            tool_calls = []
+        additional_kwargs = getattr(chunk, "additional_kwargs", None) or {}
+        return AIMessage(
+            content=content,
+            tool_calls=tool_calls,
+            additional_kwargs=additional_kwargs,
+        )
 
 
 class MultiAgentState(TypedDict):

@@ -15,14 +15,14 @@ from .calorie_calculator import (
 from .llm_manager import LLMManager
 import json as _json
 from .food_api import search_food_nutrient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 import asyncio
 import os
 import threading
 import uuid
 import logging
-from datetime import date
+from datetime import date, datetime
 from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger("food_estimate")
@@ -31,13 +31,32 @@ if not logger.handlers:
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
     logger.addHandler(_handler)
-from dotenv import load_dotenv
-
-load_dotenv()
-
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
+
+
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    """Record request arrival without buffering streaming response bodies."""
+
+    import time
+
+    started_at = time.perf_counter()
+    request.state.request_started_at = started_at
+    logger.info(
+        "request_received method=%s path=%s",
+        request.method,
+        request.url.path,
+    )
+    response = await call_next(request)
+    logger.info(
+        "response_headers_ready path=%s status=%s elapsed=%.3fs",
+        request.url.path,
+        response.status_code,
+        time.perf_counter() - started_at,
+    )
+    return response
 
 # ========== 限流 ==========
 from slowapi import Limiter
@@ -124,8 +143,14 @@ def init_exercise_calories():
                     item.aliases = _json.dumps(aliases, ensure_ascii=False)
                     added += 1
         if added:
-            db.commit()
-            print(f"[热量表] 补充 {added} 个预置动作")
+            try:
+                db.commit()
+                print(f"[热量表] 补充 {added} 个预置动作")
+            except Exception as exc:
+                # 多 worker 同时启动时，另一个进程可能先完成了同一批
+                # 唯一名称写入；初始化失败不能阻止整个 Web worker 启动。
+                db.rollback()
+                print(f"[热量表] 并发初始化跳过重复项: {exc}")
     finally:
         db.close()
 
@@ -134,6 +159,11 @@ async def startup_event():
     init_exercise_calories()
     global rag_initialized
     if rag_initialized:
+        return
+
+    if os.getenv("RAG_STARTUP_INDEX", "false").lower() != "true":
+        print("[RAG 启动] RAG_STARTUP_INDEX=false，跳过启动时索引检查。")
+        rag_initialized = True
         return
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -226,7 +256,9 @@ class DailyLogResponse(BaseModel):
         from_attributes = True
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=4000)
+    session_id: Optional[str] = Field(default=None, max_length=128)
+    request_id: Optional[str] = Field(default=None, max_length=128)
 
 class ChatResponse(BaseModel):
     response: str
@@ -236,7 +268,9 @@ class ChatResponse(BaseModel):
     intent: Optional[dict] = None
 
 class StreamChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=4000)
+    session_id: Optional[str] = Field(default=None, max_length=128)
+    request_id: Optional[str] = Field(default=None, max_length=128)
 
 class WxLoginRequest(BaseModel):
     code: str
@@ -291,6 +325,23 @@ class ChatHistoryItem(BaseModel):
     content: str
     agent_type: str
     timestamp: Optional[str] = None
+
+
+class SemanticMemoryItem(BaseModel):
+    key: str
+    value: str
+    source: Optional[str] = None
+    confidence: float
+    confirmed: bool
+
+
+class SemanticMemoryUpdate(BaseModel):
+    memory_key: str = Field(..., min_length=1, max_length=128)
+    memory_value: str = Field(..., min_length=1, max_length=1000)
+    source: Optional[str] = Field(default="user", max_length=64)
+    confidence: float = Field(default=0.9, ge=0.0, le=1.0)
+    confirmed: bool = True
+    expires_at: Optional[datetime] = None
 
 # ========== 工具函数 ==========
 def calculate_metrics(height, weight, age, gender):
@@ -381,7 +432,41 @@ async def upload_avatar(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
-    ext = os.path.splitext(file.filename)[1] if file.filename else '.png'
+    allowed_types = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=415, detail="仅支持 PNG、JPEG 或 WebP 图片")
+
+    # 限制读取大小，避免把任意大文件一次性读入内存。
+    max_avatar_bytes = 5 * 1024 * 1024
+    content = await file.read(max_avatar_bytes + 1)
+    if len(content) > max_avatar_bytes:
+        raise HTTPException(status_code=413, detail="头像大小不能超过 5MB")
+
+    # 以真实图片解码结果为准，不信任扩展名和 Content-Type。
+    try:
+        from io import BytesIO
+        from PIL import Image
+
+        with Image.open(BytesIO(content)) as image:
+            image.verify()
+        with Image.open(BytesIO(content)) as image:
+            if image.width > 4096 or image.height > 4096:
+                raise HTTPException(status_code=413, detail="图片尺寸不能超过 4096×4096")
+            image_format = (image.format or "").upper()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="上传的文件不是有效图片")
+
+    format_extensions = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}
+    ext = format_extensions.get(image_format)
+    if not ext:
+        raise HTTPException(status_code=415, detail="图片格式不受支持")
+
     filename = f"avatar_{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
     avatar_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -389,7 +474,6 @@ async def upload_avatar(
     )
     os.makedirs(avatar_dir, exist_ok=True)
     filepath = os.path.join(avatar_dir, filename)
-    content = await file.read()
     with open(filepath, 'wb') as f:
         f.write(content)
 
@@ -430,8 +514,9 @@ def get_current_user_today(
         models.DailyLog.date == today,
     ).first()
     if not log:
-        log = models.DailyLog(user_id=current_user.id, date=today)
-        db.add(log)
+        log = database.get_or_create_daily_log(
+            db, models.DailyLog, current_user.id, today
+        )
         db.commit()
         db.refresh(log)
     return log
@@ -445,15 +530,10 @@ def create_food_log(
 ):
     logger.info(f"[food-log] 收到请求: name='{data.name}', calories={data.calories}, qty={data.portion_qty}, unit={data.portion_unit}, meal={data.meal_type}")
     today = date.today()
-    log = db.query(models.DailyLog).filter(
-        models.DailyLog.user_id == current_user.id,
-        models.DailyLog.date == today,
-    ).first()
-    if not log:
-        log = models.DailyLog(user_id=current_user.id, date=today)
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+    log = database.get_or_create_daily_log(
+        db, models.DailyLog, current_user.id, today
+    )
+    db.flush()
 
     calories = data.calories
     need_llm = False
@@ -658,15 +738,10 @@ def create_exercise_log(
     db: Session = Depends(database.get_db),
 ):
     today = date.today()
-    log = db.query(models.DailyLog).filter(
-        models.DailyLog.user_id == current_user.id,
-        models.DailyLog.date == today,
-    ).first()
-    if not log:
-        log = models.DailyLog(user_id=current_user.id, date=today)
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+    log = database.get_or_create_daily_log(
+        db, models.DailyLog, current_user.id, today
+    )
+    db.flush()
 
     body_weight = current_user.weight or 70
     if data.calories:
@@ -849,12 +924,16 @@ def chat(
     db: Session = Depends(database.get_db),
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
+    session_id = (request.session_id or f"default_{current_user.id}").strip()[:128]
+    request_id = (request.request_id or uuid.uuid4().hex).strip()[:128]
 
     result = process_user_message(
         user_message=request.message,
         user_id=current_user.id,
         user_profile=user_profile,
         daily_stats=daily_stats,
+        session_id=session_id,
+        request_id=request_id,
     )
 
     return ChatResponse(
@@ -885,28 +964,88 @@ async def chat_stream(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
-    user_profile, daily_stats = _build_user_context(current_user, db)
-
     user_message = body.message.strip() if body.message else "你好"
+    session_id = (body.session_id or f"default_{current_user.id}").strip()[:128]
+    request_id = (
+        body.request_id
+        or request.headers.get("X-Request-ID")
+        or uuid.uuid4().hex
+    ).strip()[:128]
+    import time as _time
+    logger.info(
+        "auth_completed request_id=%s user_id=%s elapsed=%.3fs",
+        request_id,
+        current_user.id,
+        _time.perf_counter() - getattr(request.state, "request_started_at", _time.perf_counter()),
+    )
 
     async def event_generator():
         import queue
         import threading
+        import time
 
+        started_at = time.perf_counter()
+        first_data_logged = False
         q = queue.Queue()
+
+        # 先发首个状态事件，再做数据库上下文装配；用户不再需要等待
+        # 画像/历史查询完成后才看到任何反馈。
+        yield "event: status\ndata: 请求已接收，正在理解你的问题...\n\n"
+        logger.info(
+            "[chat_stream] request_id=%s user_id=%s accepted=%.3fs",
+            request_id, current_user.id, time.perf_counter() - started_at,
+        )
+
+        loop = asyncio.get_running_loop()
+        # 这里复用请求依赖注入的 DB session；首个 SSE 已经发出，少量
+        # 上下文查询不会再阻塞用户看到反馈，也避免跨线程使用 Session。
+        try:
+            user_profile, daily_stats = _build_user_context(current_user, db)
+        except Exception as exc:
+            logger.exception(
+                "[chat_stream] request_id=%s context_load_failed: %s",
+                request_id, exc,
+            )
+            yield f"data: Error: 暂时无法加载用户上下文，请稍后重试\n\n"
+            yield "data: [DONE]\n\n"
+            return
+        # 流式生成可能持续几十秒，提前释放鉴权依赖使用的连接，避免
+        # 并发流请求长期占满数据库连接池。
+        db.close()
+        logger.info(
+            "[chat_stream] request_id=%s context_loaded=%.3fs",
+            request_id, time.perf_counter() - started_at,
+        )
 
         def run():
             try:
-                print(f"[stream] 开始处理用户 {current_user.id} 的消息: {user_message[:50]}...", flush=True)
+                print(
+                    f"[stream] request_id={request_id} 开始处理用户 "
+                    f"{current_user.id} 的消息: {user_message[:50]}...",
+                    flush=True,
+                )
                 for item in stream_user_message(
-                    user_message, current_user.id, user_profile, daily_stats
+                    user_message,
+                    current_user.id,
+                    user_profile,
+                    daily_stats,
+                    session_id,
+                    request_id,
                 ):
                     # item 是 tuple: ("status", msg) 或 ("data", msg)
                     q.put(("chunk", item))
                 q.put(("done", None))
-                print(f"[stream] 用户 {current_user.id} 的消息处理完成", flush=True)
+                print(
+                    f"[stream] request_id={request_id} 用户 "
+                    f"{current_user.id} 的消息处理完成",
+                    flush=True,
+                )
             except Exception as e:
-                print(f"[stream] 用户 {current_user.id} 的消息处理异常: {e}", flush=True)
+                print(
+                    f"[stream] request_id={request_id} 用户 "
+                    f"{current_user.id} 的消息处理异常: {e}",
+                    flush=True,
+                )
                 import traceback
                 traceback.print_exc()
                 q.put(("error", str(e)))
@@ -916,7 +1055,7 @@ async def chat_stream(
         while True:
             try:
                 # 30 秒超时等待，超时发心跳保活
-                msg_type, data = await asyncio.get_event_loop().run_in_executor(
+                msg_type, data = await loop.run_in_executor(
                     None, lambda: q.get(timeout=30)
                 )
                 if msg_type == "chunk":
@@ -932,8 +1071,19 @@ async def chat_stream(
                         # LLM 输出可能包含字面量转义序列（如 \n 两个字符），
                         # 先解码为真正的控制字符，再对 SSE 做转义
                         safe_content = _decode_llm_content(content)
-                        yield f"data: {safe_content}\n\n"
+                        if safe_content:
+                            if not first_data_logged:
+                                first_data_logged = True
+                                logger.info(
+                                    "[chat_stream] request_id=%s first_data=%.3fs",
+                                    request_id, time.perf_counter() - started_at,
+                                )
+                            yield f"data: {safe_content}\n\n"
                 elif msg_type == "done":
+                    logger.info(
+                        "[chat_stream] request_id=%s completed=%.3fs",
+                        request_id, time.perf_counter() - started_at,
+                    )
                     yield "data: [DONE]\n\n"
                     break
                 elif msg_type == "error":
@@ -951,21 +1101,33 @@ async def chat_stream(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "X-Request-ID": request_id,
         },
     )
 
 @router.get("/chat/history", response_model=List[ChatHistoryItem])
 def get_chat_history(
     limit: int = 20,
+    session_id: Optional[str] = None,
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db),
 ):
     """获取最近的对话历史"""
-    logs = db.query(models.ConversationLog).filter(
+    base_query = db.query(models.ConversationLog).filter(
         models.ConversationLog.user_id == current_user.id
-    ).order_by(
+    )
+    query = base_query
+    if session_id:
+        query = query.filter(models.ConversationLog.session_id == session_id[:128])
+    logs = query.order_by(
         models.ConversationLog.created_at.desc()
     ).limit(limit).all()
+    # 首次升级到稳定 session_id 的老用户仍能看到历史；一旦该会话
+    # 有新记录，后续请求自然只返回当前会话。
+    if session_id and not logs:
+        logs = base_query.order_by(
+            models.ConversationLog.created_at.desc()
+        ).limit(limit).all()
 
     result = []
     for log in reversed(logs):
@@ -985,6 +1147,74 @@ def get_chat_history(
         ))
 
     return result
+
+
+@router.get("/memory")
+def get_memory_overview(
+    session_id: Optional[str] = None,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """查看当前用户的结构化记忆，不返回完整原始对话文本。"""
+
+    from .memory import MemoryManager
+
+    memory = MemoryManager(user_id=current_user.id, session_id=session_id)
+    memory.load_all_memory()
+    summary = memory.get_memory_summary()
+    working = summary.get("working_memory") or {}
+    safe_working = {
+        key: working.get(key)
+        for key in ("active_agent", "intent", "mode", "completed")
+        if key in working
+    }
+    return {
+        "session_id": session_id or summary.get("session_id") or memory._effective_session_id(),
+        "working_memory": safe_working,
+        "semantic_memories": [
+            SemanticMemoryItem.model_validate(item)
+            for item in summary.get("semantic_memories", [])
+            if item.get("key") and item.get("value")
+        ],
+    }
+
+
+@router.delete("/memory/{memory_key}")
+def forget_memory(
+    memory_key: str,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """删除一条用户可管理的语义记忆。"""
+
+    from .memory import MemoryManager
+
+    memory = MemoryManager(user_id=current_user.id)
+    deleted = memory.delete_semantic_memory(memory_key)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="未找到该条用户记忆")
+    return {"deleted": True, "memory_key": memory_key}
+
+
+@router.put("/memory")
+def update_memory(
+    data: SemanticMemoryUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """新增或纠正一条用户语义记忆。"""
+
+    from .memory import MemoryManager
+
+    memory = MemoryManager(user_id=current_user.id)
+    saved = memory.save_semantic_memory(
+        memory_key=data.memory_key,
+        memory_value=data.memory_value,
+        source=data.source or "user",
+        confidence=data.confidence,
+        confirmed=data.confirmed,
+        expires_at=data.expires_at,
+    )
+    if not saved:
+        raise HTTPException(status_code=400, detail="用户记忆保存失败")
+    return {"saved": True, "memory_key": data.memory_key}
 
 # ----- 反馈 -----
 @router.post("/feedback")

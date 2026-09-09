@@ -28,17 +28,28 @@ from typing import TypedDict, Annotated, List, Dict, Any, Literal, Sequence
 from dataclasses import dataclass, field
 import os
 import re
-from dotenv import load_dotenv
 
 from .base import AGENT_SYSTEM_PROMPTS
 from .chat_agent import chat_with_user, parse_intent
-from .nutrition_agent import nutrition_tools, nutrition_with_user
-from .fitness_agent import fitness_tools, fitness_with_user
+from .nutrition_agent import (
+    nutrition_tools,
+    nutrition_with_user,
+    _extract_food_names,
+    _get_food_nutrition,
+    log_food_intake,
+)
+from .fitness_agent import (
+    fitness_tools,
+    fitness_with_user,
+    _extract_exercise_info,
+    _extract_training_parameters,
+    log_exercise,
+)
+from ..calorie_calculator import estimate_calories as calculate_exercise_calories
 from .expert_agent import review_output
 from .router import hybrid_route
 from ..memory import MemoryManager
-
-load_dotenv()
+from ..runtime_context import request_context
 
 MAX_RETRIES = 3
 MIN_APPROVAL_SCORE = 3
@@ -47,6 +58,57 @@ MIN_APPROVAL_SCORE = 3
 def _collect(gen) -> str:
     """消费 agent generator，收集完整回复字符串"""
     return "".join(gen)
+
+
+def _record_multi_domain_message(user_message: str, user_id: int) -> str:
+    """Execute the existing food/exercise logging tools for a clear multi-record."""
+
+    recorded = []
+    for food_name, meal_type in _extract_food_names(user_message):
+        if food_name == "食物":
+            continue
+        nutrition = _get_food_nutrition(food_name)
+        calories = nutrition.get("calories", 0)
+        result = log_food_intake.invoke({
+            "user_id": user_id,
+            "food_name": food_name,
+            "calories": calories,
+            "meal_type": meal_type,
+        })
+        recorded.append(f"饮食：{food_name} {calories:.0f}kcal")
+        print(f"[stream] 多意图饮食记录: {result}", flush=True)
+
+    exercise_name, duration = _extract_exercise_info(user_message)
+    if exercise_name != "运动":
+        sets, reps, weight = _extract_training_parameters(user_message)
+        has_explicit_duration = bool(
+            re.search(r"\d+\s*(?:分钟|小时)", user_message)
+        )
+        if sets and not has_explicit_duration:
+            duration = max(5, sets * 5)
+        calories = calculate_exercise_calories(
+            exercise_name,
+            duration=duration,
+            sets=sets,
+        )
+        result = log_exercise.invoke({
+            "user_id": user_id,
+            "exercise_type": exercise_name,
+            "duration": duration,
+            "calories": float(calories),
+            "sets": sets,
+            "reps": reps,
+            "weight": weight,
+        })
+        detail = f"{sets}组" if sets else f"{duration}分钟"
+        if reps:
+            detail += f"×{reps}次"
+        recorded.append(f"运动：{exercise_name} {detail}，约{calories:.0f}kcal")
+        print(f"[stream] 多意图运动记录: {result}", flush=True)
+
+    if not recorded:
+        raise ValueError("未能从消息中提取可记录的饮食或运动实体")
+    return "已为你记录：" + "；".join(recorded) + "。"
 
 # 快速通道模式：匹配到这些模式的问题属于简单事实查询，跳过专家评审
 QUICK_PATTERNS = [
@@ -72,6 +134,7 @@ class AgentState(TypedDict):
     memory_summary: Dict[str, Any]
     enhanced_prompts: Dict[str, str]
     skip_review: bool
+    route_decision: Dict[str, Any]
 
 
 def should_skip_review(state: AgentState) -> bool:
@@ -135,13 +198,23 @@ def router(state: AgentState) -> Dict[str, str]:
     if not user_message.strip():
         return {"current_agent": "chat", "retry_count": 0, "review_history": []}
 
-    result = hybrid_route(user_message, require_llm_confirm=True)
+    result = hybrid_route(
+        user_message,
+        require_llm_confirm=True,
+        context_messages=messages[:-1],
+        context_route=state.get("memory_summary", {}).get("last_route"),
+    )
 
     agent = result["agent"]
     if agent not in ["nutrition", "fitness"]:
         agent = "chat"
 
-    return {"current_agent": agent, "retry_count": 0, "review_history": []}
+    return {
+        "current_agent": agent,
+        "retry_count": 0,
+        "review_history": [],
+        "route_decision": result,
+    }
 
 
 def chat(state: AgentState) -> Dict[str, Any]:
@@ -397,7 +470,29 @@ def process_user_message(
     user_id: int = 1,
     user_profile: dict = None,
     daily_stats: dict = None,
-    session_id: str = None
+    session_id: str = None,
+    request_id: str = None,
+) -> dict:
+    """Run the existing graph with server-bound request identity."""
+
+    with request_context(user_id, session_id=session_id, request_id=request_id):
+        return _process_user_message(
+            user_message=user_message,
+            user_id=user_id,
+            user_profile=user_profile,
+            daily_stats=daily_stats,
+            session_id=session_id,
+            request_id=request_id,
+        )
+
+
+def _process_user_message(
+    user_message: str,
+    user_id: int = 1,
+    user_profile: dict = None,
+    daily_stats: dict = None,
+    session_id: str = None,
+    request_id: str = None,
 ) -> dict:
     """处理用户消息的入口函数
 
@@ -423,14 +518,13 @@ def process_user_message(
             }
         }
     """
-    memory_manager = MemoryManager(user_id=user_id)
+    memory_manager = MemoryManager(user_id=user_id, session_id=session_id)
     memory_manager.load_all_memory()
     memory_summary = memory_manager.get_memory_summary()
 
-    conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
-    memory_summary["conversation_history"] = conversation_history
-
-    messages_for_prompt = [HumanMessage(content=user_message)]
+    messages_for_prompt = memory_manager.build_recent_messages(
+        current_message=user_message, session_id=session_id, limit=8
+    )
     enhanced_prompts = {
         "chat": memory_manager.enhance_system_prompt(
             AGENT_SYSTEM_PROMPTS["chat"], "chat", messages_for_prompt
@@ -444,7 +538,7 @@ def process_user_message(
     }
 
     initial_state = {
-        "messages": [HumanMessage(content=user_message)],
+        "messages": messages_for_prompt,
         "user_id": user_id,
         "user_profile": user_profile or memory_manager.load_profile(),
         "daily_stats": daily_stats or {},
@@ -475,8 +569,21 @@ def process_user_message(
         user_message=user_message,
         agent_response=response,
         agent_type=current_agent,
-        session_id=session_id
+        session_id=session_id,
+        request_id=request_id,
     )
+    route_decision = final_state.get("route_decision")
+    if route_decision:
+        memory_manager.save_route_state(
+            route_decision,
+            working_memory={
+                "active_agent": current_agent,
+                "intent": route_decision.get("intent"),
+                "mode": route_decision.get("mode"),
+            },
+            session_id=session_id,
+            request_id=request_id,
+        )
 
     result = {
         "response": response,
@@ -510,22 +617,92 @@ def chat_stream(state: AgentState):
 
     response_generator = chat_with_user(messages, user_id, memory_summary, enhanced_prompt, stream=True)
 
-    # 缓存完整回复用于意图检测
-    full_text = ""
+    # 只缓存可能构成意图标记的尾部，正文保持端到端流式输出。
+    # 标记通常出现在回复末尾，因此仅在标记前缀尚未完整时短暂保留少量字符。
+    pending = ""
+    marker_prefixes = ("[INTENT_JSON]", "[INTENT:food]", "[INTENT:exercise]")
+
+    def emit_safe_text(text: str):
+        nonlocal pending
+        pending += text
+
+        while pending:
+            starts = [pending.find(prefix) for prefix in marker_prefixes]
+            starts = [index for index in starts if index >= 0]
+            marker_start = min(starts) if starts else -1
+
+            if marker_start > 0:
+                yield pending[:marker_start]
+                pending = pending[marker_start:]
+                continue
+
+            if marker_start == 0:
+                if pending.startswith("[INTENT_JSON]"):
+                    end_tag = "[/INTENT_JSON]"
+                    end = pending.find(end_tag)
+                    if end < 0:
+                        return
+                    raw = pending[len("[INTENT_JSON]"):end]
+                    pending = pending[end + len(end_tag):]
+                    try:
+                        import json as _json
+                        yield ("intent", _json.loads(raw))
+                    except Exception:
+                        pass
+                    continue
+
+                match = re.match(r"\[INTENT:(food|exercise)\](.*?)(?:\n|$)", pending, re.S)
+                if not match:
+                    return
+                raw_data = match.group(2).strip()
+                pending = pending[match.end():]
+                parts = raw_data.split("|")
+                if len(parts) >= 3:
+                    try:
+                        from .chat_agent import _parse_calories, _parse_int
+                        if match.group(1) == "food":
+                            intent = {
+                                "type": "food",
+                                "data": {
+                                    "food_name": parts[0].strip(),
+                                    "meal_type": parts[1].strip(),
+                                    "calories": _parse_calories(parts[2]),
+                                },
+                            }
+                        else:
+                            intent = {
+                                "type": "exercise",
+                                "data": {
+                                    "exercise_name": parts[0].strip(),
+                                    "duration": _parse_int(parts[1]),
+                                    "calories": _parse_calories(parts[2]),
+                                },
+                            }
+                        yield ("intent", intent)
+                    except Exception:
+                        pass
+                continue
+
+            # 没有完整标记时保留最长可能的标记前缀，避免跨 chunk 的标记
+            # 被直接发给客户端；其余字符立即发送。
+            keep = 0
+            for size in range(1, min(len(pending), 14) + 1):
+                suffix = pending[-size:]
+                if any(prefix.startswith(suffix) for prefix in marker_prefixes):
+                    keep = size
+            if len(pending) > keep:
+                yield pending[:-keep] if keep else pending
+                pending = pending[-keep:] if keep else ""
+            return
+
     for chunk in response_generator:
-        full_text += chunk
+        if chunk:
+            yield from emit_safe_text(chunk)
 
-    # 解析意图标记并移除
-    clean_text, intent = parse_intent(full_text)
-
-    # 输出清理后的文本
-    if clean_text:
-        yield clean_text
-
-    # 输出意图信息（如果有）
-    if intent:
-        import json
-        yield f"\n[INTENT_JSON]{json.dumps(intent, ensure_ascii=False)}[/INTENT_JSON]"
+    if pending:
+        # 非法/不完整标记不应阻塞正文；只在没有可识别标记时发出。
+        if not pending.startswith(("[INTENT_JSON]", "[INTENT:food]", "[INTENT:exercise]")):
+            yield pending
 
 
 def nutrition_stream(state: AgentState):
@@ -572,7 +749,43 @@ def stream_user_message(
     user_message: str,
     user_id: int = 1,
     user_profile: dict = None,
-    daily_stats: dict = None
+    daily_stats: dict = None,
+    session_id: str = None,
+    request_id: str = None,
+):
+    """Run the existing streaming workflow with an isolated request context."""
+
+    with request_context(user_id, session_id=session_id, request_id=request_id):
+        queue_events = []
+
+        def _on_queue(position):
+            queue_events.append(position)
+            print(f"[stream] LLM 排队中，前面 {position} 人", flush=True)
+
+        from ..llm_manager import LLMManager
+        queue_callback_token = LLMManager.set_queue_callback(_on_queue)
+        try:
+            yield from _stream_user_message_impl(
+                user_message=user_message,
+                user_id=user_id,
+                user_profile=user_profile,
+                daily_stats=daily_stats,
+                session_id=session_id,
+                request_id=request_id,
+                queue_events=queue_events,
+            )
+        finally:
+            LLMManager.reset_queue_callback(queue_callback_token)
+
+
+def _stream_user_message_impl(
+    user_message: str,
+    user_id: int = 1,
+    user_profile: dict = None,
+    daily_stats: dict = None,
+    session_id: str = None,
+    request_id: str = None,
+    queue_events: list = None,
 ):
     """流式处理用户消息
 
@@ -587,6 +800,10 @@ def stream_user_message(
     Yields:
         str: 回复片段
     """
+    import time
+
+    started_at = time.perf_counter()
+    queue_events = queue_events if queue_events is not None else []
     user_message_clean = user_message.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
     user_message_clean = ' '.join(user_message_clean.split())
 
@@ -594,31 +811,91 @@ def stream_user_message(
         yield ("data", "你好，有什么我可以帮助你的吗？")
         return
 
-    # 路由前置：先决定 agent，再只为它构建 prompt（省掉 2/3 的 prompt 构建开销）
+    # 先读取已有会话状态，再路由。这样“第二个/换成哑铃”等短输入
+    # 能继承上一轮领域，同时仍只为最终 Agent 构建一次 prompt。
+    print(f"[stream] 加载用户记忆...", flush=True)
+    memory_manager = MemoryManager(user_id=user_id, session_id=session_id)
+    memory_manager.load_all_memory()
+    memory_summary = memory_manager.get_memory_summary()
+    messages_for_prompt = memory_manager.build_recent_messages(
+        current_message=user_message,
+        session_id=session_id,
+        limit=8,
+    )
+    print(f"[stream] 记忆加载完成", flush=True)
+
+    # 客户端超时重试时，已完成的同一 request_id 直接回放上一轮结果，
+    # 避免再次执行记录工具或重复写入业务日志。
+    if request_id and memory_summary.get("last_request_id") == request_id:
+        cached_response = (memory_summary.get("working_memory") or {}).get(
+            "last_agent_response"
+        )
+        if cached_response:
+            yield ("status", "该请求已完成，正在返回原结果...")
+            yield ("data", cached_response)
+            return
+
     print(f"[stream] 路由分析中...", flush=True)
-    result = hybrid_route(user_message_clean, require_llm_confirm=False)
+    result = hybrid_route(
+        user_message_clean,
+        require_llm_confirm=True,
+        context_messages=messages_for_prompt[:-1],
+        context_route=memory_summary.get("last_route"),
+    )
     agent = result["agent"]
     if agent not in ["nutrition", "fitness"]:
         agent = "chat"
-    print(f"[stream] 路由结果: {agent}", flush=True)
+    memory_summary["route_decision"] = result
+    print(
+        f"[stream] 路由结果: {agent}, method={result.get('method')}, "
+        f"elapsed={time.perf_counter() - started_at:.3f}s",
+        flush=True,
+    )
 
-    print(f"[stream] 加载用户记忆...", flush=True)
-    memory_manager = MemoryManager(user_id=user_id)
-    memory_manager.load_all_memory()
-    memory_summary = memory_manager.get_memory_summary()
-    print(f"[stream] 记忆加载完成", flush=True)
+    if result.get("reason_code") == "MULTI_RECORD":
+        yield ("status", "正在分别记录饮食和运动...")
+        try:
+            response = _record_multi_domain_message(user_message, user_id)
+            yield ("data", response)
+            memory_manager.save_conversation(
+                user_message=user_message,
+                agent_response=response,
+                agent_type="chat",
+                session_id=session_id,
+                request_id=request_id,
+            )
+            memory_manager.save_route_state(
+                result,
+                working_memory={"active_agent": "chat", "intent": "record", "completed": True},
+                session_id=session_id,
+                request_id=request_id,
+            )
+        except Exception as e:
+            print(f"[stream] 多意图记录失败: {e}", flush=True)
+            yield ("data", "我识别到了饮食和运动，但记录时遇到问题，请稍后重试。")
+        return
 
-    conversation_history = memory_manager.load_conversation_history(days=7, limit=20)
-    memory_summary["conversation_history"] = conversation_history
-
-    messages_for_prompt = [HumanMessage(content=user_message)]
     enhanced_prompt = memory_manager.enhance_system_prompt(
         AGENT_SYSTEM_PROMPTS[agent], agent, messages_for_prompt
     )
+    if result.get("mode") == "multi_domain":
+        enhanced_prompt += """
+
+## 综合问题处理
+请以主教练视角同时覆盖用户提到的训练和饮食，不要假装已经执行任何未确认的写入；
+先给出清晰的分段建议，并指出需要用户补充的关键信息。
+"""
+    if result.get("mode") == "safety" or result.get("safety_flags"):
+        enhanced_prompt += """
+
+## 安全边界
+用户提到疼痛、伤病或特殊情况时，不做诊断，不建议忍痛训练；说明应立即停止的信号，
+给出低风险的一般性建议，并在持续、加重或伴随严重症状时建议咨询专业医生。
+"""
     enhanced_prompts = {agent: enhanced_prompt}
 
     state = {
-        "messages": [HumanMessage(content=user_message)],
+        "messages": messages_for_prompt,
         "user_id": user_id,
         "user_profile": user_profile or memory_manager.load_profile(),
         "daily_stats": daily_stats or {},
@@ -637,15 +914,6 @@ def stream_user_message(
     }
     yield ("status", _status_messages.get(agent, "Agent正在思考..."))
 
-    # 设置 LLM 排队回调，通过 SSE 通知前端排队状态
-    _queue_events = []
-    def _on_queue(position):
-        _queue_events.append(position)
-        print(f"[stream] LLM 排队中，前面 {position} 人", flush=True)
-
-    from ..llm_manager import LLMManager
-    LLMManager.set_queue_callback(_on_queue)
-
     print(f"[stream] 开始调用 {agent} agent...", flush=True)
     if agent == "nutrition":
         response_generator = nutrition_stream(state)
@@ -654,14 +922,21 @@ def stream_user_message(
     else:
         response_generator = chat_stream(state)
 
-    # 收集完整回复用于保存对话历史
+    # 收集完整回复用于保存对话历史，但不阻塞上游 chunk 的发送。
     full_response = ""
+    completed = True
     try:
         for chunk in response_generator:
             # 发送排队状态事件
-            if _queue_events:
-                pos = _queue_events.pop(0)
+            if queue_events:
+                pos = queue_events.pop(0)
                 yield ("queue", pos)
+
+            if isinstance(chunk, tuple):
+                event_type, event_value = chunk
+                if event_type == "intent":
+                    yield ("intent", event_value)
+                continue
 
             full_response += chunk
             # 过滤意图标记，不发给前端
@@ -674,29 +949,33 @@ def stream_user_message(
             else:
                 yield ("data", chunk)
     except Exception as e:
+        completed = False
         error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
         print(f"[stream] 迭代异常: {e}")
         full_response += error_msg
         yield ("data", error_msg)
 
-    # 检测意图标记并发送独立 SSE 事件
-    intent_match = re.search(r'\[INTENT_JSON\](.*?)\[/INTENT_JSON\]', full_response)
-    if intent_match:
-        import json as _json
-        intent_str = intent_match.group(1)
-        try:
-            intent_data = _json.loads(intent_str)
-            yield ("intent", intent_data)
-        except Exception:
-            pass
-        # 从保存的回复中移除意图标记
-        full_response = full_response[:intent_match.start()].rstrip()
-
-    # 流式完成后保存对话历史（错误回复也保存，便于排查）
-    if full_response:
+    # 只有完整成功的回复才进入长期历史，避免错误信息自我强化。
+    if completed and full_response:
         memory_manager.save_conversation(
             user_message=user_message,
             agent_response=full_response,
             agent_type=agent,
-            session_id=None
+            session_id=session_id,
+            request_id=request_id,
+        )
+        memory_manager.save_route_state(
+            result,
+            working_memory={
+                "active_agent": agent,
+                "intent": result.get("intent"),
+                "mode": result.get("mode"),
+            },
+            session_id=session_id,
+            request_id=request_id,
+        )
+        print(
+            f"[stream] request_id={request_id or '-'} completed="
+            f"{time.perf_counter() - started_at:.3f}s",
+            flush=True,
         )

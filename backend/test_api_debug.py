@@ -1,9 +1,9 @@
 """直接测试智谱 API 响应，绕过 LangChain"""
 import os
 import requests
-from dotenv import load_dotenv
+from app.config import load_environment
 
-load_dotenv()
+load_environment()
 
 API_KEY = os.getenv("OPENAI_API_KEY")
 API_BASE = os.getenv("OPENAI_API_BASE", "https://open.bigmodel.cn/api/paas/v4")

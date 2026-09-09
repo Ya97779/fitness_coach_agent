@@ -6,13 +6,12 @@ from langchain_core.tools import tool
 from typing import Dict, Any, Optional, Iterator
 import os
 import re
-from dotenv import load_dotenv
-from .base import AGENT_SYSTEM_PROMPTS
+from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall
 from .. import models, database
+from ..runtime_context import get_effective_user_id
+from ..food_api import search_food_nutrient
 from ..rag import ModernRAG
 from datetime import date
-
-load_dotenv()
 
 _rag_instance = None
 
@@ -199,6 +198,7 @@ def get_rag():
 @tool
 def get_user_nutrition_info(user_id: int):
     """获取用户的营养相关信息（身高、体重、BMR、TDEE、过敏史）"""
+    user_id = get_effective_user_id(user_id)
     db = database.SessionLocal()
     try:
         user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -227,22 +227,17 @@ def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: st
 
     meal_type: breakfast(早餐), lunch(午餐), dinner(晚餐), snack(加餐)
     """
+    user_id = get_effective_user_id(user_id)
     # 缓存热量
     _save_food_cache(food_name, calories)
 
     db = database.SessionLocal()
     try:
         today = date.today()
-        log = db.query(models.DailyLog).filter(
-            models.DailyLog.user_id == user_id,
-            models.DailyLog.date == today
-        ).first()
-
-        if not log:
-            log = models.DailyLog(user_id=user_id, date=today)
-            db.add(log)
-            db.commit()
-            db.refresh(log)
+        log = database.get_or_create_daily_log(
+            db, models.DailyLog, user_id, today
+        )
+        db.flush()
 
         food_item = models.FoodItem(log_id=log.id, name=food_name, calories=calories, meal_type=meal_type)
         log.intake_calories += calories
@@ -257,6 +252,7 @@ def log_food_intake(user_id: int, food_name: str, calories: float, meal_type: st
 @tool
 def get_daily_nutrition_summary(user_id: int):
     """获取用户当日的营养摄入总结"""
+    user_id = get_effective_user_id(user_id)
     db = database.SessionLocal()
     try:
         today = date.today()
@@ -278,6 +274,23 @@ def get_daily_nutrition_summary(user_id: int):
         return {"intake_calories": 0, "burn_calories": 0, "net_calories": 0, "tdee": tdee}
     finally:
         db.close()
+
+
+@tool
+def search_food_nutrition(food_name: str):
+    """查询具体食物的热量和三大营养素（按每 100g 或 API 返回口径）。"""
+
+    result = search_food_nutrient(food_name)
+    if not result:
+        return f"未找到{food_name}的营养数据"
+    return {
+        "food_name": food_name,
+        "calories": result.get("calories", 0),
+        "protein": result.get("protein", 0),
+        "fat": result.get("fat", 0),
+        "carbs": result.get("carbs", 0),
+        "source": result.get("source", "本地数据"),
+    }
 
 
 @tool
@@ -335,6 +348,7 @@ nutrition_tools = [
     get_user_nutrition_info,
     log_food_intake,
     get_daily_nutrition_summary,
+    search_food_nutrition,
     search_nutrition_knowledge
 ]
 
@@ -442,9 +456,50 @@ def nutrition_with_user(
 
     def generate_response():
         called_tools = set()
+        initial_content_streamed = False
+
+        # 已明确的“记录饮食”属于确定性业务动作，复用现有解析和工具，
+        # 不再先让模型完整决策一次。这样记录请求可以立即返回，也避免
+        # 模型重复执行/重复记录；复杂饮食咨询仍走原有工具链。
+        food_items = _extract_food_names(user_message)
+        has_explicit_food = any(
+            name != "食物" and name in user_message for name, _ in food_items
+        )
+        if stream and want_record and has_explicit_food:
+            recorded = []
+            for food_name, meal_type in food_items:
+                nutrition = _get_food_nutrition(food_name)
+                calories = nutrition["calories"]
+                result = log_food_intake.invoke({
+                    "user_id": user_id,
+                    "food_name": food_name,
+                    "calories": calories,
+                    "meal_type": meal_type,
+                })
+                recorded.append(f"{food_name} {calories:.0f}kcal({meal_type})")
+                print(f"[nutrition_agent] 快速记录: {result}", flush=True)
+            yield f"已为你记录：{', '.join(recorded)}。"
+            return
 
         try:
-            response = llm.bind_tools(nutrition_tools).invoke(chat_history)
+            if stream:
+                # 工具选择本身也使用流式调用；等工具参数完整后再执行，
+                # 但不再用 invoke 阻塞首轮模型响应。
+                plan_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
+                print("[nutrition_agent] 第一轮 LLM 流式工具决策", flush=True)
+                for chunk in plan_stream:
+                    if getattr(chunk, "content", None):
+                        initial_content_streamed = True
+                        yield chunk.content
+                response = plan_stream.response or AIMessage(content="")
+                print(
+                    f"[nutrition_agent] 第一轮 LLM 流式完成: "
+                    f"{plan_stream.chunk_count} chunks, "
+                    f"tool_calls={len(response.tool_calls or [])}",
+                    flush=True,
+                )
+            else:
+                response = llm.bind_tools(nutrition_tools).invoke(chat_history)
         except Exception as e:
             error_msg = str(e)
             print(f"[nutrition_agent] invoke 异常: {error_msg}")
@@ -472,13 +527,14 @@ def nutrition_with_user(
                     })
                     print(f"[nutrition_agent] 兜底记录结果: {fallback_result}")
                     recorded.append(f"{food_name} {cal:.0f}kcal({meal_type})")
-                if content:
+                if content and not initial_content_streamed:
                     yield content
+                if content or initial_content_streamed:
                     yield f"\n\n已自动记录：{', '.join(recorded)}"
                 else:
                     yield f"已为你记录：{', '.join(recorded)}。"
             else:
-                if content:
+                if content and not initial_content_streamed:
                     yield content
             return
 
@@ -565,37 +621,35 @@ def nutrition_with_user(
             # 第二轮也要绑定工具，否则 LLM 会把工具调用输出为文本
             llm_with_tools = llm.bind_tools(nutrition_tools)
             if stream:
-                chunk_count = 0
-                accumulated_tool_calls = []
-                for chunk in llm_with_tools.stream(chat_history):
-                    chunk_count += 1
-                    if chunk_count <= 5:
-                        tc = getattr(chunk, 'tool_call_chunks', None)
-                        tcs = getattr(chunk, 'tool_calls', None)
-                        print(f"[nutrition_agent] chunk[{chunk_count}]: content='{chunk.content[:50] if chunk.content else ''}', tool_calls={tcs}, tool_call_chunks={tc}", flush=True)
-                    # 收集 tool_call_chunks
-                    if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
-                        for tc in chunk.tool_call_chunks:
-                            accumulated_tool_calls.append(tc)
-                    if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                        for tc in chunk.tool_calls:
-                            accumulated_tool_calls.append(tc)
-                    if chunk.content:
+                print(f"[nutrition_agent] 第二轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
+                final_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
+                for chunk in final_stream:
+                    if getattr(chunk, "content", None):
                         has_content = True
                         streamed_text += chunk.content
                         yield chunk.content
-                print(f"[nutrition_agent] 第二轮流式完成: {chunk_count} chunks, has_content={has_content}, tool_calls={len(accumulated_tool_calls)}", flush=True)
+                final_response = final_stream.response or AIMessage(content="")
+                accumulated_tool_calls = final_response.tool_calls or []
+                print(
+                    f"[nutrition_agent] 第二轮流式完成: "
+                    f"{final_stream.chunk_count} chunks, "
+                    f"has_content={has_content}, "
+                    f"tool_calls={len(accumulated_tool_calls)}",
+                    flush=True,
+                )
 
                 # 第二轮返回了 tool_calls → 执行后第三轮调用
                 if accumulated_tool_calls and not has_content:
                     print(f"[nutrition_agent] 第二轮返回工具调用，执行后第三轮调用", flush=True)
+                    chat_history.append(final_response)
                     _extra_tool_msgs = _execute_tool_calls(accumulated_tool_calls, nutrition_tools)
                     tool_messages.extend(_extra_tool_msgs)
                     chat_history.extend(_extra_tool_msgs)
 
                     print(f"[nutrition_agent] 第三轮 LLM 流式调用, messages={len(chat_history)}", flush=True)
-                    for chunk in llm_with_tools.stream(chat_history):
-                        if chunk.content:
+                    third_stream = StreamedToolCall(llm, nutrition_tools, chat_history)
+                    for chunk in third_stream:
+                        if getattr(chunk, "content", None):
                             has_content = True
                             streamed_text += chunk.content
                             yield chunk.content

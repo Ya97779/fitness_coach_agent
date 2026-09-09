@@ -45,7 +45,6 @@ from typing import List, Optional, Dict, Any, Callable
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from dotenv import load_dotenv
 
 from .modules import (
     DocumentLoader,
@@ -64,10 +63,8 @@ from .modules import (
     JinaReranker
 )
 
-load_dotenv()
-
-CHROMA_DIR = "./chroma_db"
-KNOWLEDGE_BASE_DIR = "./knowledge_base"
+CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_db")
+KNOWLEDGE_BASE_DIR = os.getenv("KNOWLEDGE_BASE_DIR", "./knowledgebase")
 
 DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50

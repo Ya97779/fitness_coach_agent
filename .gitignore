@@ -3,6 +3,7 @@
 # =========================
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 
@@ -76,6 +77,7 @@ db.sqlite3
 fitness_coach.db
 fitagent.db
 chroma_db/
+chroma_db_dev/
 checkpoints.db
 backend/checkpoints.db
 knowledge_base/.superpowers/

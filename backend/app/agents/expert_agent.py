@@ -4,11 +4,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 import os
 import re
-from dotenv import load_dotenv
 from .base import AGENT_SYSTEM_PROMPTS
-
-load_dotenv()
-
 
 def review_output(nutrition_output: str, fitness_output: str) -> dict:
     """评审营养师和健身教练的输出

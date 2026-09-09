@@ -4,9 +4,9 @@ import requests
 import pandas as pd
 import plotly.express as px
 from datetime import date
-from dotenv import load_dotenv
+from backend.app.config import load_environment
 
-load_dotenv()
+load_environment()
 
 # Set page config
 st.set_page_config(page_title="FitCoach AI", layout="wide")

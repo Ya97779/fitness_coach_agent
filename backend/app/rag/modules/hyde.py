@@ -15,11 +15,7 @@ from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
-
 
 HYDE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """你是一个专业的知识库文档撰写助手。根据用户问题，生成一个假设性的高质量答案。

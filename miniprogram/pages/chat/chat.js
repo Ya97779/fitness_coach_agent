@@ -4,6 +4,36 @@ const { parse: parseMarkdown } = require('../../utils/markdown')
 
 let msgId = 0
 
+function createMessageId(prefix) {
+  msgId += 1
+  return `${prefix || 'msg'}_${Date.now().toString(36)}_${msgId}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function getChatSessionId() {
+  let sessionId = wx.getStorageSync('chat_session_id')
+  if (!sessionId) {
+    sessionId = createMessageId('session')
+    wx.setStorageSync('chat_session_id', sessionId)
+  }
+  return sessionId
+}
+
+function ensureUniqueMessageIds(messages) {
+  const seen = new Set()
+  return (messages || []).map(message => {
+    let id = message.id
+    if (!id || seen.has(id)) {
+      id = createMessageId(message.role || 'msg')
+    }
+    seen.add(id)
+    return id === message.id ? message : { ...message, id }
+  })
+}
+
+function messageContentSignature(messages) {
+  return JSON.stringify((messages || []).map(message => [message.role, message.content]))
+}
+
 function formatTime(ts) {
   const d = new Date(ts)
   const M = String(d.getMonth() + 1).padStart(2, '0')
@@ -32,10 +62,15 @@ Page({
   },
 
   onLoad() {
-    // 冷启动：加载缓存 + 服务端同步
-    this.loadMessagesFromCache()
-    if (isLoggedIn()) {
-      this.syncMessagesFromServer()
+    const app = getApp()
+    if (app.globalData.chatStream.active) {
+      this.restoreChatStream()
+    } else {
+      // 冷启动：加载缓存 + 服务端同步
+      this.loadMessagesFromCache()
+      if (isLoggedIn()) {
+        this.syncMessagesFromServer()
+      }
     }
   },
 
@@ -49,13 +84,11 @@ Page({
       }).catch(() => {})
     }
 
-    // 加载缓存消息（缓存在流式过程中被持续更新，始终是最新的）
-    this.loadMessagesFromCache()
-
-    // 流式进行中：恢复实时内容
     const app = getApp()
     if (app.globalData.chatStream.active) {
       this.restoreChatStream()
+    } else {
+      this.loadMessagesFromCache()
     }
 
     // 首次进入小程序：滚动到底部；切换 tab 回来：保持原位
@@ -92,7 +125,8 @@ Page({
 
   sendMessage() {
     const text = this.data.inputValue.trim()
-    if (!text || this.data.sending) return
+    const app = getApp()
+    if (!text || this.data.sending || app.globalData.chatStream.active) return
 
     if (!isLoggedIn()) {
       showLoginPrompt()
@@ -101,8 +135,22 @@ Page({
 
     this.setData({ pendingIntent: null, intentButtonText: '' })
 
-    const userMsg = { id: `m${++msgId}`, role: 'user', content: text, timeStr: formatTime(Date.now()) }
-    const aiMsg = { id: `m${++msgId}`, role: 'ai', content: '', loading: true }
+    const timestamp = Date.now()
+    const userMsg = {
+      id: createMessageId('user'),
+      role: 'user',
+      content: text,
+      timeStr: formatTime(timestamp),
+      timestamp
+    }
+    const aiMsg = {
+      id: createMessageId('ai'),
+      role: 'ai',
+      content: '',
+      loading: true,
+      _streaming: true,
+      timestamp
+    }
 
     const messages = [...this.data.messages, userMsg, aiMsg]
     this.setData({
@@ -112,10 +160,16 @@ Page({
       scrollToId: `msg-${aiMsg.id}`
     })
     this.saveMessagesToCache()
+    setTimeout(() => {
+      if (this.data.scrollToId === `msg-${aiMsg.id}`) {
+        this.setData({ scrollToId: '' })
+      }
+    }, 500)
 
     // 保存到全局状态
-    const app = getApp()
+    const requestId = createMessageId('stream')
     app.globalData.chatStream.active = true
+    app.globalData.chatStream.requestId = requestId
     app.globalData.chatStream.messages = messages
     app.globalData.chatStream.aiMsgId = aiMsg.id
     app.globalData.chatStream.pendingContent = ''
@@ -124,8 +178,16 @@ Page({
     let lineBuffer = ''
     let currentEventType = 'data'
     const requestTask = streamRequest(
-      { url: '/api/v1/chat/stream', data: { message: text } },
+      {
+        url: '/api/v1/chat/stream',
+        data: {
+          message: text,
+          session_id: getChatSessionId(),
+          request_id: requestId
+        }
+      },
       (chunk) => {
+        if (!this.isCurrentChatStream(requestId)) return
         lineBuffer += chunk
         const parts = lineBuffer.split('\n')
         lineBuffer = parts.pop() || ''
@@ -175,47 +237,89 @@ Page({
         }
       },
       () => {
+        if (!this.isCurrentChatStream(requestId)) return
         this.finishAiMessage(aiMsg.id)
-        app.globalData.chatStream.active = false
-        this.saveMessagesToCache()
+        this.completeChatStream(requestId)
       },
       (err) => {
+        if (!this.isCurrentChatStream(requestId)) return
         this.updateAiMessage(aiMsg.id, fullContent || '抱歉，发生了错误，请稍后重试。')
         this.finishAiMessage(aiMsg.id)
-        app.globalData.chatStream.active = false
-        this.saveMessagesToCache()
+        this.completeChatStream(requestId)
       }
     )
 
-    app.globalData.chatStream.requestTask = requestTask
+    if (this.isCurrentChatStream(requestId)) {
+      app.globalData.chatStream.requestTask = requestTask
+    }
+  },
+
+  isCurrentChatStream(requestId) {
+    const stream = getApp().globalData.chatStream
+    return !!stream.active && stream.requestId === requestId
+  },
+
+  completeChatStream(requestId) {
+    const stream = getApp().globalData.chatStream
+    if (stream.requestId !== requestId) return
+    stream.active = false
+    stream.requestTask = null
+    stream.requestId = ''
+    stream.messages = this.data.messages
+    stream.pendingContent = ''
   },
 
   updateAiMessage(msgId, content, isStatus) {
     // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 导致 mp-html 不刷新）
     // isStatus=true 表示状态消息（如"Agent正在思考..."），不是最终内容
-    const messages = this.data.messages.map(m => {
-      if (m.id === msgId) {
-        return { ...m, content, _streaming: true, _isStatus: !!isStatus, _hasRealContent: m._hasRealContent || !isStatus }
-      }
-      return m
-    })
+    const index = this.data.messages.findIndex(message => message.id === msgId)
+    if (index < 0) return
+    const messages = [...this.data.messages]
+    const message = messages[index]
+    messages[index] = {
+      ...message,
+      content,
+      _streaming: true,
+      _isStatus: !!isStatus,
+      _hasRealContent: message._hasRealContent || !isStatus
+    }
     this.setData({ messages })
+    const stream = getApp().globalData.chatStream
+    if (stream.active && stream.aiMsgId === msgId) {
+      stream.messages = messages
+    }
     this.saveMessagesToCache()
   },
 
   finishAiMessage(msgId) {
     // 流式完成后一次性解析 markdown 并渲染
-    const messages = this.data.messages.map(m => {
-      if (m.id === msgId) {
-        // 如果最后仍是 status 消息（LLM 没返回真实内容），显示错误提示
-        if (m._isStatus && !m._hasRealContent) {
-          return { ...m, loading: false, _streaming: false, content: '抱歉，未能获取回复，请重试。', html: '<p>抱歉，未能获取回复，请重试。</p>' }
-        }
-        return { ...m, loading: false, _streaming: false, _isStatus: false, html: parseMarkdown(m.content) }
+    const index = this.data.messages.findIndex(message => message.id === msgId)
+    if (index < 0) return
+    const messages = [...this.data.messages]
+    const message = messages[index]
+    // 如果最后仍是 status 消息（LLM 没返回真实内容），显示错误提示
+    if (message._isStatus && !message._hasRealContent) {
+      messages[index] = {
+        ...message,
+        loading: false,
+        _streaming: false,
+        content: '抱歉，未能获取回复，请重试。',
+        html: '<p>抱歉，未能获取回复，请重试。</p>'
       }
-      return m
-    })
-    this.setData({ messages, sending: false })
+    } else {
+      messages[index] = {
+        ...message,
+        loading: false,
+        _streaming: false,
+        _isStatus: false,
+        html: parseMarkdown(message.content)
+      }
+    }
+    this.setData({ messages, sending: false, scrollToId: '' })
+    const stream = getApp().globalData.chatStream
+    if (stream.active && stream.aiMsgId === msgId) {
+      stream.messages = messages
+    }
     this.saveMessagesToCache()
   },
 
@@ -268,7 +372,7 @@ Page({
   // 保存消息到本地缓存（只保存已完成的消息，跳过正在流式的）
   saveMessagesToCache() {
     const messages = this.data.messages
-      .filter(m => m.role === 'user' || !m._streaming)
+      .filter(m => m.role === 'user' || (!m._streaming && !m.loading))
       .slice(-20)
       .map(m => ({
         id: m.id,
@@ -284,13 +388,14 @@ Page({
   loadMessagesFromCache() {
     const cached = wx.getStorageSync('chat_messages')
     if (cached && cached.length > 0) {
-      const messages = cached.map(m => ({
+      const messages = ensureUniqueMessageIds(cached.map(m => ({
         ...m,
         html: m.role !== 'user' ? parseMarkdown(m.content) : '',
         timeStr: m.role === 'user' ? (m.timeStr || formatTime(m.timestamp || Date.now())) : '',
         _streaming: false
-      }))
+      })))
       this.setData({ messages })
+      this.saveMessagesToCache()
       return true
     }
     return false
@@ -302,20 +407,18 @@ Page({
     const app = getApp()
     if (app.globalData.chatStream.active) return Promise.resolve()
 
-    return request({ url: '/api/v1/chat/history?limit=20' }).then(serverMessages => {
+    const sessionId = getChatSessionId()
+    return request({
+      url: `/api/v1/chat/history?limit=20&session_id=${encodeURIComponent(sessionId)}`
+    }).then(serverMessages => {
       if (!serverMessages || serverMessages.length === 0) return
       // 再次检查，因为异步返回时状态可能已变
       if (app.globalData.chatStream.active) return
-      const cached = this.data.messages
-      // 缓存消息比服务器多，说明服务器还没同步，不覆盖
-      if (cached.length >= serverMessages.length) return
-      // 简单对比最后一条消息内容
-      if (cached.length === 0 ||
-          cached[cached.length - 1].content !== serverMessages[serverMessages.length - 1].content) {
-        const formatted = serverMessages.map((m, i) => {
+      const cached = this.data.messages.filter(message => !message._streaming)
+      const formatted = ensureUniqueMessageIds(serverMessages.map((m, i) => {
           const role = m.role === 'assistant' ? 'ai' : m.role
           return {
-            id: `sync_${i}`,
+            id: `server_${m.id || i}_${role}_${i}`,
             role,
             content: m.content,
             agent_type: m.agent_type,
@@ -324,9 +427,13 @@ Page({
             timeStr: role === 'user' ? formatTime(m.timestamp || Date.now()) : '',
             _streaming: false
           }
-        })
+        }))
+      // 比较同一时间窗口的内容。消息数量相同也可能是本地缓存已被错误覆盖。
+      const comparableServer = cached.length > 0 ? formatted.slice(-cached.length) : []
+      if (cached.length === 0 ||
+          messageContentSignature(cached) !== messageContentSignature(comparableServer)) {
         this.setData({ messages: formatted })
-        wx.setStorageSync('chat_messages', formatted)
+        this.saveMessagesToCache()
       }
     }).catch(() => {})
   },
@@ -336,15 +443,24 @@ Page({
     const app = getApp()
     const stream = app.globalData.chatStream
 
-    // 恢复消息列表
-    if (stream.messages.length > 0) {
-      this.setData({ messages: stream.messages })
-    }
-
-    // 补全 pendingContent
+    let messages = ensureUniqueMessageIds(stream.messages)
     if (stream.pendingContent && stream.aiMsgId) {
-      this.updateAiMessage(stream.aiMsgId, stream.pendingContent)
-      stream.pendingContent = ''
+      const index = messages.findIndex(message => message.id === stream.aiMsgId)
+      if (index >= 0) {
+        messages = [...messages]
+        messages[index] = {
+          ...messages[index],
+          content: stream.pendingContent,
+          _streaming: true,
+          _isStatus: false,
+          _hasRealContent: true
+        }
+      }
+    }
+    stream.messages = messages
+    stream.pendingContent = ''
+    if (messages.length > 0) {
+      this.setData({ messages, sending: true })
     }
   },
 

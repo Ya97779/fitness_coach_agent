@@ -2,7 +2,9 @@
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+import json
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from sqlalchemy import or_
 from .user_profile import UserProfileLoader
 from .conversation_summary import ConversationSummarizer
 from .stats_summary import StatsSummarizer
@@ -26,7 +28,8 @@ class MemoryManager:
     def __init__(
         self,
         user_id: int,
-        max_messages_before_summary: int = 10
+        max_messages_before_summary: int = 10,
+        session_id: Optional[str] = None,
     ):
         """初始化记忆管理器
 
@@ -35,6 +38,7 @@ class MemoryManager:
             max_messages_before_summary: 摘要前的最大消息数
         """
         self.user_id = user_id
+        self.session_id = self._normalize_session_id(session_id)
         self.profile_loader = UserProfileLoader()
         self.summarizer = ConversationSummarizer(
             max_messages=max_messages_before_summary
@@ -45,6 +49,30 @@ class MemoryManager:
         self._goal: Optional[str] = None
         self._today_stats: Optional[Dict[str, Any]] = None
         self._week_stats: Optional[Dict[str, Any]] = None
+        self._working_memory: Dict[str, Any] = {}
+        self._last_route: Dict[str, Any] = {}
+        self._last_request_id: Optional[str] = None
+        self._semantic_memories: List[Dict[str, Any]] = []
+        self._session_summary: str = ""
+        self._session_loaded = False
+
+    @staticmethod
+    def _normalize_session_id(session_id: Optional[str]) -> Optional[str]:
+        """Normalize client session ids and prevent oversized values in storage."""
+
+        if not session_id:
+            return None
+        value = str(session_id).strip()
+        return value[:128] or None
+
+    def _effective_session_id(self, session_id: Optional[str] = None) -> str:
+        """Return the current session id, preserving legacy direct-call behavior."""
+
+        return (
+            self._normalize_session_id(session_id)
+            or self.session_id
+            or f"legacy_{self.user_id}"
+        )
 
     def load_profile(self) -> Dict[str, Any]:
         """加载用户画像（带缓存）
@@ -146,6 +174,16 @@ class MemoryManager:
         profile_section = self.format_profile_for_agent()
         enhanced_parts.append(f"\n{profile_section}")
 
+        semantic_memories = self._semantic_memories
+        if semantic_memories:
+            semantic_lines = [
+                f"- {item.get('key')}: {str(item.get('value'))[:200]}"
+                for item in semantic_memories[:12]
+                if item.get("key") and item.get("value")
+            ]
+            if semantic_lines:
+                enhanced_parts.append("\n【已确认用户信息】\n" + "\n".join(semantic_lines))
+
         today_stats = self.format_today_stats_for_agent()
         enhanced_parts.append(f"\n{today_stats}")
 
@@ -153,24 +191,23 @@ class MemoryManager:
             week_stats = self.format_week_stats_for_agent()
             enhanced_parts.append(f"\n{week_stats}")
 
-        # 注入最近的跨 Agent 对话历史，让 Agent 了解之前的上下文
-        recent_history = self.format_conversation_history_for_agent(days=1, limit=6)
-        if recent_history and recent_history != "（无历史对话）":
-            enhanced_parts.append(f"\n{recent_history}")
+        # 历史对话以 HumanMessage/AIMessage 形式进入工作记忆，而不是拼入
+        # System Prompt。这样历史用户文本不会被错误提升为系统级指令，
+        # 也避免每个请求重复查询并注入同一批原文。
+        session_state = self.load_session_state()
+        stored_summary = session_state.get("summary")
+        if stored_summary:
+            enhanced_parts.append(f"\n【会话摘要】\n{stored_summary[:500]}")
 
-        if messages and len(messages) > 1:
-            if self.summarizer.should_summarize(messages):
-                profile = self.load_profile()
-                summarized_messages = self.summarizer.summarize_messages(
-                    messages, profile
-                )
-                key_info = self.summarizer.extract_key_info(messages)
-                if key_info["topics"] or key_info["goals"]:
-                    enhanced_parts.append("\n【对话要点】")
-                    if key_info["topics"]:
-                        enhanced_parts.append(f"讨论话题: {', '.join(key_info['topics'])}")
-                    if key_info["goals"]:
-                        enhanced_parts.append(f"用户目标: {', '.join(key_info['goals'])}")
+        # 超过阈值时只做本地关键信息提取，不在首 token 路径额外调用一次 LLM。
+        if messages and self.summarizer.should_summarize(messages):
+            key_info = self.summarizer.extract_key_info(messages)
+            if key_info["topics"] or key_info["goals"]:
+                enhanced_parts.append("\n【对话要点】")
+                if key_info["topics"]:
+                    enhanced_parts.append(f"讨论话题: {', '.join(key_info['topics'])}")
+                if key_info["goals"]:
+                    enhanced_parts.append(f"用户目标: {', '.join(key_info['goals'])}")
 
         return "\n".join(enhanced_parts)
 
@@ -216,6 +253,240 @@ class MemoryManager:
         """
         return self.summarizer.should_summarize(messages)
 
+    @staticmethod
+    def _decode_json(value: Any, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        if not isinstance(value, str) or not value.strip():
+            return dict(default or {})
+        try:
+            decoded = json.loads(value)
+            return decoded if isinstance(decoded, dict) else dict(default or {})
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return dict(default or {})
+
+    def _read_session_state(self, db, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Read only structured working memory; never return raw chat history."""
+
+        effective_session_id = self._effective_session_id(session_id)
+        try:
+            row = db.query(models.ConversationSession).filter(
+                models.ConversationSession.user_id == self.user_id,
+                models.ConversationSession.session_id == effective_session_id,
+            ).first()
+        except Exception:
+            # Keeps old test databases and read-only maintenance scripts usable
+            # until the additive session tables have been created.
+            return {
+                "session_id": effective_session_id,
+                "summary": "",
+                "working_memory": {},
+                "last_route": {},
+                "last_agent": None,
+                "last_request_id": None,
+            }
+
+        if not row:
+            return {
+                "session_id": effective_session_id,
+                "summary": "",
+                "working_memory": {},
+                "last_route": {},
+                "last_agent": None,
+                "last_request_id": None,
+            }
+
+        return {
+            "session_id": effective_session_id,
+            "summary": getattr(row, "summary", "") or "",
+            "working_memory": self._decode_json(getattr(row, "working_memory_json", None)),
+            "last_route": self._decode_json(getattr(row, "last_route_json", None)),
+            "last_agent": getattr(row, "last_agent", None),
+            "last_request_id": getattr(row, "last_request_id", None),
+        }
+
+    def load_session_state(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """Load the first memory layer: bounded, structured session state."""
+
+        effective_session_id = self._effective_session_id(session_id)
+        if self._session_loaded and effective_session_id == self._effective_session_id():
+            return {
+                "session_id": effective_session_id,
+                "summary": self._session_summary,
+                "working_memory": dict(self._working_memory),
+                "last_route": dict(self._last_route),
+                "last_agent": self._working_memory.get("last_agent"),
+                "last_request_id": self._last_request_id,
+            }
+
+        db = database.SessionLocal()
+        try:
+            state = self._read_session_state(db, session_id)
+            self._working_memory = state["working_memory"]
+            self._last_route = state["last_route"]
+            self._session_summary = state["summary"]
+            self._last_request_id = state["last_request_id"]
+            self._session_loaded = True
+            return state
+        finally:
+            db.close()
+
+    def get_working_memory(self) -> Dict[str, Any]:
+        """Return structured state used to continue the active task."""
+
+        if not self._working_memory:
+            self.load_session_state()
+        return dict(self._working_memory)
+
+    def save_route_state(
+        self,
+        route_decision: Dict[str, Any],
+        working_memory: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> bool:
+        """Persist route/task state without copying the conversation transcript."""
+
+        db = database.SessionLocal()
+        effective_session_id = self._effective_session_id(session_id)
+        try:
+            row = db.query(models.ConversationSession).filter(
+                models.ConversationSession.user_id == self.user_id,
+                models.ConversationSession.session_id == effective_session_id,
+            ).first()
+            if not row:
+                row = models.ConversationSession(
+                    user_id=self.user_id,
+                    session_id=effective_session_id,
+                )
+                db.add(row)
+            row.last_route_json = json.dumps(route_decision or {}, ensure_ascii=False)
+            if working_memory is not None:
+                previous_working_memory = self._decode_json(
+                    getattr(row, "working_memory_json", None)
+                )
+                merged_working_memory = {
+                    **previous_working_memory,
+                    **working_memory,
+                }
+                row.working_memory_json = json.dumps(
+                    merged_working_memory, ensure_ascii=False
+                )
+            if request_id:
+                row.last_request_id = request_id[:128]
+                self._last_request_id = request_id[:128]
+            row.updated_at = datetime.now()
+            db.commit()
+            self._last_route = dict(route_decision or {})
+            if working_memory is not None:
+                self._working_memory = merged_working_memory
+            self._session_loaded = True
+            return True
+        except Exception as e:
+            db.rollback()
+            print(f"保存会话状态失败: {e}")
+            return False
+        finally:
+            db.close()
+
+    def load_semantic_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Load the third memory layer: user facts/preferences with provenance."""
+
+        db = database.SessionLocal()
+        try:
+            rows = db.query(models.UserMemory).filter(
+                models.UserMemory.user_id == self.user_id,
+                models.UserMemory.confidence >= 0.5,
+                or_(
+                    models.UserMemory.expires_at.is_(None),
+                    models.UserMemory.expires_at >= datetime.now(),
+                ),
+            ).order_by(
+                models.UserMemory.updated_at.desc()
+            ).limit(max(1, min(limit, 50))).all()
+            result = [
+                {
+                    "key": row.memory_key,
+                    "value": row.memory_value,
+                    "source": row.source,
+                    "confidence": row.confidence,
+                    "confirmed": row.confirmed,
+                }
+                for row in rows
+            ]
+            self._semantic_memories = result
+            return result
+        except Exception:
+            return list(self._semantic_memories)
+        finally:
+            db.close()
+
+    def save_semantic_memory(
+        self,
+        memory_key: str,
+        memory_value: str,
+        source: str = "user",
+        confidence: float = 0.9,
+        confirmed: bool = True,
+        expires_at: Optional[datetime] = None,
+    ) -> bool:
+        """Upsert a small user fact; business logs remain in their domain tables."""
+
+        key = str(memory_key or "").strip()[:128]
+        value = str(memory_value or "").strip()[:1000]
+        if not key or not value:
+            return False
+        db = database.SessionLocal()
+        try:
+            row = db.query(models.UserMemory).filter(
+                models.UserMemory.user_id == self.user_id,
+                models.UserMemory.memory_key == key,
+            ).first()
+            if not row:
+                row = models.UserMemory(user_id=self.user_id, memory_key=key)
+                db.add(row)
+            row.memory_value = value
+            row.memory_type = "semantic"
+            row.source = source[:64] if source else None
+            row.confidence = max(0.0, min(float(confidence), 1.0))
+            row.confirmed = bool(confirmed)
+            row.expires_at = expires_at
+            row.updated_at = datetime.now()
+            db.commit()
+            return True
+        except Exception as e:
+            db.rollback()
+            print(f"保存用户记忆失败: {e}")
+            return False
+        finally:
+            db.close()
+
+    def delete_semantic_memory(self, memory_key: str) -> bool:
+        """Forget one user-managed semantic fact."""
+
+        key = str(memory_key or "").strip()[:128]
+        if not key:
+            return False
+        db = database.SessionLocal()
+        try:
+            row = db.query(models.UserMemory).filter(
+                models.UserMemory.user_id == self.user_id,
+                models.UserMemory.memory_key == key,
+            ).first()
+            if not row:
+                return False
+            db.delete(row)
+            db.commit()
+            self._semantic_memories = [
+                item for item in self._semantic_memories
+                if item.get("key") != key
+            ]
+            return True
+        except Exception as e:
+            db.rollback()
+            print(f"删除用户记忆失败: {e}")
+            return False
+        finally:
+            db.close()
+
     def load_all_memory(self) -> None:
         """一次性加载所有记忆数据到缓存（单次 DB 连接）
 
@@ -250,10 +521,16 @@ class MemoryManager:
                     "constraints": {
                         "allergies": user.allergies or "无",
                     },
+                    "preferences": {
+                        "training": user.training_preference,
+                        "dietary": user.dietary_preference,
+                    },
                     "created_at": user.created_at.isoformat() if user.created_at else None
                 }
                 # goal
-                if user.target_weight:
+                if user.goal:
+                    self._goal = user.goal
+                elif user.target_weight:
                     diff = user.weight - user.target_weight
                     if diff > 2:
                         self._goal = "减脂"
@@ -269,6 +546,53 @@ class MemoryManager:
                 self._profile = UserProfileLoader._get_default_profile()
                 self._goal = "维持现状"
                 tdee = None
+
+            self._semantic_memories = []
+            profile_fields = {
+                "goal": getattr(user, "goal", None) if user else None,
+                "allergies": getattr(user, "allergies", None) if user else None,
+                "training_preference": getattr(user, "training_preference", None) if user else None,
+                "dietary_preference": getattr(user, "dietary_preference", None) if user else None,
+            }
+            self._semantic_memories.extend(
+                {
+                    "key": key,
+                    "value": value,
+                    "source": "user_profile",
+                    "confidence": 1.0,
+                    "confirmed": True,
+                }
+                for key, value in profile_fields.items()
+                if value not in (None, "", "无")
+            )
+            try:
+                rows = db.query(models.UserMemory).filter(
+                    models.UserMemory.user_id == self.user_id,
+                    models.UserMemory.confidence >= 0.5,
+                    or_(
+                        models.UserMemory.expires_at.is_(None),
+                        models.UserMemory.expires_at >= datetime.now(),
+                    ),
+                ).order_by(models.UserMemory.updated_at.desc()).limit(20).all()
+                self._semantic_memories.extend(
+                    {
+                        "key": row.memory_key,
+                        "value": row.memory_value,
+                        "source": row.source,
+                        "confidence": row.confidence,
+                        "confirmed": row.confirmed,
+                    }
+                    for row in rows
+                )
+            except Exception:
+                pass
+
+            session_state = self._read_session_state(db)
+            self._working_memory = session_state["working_memory"]
+            self._last_route = session_state["last_route"]
+            self._session_summary = session_state["summary"]
+            self._last_request_id = session_state["last_request_id"]
+            self._session_loaded = True
 
             # ── DailyLog 表：一次查本周所有记录，供 today_stats / week_stats 共用 ──
             today = date.today()
@@ -346,10 +670,16 @@ class MemoryManager:
         """
         return {
             "user_id": self.user_id,
+            "session_id": self.session_id,
             "goal": self.get_goal(),
             "today_intake": self.get_today_stats().get("intake_calories", 0),
             "today_burn": self.get_today_stats().get("burn_calories", 0),
-            "week_avg_intake": self.get_week_stats().get("avg_intake", 0)
+            "week_avg_intake": self.get_week_stats().get("avg_intake", 0),
+            # 只返回结构化状态；逐轮原文由 build_recent_messages 作为对话消息传入。
+            "working_memory": dict(self._working_memory),
+            "last_route": dict(self._last_route),
+            "last_request_id": self._last_request_id,
+            "semantic_memories": list(self._semantic_memories),
         }
 
     def save_conversation(
@@ -357,7 +687,8 @@ class MemoryManager:
         user_message: str,
         agent_response: str,
         agent_type: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> bool:
         """保存单轮对话到数据库
 
@@ -371,10 +702,30 @@ class MemoryManager:
             bool: 是否保存成功
         """
         db = database.SessionLocal()
+        effective_session_id = self._effective_session_id(session_id)
+        session_row = None
+        session_table_available = True
         try:
+            # 同一个请求重试时，利用新增的会话游标避免重复写入；旧数据库
+            # 尚未建表时自动退化为原有 ConversationLog 保存路径。
+            try:
+                session_row = db.query(models.ConversationSession).filter(
+                    models.ConversationSession.user_id == self.user_id,
+                    models.ConversationSession.session_id == effective_session_id,
+                ).first()
+                if (
+                    request_id
+                    and session_row
+                    and getattr(session_row, "last_request_id", None) == request_id
+                ):
+                    return True
+            except Exception:
+                session_table_available = False
+                db.rollback()
+
             log = models.ConversationLog(
                 user_id=self.user_id,
-                session_id=session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                session_id=effective_session_id,
                 agent_type=agent_type,
                 user_message=user_message,
                 agent_response=agent_response,
@@ -382,6 +733,35 @@ class MemoryManager:
             )
             db.add(log)
             db.commit()
+
+            if session_table_available:
+                try:
+                    if not session_row:
+                        session_row = models.ConversationSession(
+                            user_id=self.user_id,
+                            session_id=effective_session_id,
+                        )
+                        db.add(session_row)
+                    working_memory = {
+                        "last_user_message": str(user_message)[-500:],
+                        "last_agent_response": str(agent_response)[-500:],
+                        "last_agent": agent_type,
+                        "updated_at": datetime.now().isoformat(),
+                    }
+                    session_row.last_agent = agent_type
+                    session_row.working_memory_json = json.dumps(
+                        working_memory, ensure_ascii=False
+                    )
+                    if request_id:
+                        session_row.last_request_id = str(request_id)[:128]
+                        self._last_request_id = str(request_id)[:128]
+                    session_row.updated_at = datetime.now()
+                    db.commit()
+                    self._working_memory = working_memory
+                    self._session_loaded = True
+                except Exception as session_error:
+                    db.rollback()
+                    print(f"保存会话工作记忆失败（不影响对话日志）: {session_error}")
             return True
         except Exception as e:
             db.rollback()
@@ -389,6 +769,50 @@ class MemoryManager:
             return False
         finally:
             db.close()
+
+    def build_recent_messages(
+        self,
+        current_message: Optional[str] = None,
+        session_id: Optional[str] = None,
+        limit: int = 8,
+    ) -> List[BaseMessage]:
+        """Build bounded LangChain history for the current request.
+
+        Existing ConversationLog rows remain the episodic-memory source of
+        truth.  This method only materializes the last few turns and keeps the
+        current user message as the final HumanMessage.
+        """
+
+        effective_session_id = self._effective_session_id(session_id)
+        history = self.load_conversation_history(
+            days=30,
+            limit=max(1, min(int(limit), 20)),
+            session_id=effective_session_id,
+        )
+        messages: List[BaseMessage] = []
+        for item in history:
+            content = str(item.get("content") or "")[:2000]
+            if not content:
+                continue
+            if item.get("role") == "assistant":
+                messages.append(AIMessage(content=content))
+            else:
+                messages.append(HumanMessage(content=content))
+
+        if current_message is not None:
+            current = str(current_message)
+            if not messages or not (
+                isinstance(messages[-1], HumanMessage)
+                and messages[-1].content == current
+            ):
+                messages.append(HumanMessage(content=current))
+
+        # 消息条数之外再加字符预算，避免一条超长历史把 Agent 上下文撑满。
+        total_chars = sum(len(str(message.content)) for message in messages)
+        while total_chars > 8000 and len(messages) > 1:
+            removed = messages.pop(0)
+            total_chars -= len(str(removed.content))
+        return messages
 
     def load_conversation_history(
         self,
