@@ -10,6 +10,7 @@ from .base import AGENT_SYSTEM_PROMPTS, StreamedToolCall, chunk_stream_events
 from .. import models, database
 from ..runtime_context import get_effective_user_id
 from ..rag import get_rag_instance
+from ..rag.context import format_retrieval_context
 from ..calorie_calculator import estimate_calories as calc_calories, MET_VALUES, STRENGTH_CALORIES_PER_SET
 from datetime import date
 
@@ -139,7 +140,7 @@ def _extract_training_parameters(user_message: str) -> tuple:
 
 def get_rag():
     """获取 RAG 实例（使用全局单例）"""
-    return get_rag_instance(enable_agentic=True)
+    return get_rag_instance()
 
 
 @tool
@@ -225,39 +226,10 @@ def search_fitness_knowledge(query: str):
         str: RAG 检索结果（未找到时返回提示信息）
     """
     rag = get_rag()
-    results = rag.search(query, top_k=5, mode="hybrid")
+    results = rag.search(query, top_k=rag.retrieval_top_k, mode="hybrid")
 
-    print(f"[RAG] 健身知识检索: query='{query}', results={len(results)}")
-
-    if not results:
-        return f"【RAG检索】未在知识库中找到相关信息"
-
-    # 过滤垃圾内容和太短的结果
-    spam_patterns = ["加微信", "免费获得", "大礼包", "微信号", "扫码", "关注公众号"]
-    valid_results = []
-    for r in results:
-        content = r.get("content", "").strip()
-        if not content or len(content) < 20:
-            continue
-        if any(spam in content for spam in spam_patterns):
-            print(f"[RAG] 过滤垃圾内容: {content[:50]}...")
-            continue
-        valid_results.append(r)
-
-    if not valid_results:
-        return f"【RAG检索】未在知识库中找到相关信息"
-
-    # 返回前 3 条有效结果
-    content_parts = []
-    for i, r in enumerate(valid_results[:3]):
-        c = r.get("content", "").strip()
-        if len(c) > 500:
-            c = c[:500] + "..."
-        heading = r.get("metadata", {}).get("heading_path", "")
-        prefix = f"[{heading}] " if heading else ""
-        content_parts.append(f"[来源{i+1}] {prefix}{c}")
-
-    return f"【RAG检索】\n" + "\n\n".join(content_parts)
+    print(f"[RAG] 健身知识检索完成: results={len(results)}")
+    return format_retrieval_context(results)
 
 
 fitness_tools = [

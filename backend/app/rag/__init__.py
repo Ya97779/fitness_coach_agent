@@ -39,7 +39,9 @@
 import os
 import json
 import hashlib
+import logging
 import shutil
+import threading
 import time
 from typing import List, Optional, Dict, Any, Callable
 from langchain_core.documents import Document
@@ -70,6 +72,28 @@ DEFAULT_CHUNK_SIZE = 500
 DEFAULT_CHUNK_OVERLAP = 50
 # 智谱 Embedding 接口单次最多接收 64 条输入；超过该值会返回 400。
 DEFAULT_EMBEDDING_BATCH_SIZE = 64
+
+logger = logging.getLogger(__name__)
+
+
+def _configured_int(value: Optional[int], env_name: str, default: int) -> int:
+    """Read a positive integer from an explicit value or environment."""
+
+    raw = value if value is not None else os.getenv(env_name, str(default))
+    parsed = int(raw)
+    if parsed <= 0:
+        raise ValueError(f"{env_name} 必须是正整数，当前值: {raw}")
+    return parsed
+
+
+def _configured_float(value: Optional[float], env_name: str, default: float) -> float:
+    """Read a non-negative float from an explicit value or environment."""
+
+    raw = value if value is not None else os.getenv(env_name, str(default))
+    parsed = float(raw)
+    if parsed < 0:
+        raise ValueError(f"{env_name} 不能小于 0，当前值: {raw}")
+    return parsed
 
 
 class ModernRAG:
@@ -114,7 +138,13 @@ class ModernRAG:
         enable_agentic: bool = False,
         enable_reranker: bool = False,
         llm_model: str = None,
-        embedding_model: str = None
+        embedding_model: str = None,
+        retrieval_top_k: Optional[int] = None,
+        vector_candidate_k: Optional[int] = None,
+        bm25_candidate_k: Optional[int] = None,
+        rerank_candidate_k: Optional[int] = None,
+        reranker_timeout: Optional[float] = None,
+        reranker_min_score: Optional[float] = None,
     ):
         """初始化 ModernRAG
 
@@ -133,6 +163,12 @@ class ModernRAG:
             enable_reranker: 启用 Jina Reranker 精排
             llm_model: LLM 模型名称
             embedding_model: 嵌入模型名称
+            retrieval_top_k: RAG 对外默认返回数量
+            vector_candidate_k: 向量检索候选数量
+            bm25_candidate_k: BM25 检索候选数量
+            rerank_candidate_k: 送入 Reranker 前的 RRF 候选数量
+            reranker_timeout: Jina Reranker 超时秒数
+            reranker_min_score: Reranker 最低相关性分数
         """
         self.knowledge_base_dir = knowledge_base_dir
         self.chroma_dir = chroma_dir
@@ -147,12 +183,33 @@ class ModernRAG:
         self.enable_self_rag = enable_self_rag
         self.enable_agentic = enable_agentic
         self.enable_reranker = enable_reranker
+        self.retrieval_top_k = _configured_int(
+            retrieval_top_k, "RAG_TOP_K", 5
+        )
+        self.vector_candidate_k = _configured_int(
+            vector_candidate_k, "RAG_VECTOR_CANDIDATES", self.retrieval_top_k * 2
+        )
+        self.bm25_candidate_k = _configured_int(
+            bm25_candidate_k, "RAG_BM25_CANDIDATES", self.retrieval_top_k * 2
+        )
+        self.rerank_candidate_k = _configured_int(
+            rerank_candidate_k, "RAG_RERANK_CANDIDATES", self.retrieval_top_k * 3
+        )
+        self.reranker_timeout = _configured_float(
+            reranker_timeout, "RAG_RERANK_TIMEOUT_SECONDS", 5.0
+        )
+        self.reranker_min_score = _configured_float(
+            reranker_min_score, "RAG_RERANK_MIN_SCORE", 0.0
+        )
 
         api_key = os.getenv("OPENAI_API_KEY")
         api_base = os.getenv("OPENAI_API_BASE")
 
+        self.embedding_model_name = embedding_model or os.getenv(
+            "EMBEDDING_MODEL", "embedding-2"
+        )
         self.embeddings = OpenAIEmbeddings(
-            model=embedding_model or os.getenv("EMBEDDING_MODEL", "embedding-2"),
+            model=self.embedding_model_name,
             api_key=api_key,
             base_url=api_base,
             chunk_size=DEFAULT_EMBEDDING_BATCH_SIZE,
@@ -208,7 +265,7 @@ class ModernRAG:
 
         if enable_reranker:
             try:
-                self.reranker = JinaReranker()
+                self.reranker = JinaReranker(timeout=self.reranker_timeout)
                 print("Jina Reranker 已启用")
             except ValueError as e:
                 print(f"Reranker 初始化失败: {e}，将跳过精排")
@@ -220,6 +277,7 @@ class ModernRAG:
         self._query_cache: Dict[str, Any] = {}
         self._cache_max_size = 128
         self._cache_ttl = 300  # 秒
+        self._cache_lock = threading.RLock()
 
     def _setup_agentic_rag(self):
         """设置 Agentic RAG"""
@@ -392,6 +450,14 @@ class ModernRAG:
                         current_files[file_path] = self._get_file_hash(file_path)
         return current_files
 
+    def _clear_query_cache(self):
+        """Invalidate process-local results after the index changes."""
+
+        if not hasattr(self, "_query_cache"):
+            return
+        with self._cache_lock:
+            self._query_cache.clear()
+
     def check_and_update_index(self) -> Dict[str, Any]:
         """检查并增量更新索引
 
@@ -439,6 +505,11 @@ class ModernRAG:
                 doc for doc in self.documents
                 if doc.metadata.get("source") not in deleted_files
             ]
+            if self.hybrid_search:
+                self.hybrid_search.index(
+                    self.documents, self.vectorstore, self.embeddings
+                )
+            self._clear_query_cache()
 
         if not new_files and not updated_files:
             print("知识库没有新文档，无需更新索引")
@@ -466,6 +537,7 @@ class ModernRAG:
                 indexed_files[file_path] = current_files[file_path]
 
         self._save_indexed_files(indexed_files)
+        self._clear_query_cache()
 
         print(f"增量索引完成: {len(new_files)} 新增, {len(updated_files)} 更新, 共 {len(indexed_files)} 文件, {total_new_chunks} 新 chunks")
 
@@ -511,9 +583,8 @@ class ModernRAG:
                 self.documents.extend(chunks)
 
                 if self.hybrid_search:
-                    self.hybrid_search.documents = self.documents
-                    self.hybrid_search.bm25.index(
-                        [doc.page_content for doc in self.documents]
+                    self.hybrid_search.index(
+                        self.documents, self.vectorstore, self.embeddings
                     )
 
             return chunks
@@ -604,13 +675,22 @@ class ModernRAG:
         Returns:
             检索结果列表
         """
+        started_at = time.perf_counter()
+        query_hash = hashlib.sha256(query.strip().encode("utf-8")).hexdigest()[:12]
         try:
             if self.hybrid_search:
-                # 初排取更多结果用于精排
-                initial_k = top_k * 3 if self.reranker else top_k
-                results = self.hybrid_search.search(query, initial_k)
+                # 候选数量显式配置。开启精排时先保留更宽的 RRF 候选；
+                # 向量和 BM25 的原始召回数量由各自参数独立控制。
+                initial_k = max(top_k, self.rerank_candidate_k) if self.reranker else top_k
+                results = self.hybrid_search.search(
+                    query,
+                    initial_k,
+                    vector_k=self.vector_candidate_k,
+                    bm25_k=self.bm25_candidate_k,
+                )
             else:
-                docs = self.vectorstore.similarity_search_with_score(query, k=top_k)
+                vector_k = max(top_k, self.vector_candidate_k)
+                docs = self.vectorstore.similarity_search_with_score(query, k=vector_k)
                 results = [
                     {
                         "content": doc.page_content,
@@ -621,34 +701,70 @@ class ModernRAG:
                 ]
 
             # Reranker 精排
+            rerank_input_count = len(results)
             if self.reranker and results:
-                results = self.reranker.rerank(query, results, top_n=top_k)
+                results = self.reranker.rerank(
+                    query,
+                    results,
+                    top_n=top_k,
+                    score_threshold=self.reranker_min_score,
+                )
+
+            stats = getattr(self.hybrid_search, "last_search_stats", {}) if self.hybrid_search else {}
+            logger.info(
+                "rag_retrieval query_hash=%s vector=%s/%s bm25=%s/%s "
+                "fused=%s rerank_enabled=%s rerank_input=%s rerank_output=%s "
+                "rerank_status=%s rerank_elapsed=%.3fs total_elapsed=%.3fs",
+                query_hash,
+                stats.get("vector_returned", len(docs) if not self.hybrid_search else 0),
+                stats.get("vector_requested", vector_k if not self.hybrid_search else 0),
+                stats.get("bm25_returned", 0),
+                stats.get("bm25_requested", 0),
+                stats.get("fused_candidates", rerank_input_count),
+                bool(self.reranker),
+                rerank_input_count,
+                len(results),
+                getattr(self.reranker, "last_status", "disabled"),
+                getattr(self.reranker, "last_latency", 0.0),
+                time.perf_counter() - started_at,
+            )
 
             return results[:top_k]
         except Exception as e:
-            print(f"检索错误: {e}")
+            logger.exception(
+                "rag_retrieval_failed query_hash=%s elapsed=%.3fs error=%s",
+                query_hash,
+                time.perf_counter() - started_at,
+                e,
+            )
             return []
 
     def _get_cache_key(self, query: str, top_k: int, mode: str) -> str:
         """生成缓存键"""
-        return f"{query.strip().lower()}|{top_k}|{mode}"
+        config_key = (
+            f"{self.embedding_model_name}|{bool(self.reranker)}|"
+            f"{self.vector_candidate_k}|{self.bm25_candidate_k}|"
+            f"{self.rerank_candidate_k}|{self.reranker_min_score}"
+        )
+        return f"{config_key}|{query.strip().lower()}|{top_k}|{mode}"
 
     def _get_from_cache(self, key: str) -> Optional[List[Dict[str, Any]]]:
         """从缓存获取结果，过期返回 None"""
-        if key in self._query_cache:
-            entry = self._query_cache[key]
-            if time.time() - entry["time"] < self._cache_ttl:
-                return entry["results"]
-            else:
+        with self._cache_lock:
+            if key in self._query_cache:
+                entry = self._query_cache[key]
+                if time.time() - entry["time"] < self._cache_ttl:
+                    return entry["results"]
                 del self._query_cache[key]
         return None
 
     def _put_to_cache(self, key: str, results: List[Dict[str, Any]]):
         """写入缓存，超限时淘汰最旧条目"""
-        if len(self._query_cache) >= self._cache_max_size:
-            oldest_key = min(self._query_cache, key=lambda k: self._query_cache[k]["time"])
-            del self._query_cache[oldest_key]
-        self._query_cache[key] = {"results": results, "time": time.time()}
+        with self._cache_lock:
+            if len(self._query_cache) >= self._cache_max_size:
+                oldest_key = min(self._query_cache, key=lambda k: self._query_cache[k]["time"])
+                del self._query_cache[oldest_key]
+            self._query_cache[key] = {"results": results, "time": time.time()}
 
     def _query_expansion_retrieve(
         self,
@@ -818,8 +934,10 @@ class ModernRAG:
             return results
 
         except Exception as e:
-            print(f"检索错误: {e}")
-            return [{"content": f"检索失败: {str(e)}", "metadata": {}, "score": 0}]
+            query_hash = hashlib.sha256(query.strip().encode("utf-8")).hexdigest()[:12]
+            logger.exception("rag_search_failed query_hash=%s error=%s", query_hash, e)
+            # 检索异常不是知识文档，不能伪装成普通 chunk 交给模型。
+            return []
 
     def query(
         self,
@@ -937,10 +1055,10 @@ class ModernRAG:
             self.documents.append(chunk)
 
         if self.hybrid_search:
-            self.hybrid_search.documents = self.documents
-            self.hybrid_search.bm25.index(
-                [doc.page_content for doc in self.documents]
+            self.hybrid_search.index(
+                self.documents, self.vectorstore, self.embeddings
             )
+        self._clear_query_cache()
 
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -953,16 +1071,24 @@ class ModernRAG:
             "chunk_overlap": self.chunk_overlap,
             "vector_weight": self.vector_weight,
             "bm25_weight": self.bm25_weight,
+            "retrieval_top_k": self.retrieval_top_k,
+            "vector_candidate_k": self.vector_candidate_k,
+            "bm25_candidate_k": self.bm25_candidate_k,
+            "rerank_candidate_k": self.rerank_candidate_k,
+            "reranker_timeout": self.reranker_timeout,
+            "reranker_min_score": self.reranker_min_score,
             "enable_query_expansion": self.enable_query_expansion,
             "enable_hyde": self.enable_hyde,
             "enable_cot": self.enable_cot,
             "enable_self_rag": self.enable_self_rag,
             "enable_agentic": self.enable_agentic,
-            "enable_reranker": self.enable_reranker
+            "enable_reranker": self.enable_reranker,
+            "reranker_active": bool(self.reranker),
         }
 
 
 modern_rag_instance: Optional[ModernRAG] = None
+_modern_rag_instance_lock = threading.Lock()
 
 
 def get_rag_instance(**kwargs) -> ModernRAG:
@@ -977,19 +1103,21 @@ def get_rag_instance(**kwargs) -> ModernRAG:
     """
     global modern_rag_instance
     if modern_rag_instance is None:
-        # 从环境变量读取功能开关（未显式传参时生效）
-        env_defaults = {
-            "enable_reranker": os.getenv("ENABLE_RERANKER", "false").lower() == "true",
-            "enable_query_expansion": os.getenv("ENABLE_QUERY_EXPANSION", "false").lower() == "true",
-            "enable_hyde": os.getenv("ENABLE_HYDE", "false").lower() == "true",
-            "enable_cot": os.getenv("ENABLE_COT", "false").lower() == "true",
-            "enable_self_rag": os.getenv("ENABLE_SELF_RAG", "false").lower() == "true",
-        }
-        for key, default_value in env_defaults.items():
-            if key not in kwargs:
-                kwargs[key] = default_value
+        with _modern_rag_instance_lock:
+            if modern_rag_instance is None:
+                # 从环境变量读取功能开关（未显式传参时生效）
+                env_defaults = {
+                    "enable_reranker": os.getenv("ENABLE_RERANKER", "false").lower() == "true",
+                    "enable_query_expansion": os.getenv("ENABLE_QUERY_EXPANSION", "false").lower() == "true",
+                    "enable_hyde": os.getenv("ENABLE_HYDE", "false").lower() == "true",
+                    "enable_cot": os.getenv("ENABLE_COT", "false").lower() == "true",
+                    "enable_self_rag": os.getenv("ENABLE_SELF_RAG", "false").lower() == "true",
+                }
+                for key, default_value in env_defaults.items():
+                    if key not in kwargs:
+                        kwargs[key] = default_value
 
-        modern_rag_instance = ModernRAG(**kwargs)
+                modern_rag_instance = ModernRAG(**kwargs)
     return modern_rag_instance
 
 

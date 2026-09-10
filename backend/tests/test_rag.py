@@ -12,11 +12,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from langchain_core.documents import Document
 
+from app.rag import ModernRAG
 from app.rag.modules.loader import DocumentLoader, retry_on_failure, MAX_RETRIES
 from app.rag.modules.splitter import IntelligentSplitter
 from app.rag.modules.preprocessor import TextPreprocessor
 from app.rag.modules.bm25 import BM25, BM25Search
 from app.rag.modules.hybrid_search import HybridSearch
+from app.rag.context import format_retrieval_context
 from app.rag.modules.query_expansion import QueryExpander
 from app.rag.modules.hyde import HyDEGenerator
 from app.rag.modules.cot import CoTReasoner
@@ -306,6 +308,122 @@ class TestHybridSearch(unittest.TestCase):
 
         hs.index(docs, mock_vectorstore, mock_embeddings)
         self.assertEqual(len(hs.documents), 2)
+
+    def test_search_uses_explicit_candidate_counts(self):
+        hs = HybridSearch()
+        docs = [
+            Document(page_content="深蹲动作要点一"),
+            Document(page_content="深蹲动作要点二"),
+        ]
+        vectorstore = MagicMock()
+        vectorstore.similarity_search_with_score.return_value = [
+            (docs[0], 0.1),
+            (docs[1], 0.2),
+        ]
+        hs.index(docs, vectorstore, MagicMock())
+        hs.bm25 = MagicMock()
+        hs.bm25.search.return_value = [
+            {"index": 1, "score": 2.0, "content": docs[1].page_content}
+        ]
+
+        results = hs.search("深蹲", top_k=2, vector_k=7, bm25_k=9)
+
+        vectorstore.similarity_search_with_score.assert_called_once_with("深蹲", k=7)
+        hs.bm25.search.assert_called_once_with("深蹲", top_k=9)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(hs.last_search_stats["vector_requested"], 7)
+        self.assertEqual(hs.last_search_stats["bm25_requested"], 9)
+
+
+class TestRetrievalContext(unittest.TestCase):
+    """最终送入 Agent Prompt 的知识片段整理测试。"""
+
+    def test_filters_errors_spam_and_similar_duplicates(self):
+        results = [
+            {
+                "content": "深蹲时保持脊柱中立，膝盖方向与脚尖方向一致。",
+                "metadata": {"heading_path": "深蹲/动作要点", "chunk_id": "a"},
+            },
+            {
+                "content": "深蹲时保持脊柱中立，膝盖方向需要与脚尖方向一致。",
+                "metadata": {"heading_path": "深蹲/动作要点", "chunk_id": "b"},
+            },
+            {"content": "检索失败: 测试异常，不应作为知识传给模型。", "metadata": {}},
+            {"content": "关注公众号并扫码，可以免费获得健身训练大礼包。", "metadata": {}},
+            {
+                "content": "下蹲过程中脚掌保持稳定，避免足弓塌陷和膝盖明显内扣。",
+                "metadata": {"heading_path": "深蹲/常见错误", "chunk_id": "c"},
+            },
+        ]
+
+        with patch.dict(os.environ, {
+            "RAG_FINAL_CHUNKS": "3",
+            "RAG_MAX_CHUNK_CHARS": "500",
+            "RAG_MAX_CONTEXT_CHARS": "1500",
+        }):
+            context = format_retrieval_context(results)
+
+        self.assertIn("[来源1]", context)
+        self.assertIn("[来源2]", context)
+        self.assertNotIn("[来源3]", context)
+        self.assertNotIn("检索失败", context)
+        self.assertNotIn("公众号", context)
+
+    def test_respects_chunk_and_total_character_budget(self):
+        results = [
+            {"content": "第一条内容需要足够长。" * 20, "metadata": {}},
+            {"content": "第二条内容也需要足够长。" * 20, "metadata": {}},
+        ]
+        with patch.dict(os.environ, {
+            "RAG_FINAL_CHUNKS": "3",
+            "RAG_MAX_CHUNK_CHARS": "80",
+            "RAG_MAX_CONTEXT_CHARS": "100",
+        }):
+            context = format_retrieval_context(results)
+
+        payload = context.replace("【RAG检索】\n", "")
+        # 前缀和标题不计入正文预算，因此只允许少量格式开销。
+        self.assertLessEqual(len(payload), 130)
+
+
+class TestModernRAGRetrievalConfig(unittest.TestCase):
+    """检索候选和重排参数必须按显式配置传递。"""
+
+    def test_basic_retrieve_passes_configured_candidate_counts(self):
+        rag = ModernRAG.__new__(ModernRAG)
+        rag.hybrid_search = MagicMock()
+        rag.hybrid_search.search.return_value = [
+            {"content": f"候选文档{i}", "metadata": {}, "score": 1.0}
+            for i in range(15)
+        ]
+        rag.hybrid_search.last_search_stats = {
+            "vector_requested": 30,
+            "vector_returned": 30,
+            "bm25_requested": 30,
+            "bm25_returned": 20,
+            "fused_candidates": 15,
+        }
+        rag.vector_candidate_k = 30
+        rag.bm25_candidate_k = 30
+        rag.rerank_candidate_k = 15
+        rag.reranker_min_score = 0.25
+        rag.reranker = MagicMock()
+        rag.reranker.rerank.return_value = rag.hybrid_search.search.return_value[:5]
+        rag.reranker.last_status = "success"
+        rag.reranker.last_latency = 0.01
+
+        results = rag._basic_retrieve("深蹲怎么做", top_k=5)
+
+        rag.hybrid_search.search.assert_called_once_with(
+            "深蹲怎么做", 15, vector_k=30, bm25_k=30
+        )
+        rag.reranker.rerank.assert_called_once_with(
+            "深蹲怎么做",
+            rag.hybrid_search.search.return_value,
+            top_n=5,
+            score_threshold=0.25,
+        )
+        self.assertEqual(len(results), 5)
 
 
 class TestQueryExpander(unittest.TestCase):

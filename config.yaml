@@ -29,6 +29,16 @@ profiles:
       db_pool_size: 5
       db_max_overflow: 5
       db_pool_timeout: 30
+      # RAG 各阶段数量显式配置，避免在代码中隐藏 top_k 倍率。
+      rag_top_k: 5
+      rag_vector_candidates: 10
+      rag_bm25_candidates: 10
+      rag_rerank_candidates: 5
+      rag_final_chunks: 3
+      rag_max_chunk_chars: 500
+      rag_max_context_chars: 1500
+      rag_rerank_timeout_seconds: 5
+      rag_rerank_min_score: 0.0
     features:
       rag_startup_index: false
       reranker: false
@@ -61,6 +71,18 @@ profiles:
       db_pool_size: 5
       db_max_overflow: 10
       db_pool_timeout: 30
+      # 生产先宽召回，再由 RRF + Jina 精排；最终 Prompt 保持紧凑。
+      rag_top_k: 5
+      rag_vector_candidates: 30
+      rag_bm25_candidates: 30
+      rag_rerank_candidates: 15
+      rag_final_chunks: 3
+      rag_max_chunk_chars: 500
+      rag_max_context_chars: 1500
+      # 外部重排不能让最终正文额外卡住 30 秒；失败时自动回退 RRF。
+      rag_rerank_timeout_seconds: 5
+      # Jina 分数需要用评测集校准，当前先只记录分数而不武断过滤。
+      rag_rerank_min_score: 0.0
     features:
       # Gunicorn 多 worker 不应在每个进程启动时并发重建/检查索引。
       # 文档更新时在发布阶段单独执行一次索引任务。

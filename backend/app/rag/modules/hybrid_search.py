@@ -44,6 +44,7 @@ class HybridSearch:
         self.embeddings: Optional[Embeddings] = None
         self.documents: List[Document] = []
         self._content_to_index: dict = {}
+        self.last_search_stats: dict = {}
 
     def _rrf_fusion(
         self,
@@ -99,13 +100,17 @@ class HybridSearch:
     def search(
         self,
         query: str,
-        top_k: int = 5
+        top_k: int = 5,
+        vector_k: Optional[int] = None,
+        bm25_k: Optional[int] = None,
     ) -> List[dict]:
         """混合检索
 
         Args:
             query: 查询字符串
-            top_k: 返回数量
+            top_k: RRF 融合后返回数量
+            vector_k: 向量检索候选数；未提供时保持旧行为 ``top_k * 2``
+            bm25_k: BM25 候选数；未提供时保持旧行为 ``top_k * 2``
 
         Returns:
             [{
@@ -117,12 +122,14 @@ class HybridSearch:
         """
         vector_results = []
         bm25_results = []
+        vector_k = max(top_k, int(vector_k or top_k * 2))
+        bm25_k = max(top_k, int(bm25_k or top_k * 2))
 
         if self.vectorstore:
             try:
                 seen = set()
                 vector_results = []
-                for doc, score in self.vectorstore.similarity_search_with_score(query, k=top_k * 2):
+                for doc, score in self.vectorstore.similarity_search_with_score(query, k=vector_k):
                     doc_idx = self._find_doc_index(doc.page_content)
                     if doc_idx != -1 and doc_idx not in seen:
                         seen.add(doc_idx)
@@ -131,13 +138,22 @@ class HybridSearch:
                 print(f"向量检索失败: {e}")
                 vector_results = []
 
-        bm25_raw = self.bm25.search(query, top_k=top_k * 2)
+        bm25_raw = self.bm25.search(query, top_k=bm25_k)
         bm25_results = [(r["index"], r["score"], r["content"]) for r in bm25_raw]
+
+        self.last_search_stats = {
+            "requested_top_k": top_k,
+            "vector_requested": vector_k,
+            "vector_returned": len(vector_results),
+            "bm25_requested": bm25_k,
+            "bm25_returned": len(bm25_results),
+        }
 
         if not vector_results and not bm25_results:
             return []
 
         fused = self._rrf_fusion(vector_results, bm25_results)
+        self.last_search_stats["fused_candidates"] = len(fused)
 
         results = []
         for doc_idx, fused_score in fused[:top_k]:
