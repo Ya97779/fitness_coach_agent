@@ -161,6 +161,16 @@ router -> chat
 
 RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩展、HyDE、CoT、Self-RAG、Agentic RAG 和可选 Jina 重排。
 
+营养和健身 Agent 必须统一通过 `get_rag_instance()` 获取同一个进程内 RAG 实例，
+不要在 Agent 中直接创建 `ModernRAG`。当前 `prod` 检索链路配置为：向量和 BM25
+各召回最多 30 条，RRF 保留 15 条送入 Jina，重排返回 5 条，统一上下文格式化器
+去除错误、广告和高度相似结果后，最多选择 3 条、1500 字符交给 LLM。`dev`
+关闭重排并使用每路 10 条候选。Jina 超时为 5 秒，失败时回退到 RRF 结果。
+
+各层数量由 `config.yaml` 的 `rag_*` 参数配置，不要重新在 Agent 工具中硬编码
+`top_k`、倍率或字符截断。修改检索参数后，应比较 Recall@K、MRR/nDCG、最终
+上下文相关性和 P95 延迟，不能只凭单次问答体验调整。
+
 索引状态保存在 `chroma_db/indexed_files.json`，用文件哈希判断新增或变更。文档变更可能触发全量重建，所以执行重建前要确认 `CHROMA_DIR` 指向项目内预期目录，避免删除错误路径。
 
 支持的主要文档格式包括 PDF、DOC/DOCX、TXT/MD、HTML 和常见图片。新增格式时，应同时补充加载、文本清洗、元数据和索引测试。
@@ -205,6 +215,10 @@ RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩�
 - `TianxingFood_API_KEY`
 - `JINA_API_KEY`
 - `CHROMA_DIR`、`KNOWLEDGE_BASE_DIR` 及 `ENABLE_*` 功能开关：由 `config.yaml` 管理。
+- `RAG_TOP_K`、`RAG_VECTOR_CANDIDATES`、`RAG_BM25_CANDIDATES`、
+  `RAG_RERANK_CANDIDATES`、`RAG_FINAL_CHUNKS`、`RAG_MAX_CHUNK_CHARS`、
+  `RAG_MAX_CONTEXT_CHARS`、`RAG_RERANK_TIMEOUT_SECONDS`、`RAG_RERANK_MIN_SCORE`：
+  由 `config.yaml` 的 `rag_*` 设置映射，正常情况下不要写入 `.env`。
 
 `.env.example` 是不含机密的配置模板；涉及配置的改动应同步修正文档和示例，不能假设线上服务器的 `.env` 与本地配置完全一致。
 
@@ -306,7 +320,7 @@ git diff --check
 ```
 
 当前本地基线：`python -m unittest discover -s backend/tests -p 'test_*.py' -q`
-共 178 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
+共 185 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
 退出状态；涉及真实模型的评估仍需单独配置测试 Key。
 
 RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；如果真实模型不可用，

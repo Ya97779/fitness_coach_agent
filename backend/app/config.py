@@ -43,6 +43,15 @@ _SETTING_ENV_NAMES = {
     "db_pool_size": "DB_POOL_SIZE",
     "db_max_overflow": "DB_MAX_OVERFLOW",
     "db_pool_timeout": "DB_POOL_TIMEOUT",
+    "rag_top_k": "RAG_TOP_K",
+    "rag_vector_candidates": "RAG_VECTOR_CANDIDATES",
+    "rag_bm25_candidates": "RAG_BM25_CANDIDATES",
+    "rag_rerank_candidates": "RAG_RERANK_CANDIDATES",
+    "rag_final_chunks": "RAG_FINAL_CHUNKS",
+    "rag_max_chunk_chars": "RAG_MAX_CHUNK_CHARS",
+    "rag_max_context_chars": "RAG_MAX_CONTEXT_CHARS",
+    "rag_rerank_timeout_seconds": "RAG_RERANK_TIMEOUT_SECONDS",
+    "rag_rerank_min_score": "RAG_RERANK_MIN_SCORE",
 }
 
 _FEATURE_ENV_NAMES = {

@@ -15,10 +15,9 @@ from ..food_cache import (
     get_cached_total_calories,
     save_food_calorie_basis,
 )
-from ..rag import ModernRAG
+from ..rag import get_rag_instance
+from ..rag.context import format_retrieval_context
 from datetime import date
-
-_rag_instance = None
 
 # 记录意图关键词
 _FOOD_RECORD_PATTERNS = [
@@ -185,11 +184,8 @@ def _detect_meal_type(user_message: str) -> str:
 
 
 def get_rag():
-    """获取 RAG 实例（懒加载）"""
-    global _rag_instance
-    if _rag_instance is None:
-        _rag_instance = ModernRAG(enable_agentic=True)
-    return _rag_instance
+    """获取与健身 Agent 共用、受统一配置控制的 RAG 实例。"""
+    return get_rag_instance()
 
 
 @tool
@@ -355,34 +351,10 @@ def search_nutrition_knowledge(query: str):
         str: RAG 检索结果（未找到时返回提示信息）
     """
     rag = get_rag()
-    results = rag.search(query, top_k=5, mode="hybrid")
+    results = rag.search(query, top_k=rag.retrieval_top_k, mode="hybrid")
 
-    print(f"[RAG] 营养知识检索: query='{query}', results={len(results)}")
-
-    if not results:
-        return f"【RAG检索】未在知识库中找到相关信息"
-
-    # 过滤垃圾内容和太短的结果
-    spam_patterns = ["加微信", "免费获得", "大礼包", "微信号", "扫码", "关注公众号"]
-    content_parts = []
-    for i, r in enumerate(results[:5]):
-        c = r.get("content", "").strip()
-        if not c or len(c) < 20:
-            continue
-        if any(spam in c for spam in spam_patterns):
-            print(f"[RAG] 过滤垃圾内容: {c[:50]}...")
-            continue
-        if len(c) > 500:
-            c = c[:500] + "..."
-        heading = r.get("metadata", {}).get("heading_path", "")
-        prefix = f"[{heading}] " if heading else ""
-        content_parts.append(f"[来源{i+1}] {prefix}{c}")
-        if len(content_parts) >= 3:
-            break
-
-    if content_parts:
-        return f"【RAG检索】\n" + "\n\n".join(content_parts)
-    return f"【RAG检索】未在知识库中找到相关信息"
+    print(f"[RAG] 营养知识检索完成: results={len(results)}")
+    return format_retrieval_context(results)
 
 
 nutrition_tools = [

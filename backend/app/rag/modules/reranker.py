@@ -4,6 +4,7 @@
 """
 
 import os
+import time
 from typing import List, Dict, Any, Optional
 import httpx
 
@@ -40,6 +41,8 @@ class JinaReranker:
 
         self.model = model
         self.timeout = timeout
+        self.last_status = "not_called"
+        self.last_latency = 0.0
 
     def rerank(
         self,
@@ -60,9 +63,11 @@ class JinaReranker:
             精排后的结果列表，每个元素新增 "rerank_score" 字段
         """
         if not documents:
+            self.last_status = "empty"
             return []
 
         if not query or not query.strip():
+            self.last_status = "skipped"
             return documents[:top_n]
 
         # 提取文档内容
@@ -121,6 +126,7 @@ class JinaReranker:
             "return_documents": False
         }
 
+        started_at = time.perf_counter()
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 response = client.post(
@@ -130,13 +136,20 @@ class JinaReranker:
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data.get("results", [])
+                results = data.get("results", [])
+                self.last_status = "success" if results else "empty_response"
+                return results
         except httpx.TimeoutException:
+            self.last_status = "timeout"
             print(f"Jina Rerank API 超时 ({self.timeout}s)")
             return None
         except httpx.HTTPStatusError as e:
+            self.last_status = f"http_{e.response.status_code}"
             print(f"Jina Rerank API HTTP 错误: {e.response.status_code} - {e.response.text}")
             return None
         except Exception as e:
+            self.last_status = "error"
             print(f"Jina Rerank API 调用失败: {e}")
             return None
+        finally:
+            self.last_latency = time.perf_counter() - started_at

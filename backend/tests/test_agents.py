@@ -13,6 +13,7 @@ from app.agents.base import (
     AgentConfig, AgentResponse, MultiAgentState,
     AGENT_SYSTEM_PROMPTS, StreamedToolCall, chunk_stream_events
 )
+from app.agents import fitness_agent, nutrition_agent
 from app.agents.router import route_with_context
 from app.agents.chat_agent import chat_with_user, format_memory_context
 from app.agents.nutrition_agent import (
@@ -30,6 +31,20 @@ from app.agents.graph import (
     route_after_router, build_graph, MAX_RETRIES, MIN_APPROVAL_SCORE
 )
 from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage, SystemMessage
+
+
+class TestSharedRAGFactory(unittest.TestCase):
+    """营养和健身 Agent 必须共享统一配置的 RAG 工厂。"""
+
+    def test_both_agents_use_global_rag_factory(self):
+        shared_rag = object()
+        with patch.object(nutrition_agent, "get_rag_instance", return_value=shared_rag) as nutrition_factory:
+            self.assertIs(nutrition_agent.get_rag(), shared_rag)
+            nutrition_factory.assert_called_once_with()
+
+        with patch.object(fitness_agent, "get_rag_instance", return_value=shared_rag) as fitness_factory:
+            self.assertIs(fitness_agent.get_rag(), shared_rag)
+            fitness_factory.assert_called_once_with()
 
 
 class TestStreamedToolCall(unittest.TestCase):
