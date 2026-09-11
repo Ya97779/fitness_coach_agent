@@ -150,6 +150,7 @@ Page({
       statusText: '',
       reasoningContent: '',
       reasoningExpanded: true,
+      reasoningComplete: false,
       loading: true,
       _streaming: true,
       timestamp
@@ -300,7 +301,8 @@ Page({
           ...message,
           content,
           statusText: '',
-          reasoningExpanded: message.reasoningContent ? false : message.reasoningExpanded,
+          reasoningExpanded: message.reasoningExpanded !== false,
+          reasoningComplete: !!message.reasoningContent,
           _streaming: true,
           _isStatus: false,
           _hasRealContent: true
@@ -321,7 +323,8 @@ Page({
     messages[index] = {
       ...message,
       reasoningContent,
-      reasoningExpanded: !message._hasRealContent,
+      reasoningExpanded: message.reasoningExpanded !== false,
+      reasoningComplete: !!message._hasRealContent,
       statusText: '',
       _streaming: true
     }
@@ -364,7 +367,8 @@ Page({
         _streaming: false,
         _isStatus: false,
         statusText: '',
-        reasoningExpanded: false,
+        reasoningExpanded: message.reasoningExpanded !== false,
+        reasoningComplete: !!message.reasoningContent,
         html: parseMarkdown(message.content)
       }
     }
@@ -517,7 +521,8 @@ Page({
         messages[index] = {
           ...messages[index],
           reasoningContent: stream.pendingReasoning,
-          reasoningExpanded: !messages[index]._hasRealContent,
+          reasoningExpanded: messages[index].reasoningExpanded !== false,
+          reasoningComplete: !!messages[index]._hasRealContent,
           _streaming: true
         }
       }

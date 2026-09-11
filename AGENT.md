@@ -44,7 +44,7 @@ miniprogram/
 knowledgebase/              当前仓库实际跟踪的 Markdown 知识文档
 chroma_db/                  本地向量索引，不应作为业务源码提交
 config.yaml                 非敏感运行配置、profile 和功能开关
-docs/                       设计、模型评估和项目说明
+docs/                       当前升级路线、缓存设计、面试材料与故障复盘
 requirements.txt            Python 依赖
 update.sh                   服务器从 deploy 分支更新并重启服务的脚本
 ```
@@ -202,7 +202,7 @@ RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩�
 - `OPENAI_API_BASE`、`LLM_MODEL`、`LLM_REASONING_EFFORT`、`LLM_THINKING_TYPE`、
   `LLM_CLEAR_THINKING`、`EMBEDDING_MODEL`、`API_BASE_URL`：由 `config.yaml` 管理。
 - `glm-5.3-flash` 只支持开启思考；当前固定 `thinking.type=enabled`、
-  `reasoning_effort=low`。不要为该模型配置 `disabled`。
+  `reasoning_effort=medium`。不要为该模型配置 `disabled`。
 
 ### 微信与 Web
 
@@ -351,6 +351,7 @@ RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；�
 - 小程序页面变更通常需要同步检查 `.js`、`.wxml`、`.wxss`、`.json` 四类文件。
 - 新增静态资源时确认部署脚本和服务器目录是否包含它们。`backend/static/guide` 的图片并非完整跟踪在仓库中。
 - 不提交 `.env`、数据库文件、日志、用户上传、反馈附件或生成的向量索引。
+- 面试问答的唯一维护位置是 `E:\Documents\ChatGPT\interviewQA\readme.md`。编写或更新面试内容时，以本仓库当前源码、测试和部署配置为事实依据，但跨目录修改该文件；不要继续扩写 `docs/interview/Fitcoach.md`，避免形成两份不同版本。
 
 ## 8. 分支与部署
 

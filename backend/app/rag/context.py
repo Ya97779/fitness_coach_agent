@@ -13,7 +13,7 @@ import re
 from typing import Any, Dict, Iterable, List
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("food_estimate.rag.context")
 
 _SPAM_PATTERNS = ("加微信", "免费获得", "大礼包", "微信号", "扫码", "关注公众号")
 _ERROR_PREFIXES = ("检索失败", "工具执行错误", "未知工具")
