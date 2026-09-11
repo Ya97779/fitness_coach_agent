@@ -11,6 +11,8 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger("food_estimate.llm")
 
+_GLM_53_FLASH_REASONING_EFFORTS = {"low", "high", "max"}
+
 
 def get_chunk_reasoning_content(chunk: Any) -> str:
     """Return provider reasoning text preserved on a LangChain message chunk."""
@@ -57,6 +59,29 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _normalize_reasoning_effort(model: str, configured: Optional[str]) -> str:
+    """Return a reasoning level accepted by the configured provider model.
+
+    GLM-5.3-Flash always thinks and its current API accepts only low/high/max.
+    Falling back here prevents a bad deployment setting from breaking every
+    request with provider error 1210.
+    """
+
+    effort = (configured or "low").strip().casefold() or "low"
+    if (
+        model.strip().casefold().startswith("glm-5.3-flash")
+        and effort not in _GLM_53_FLASH_REASONING_EFFORTS
+    ):
+        logger.warning(
+            "unsupported_reasoning_effort model=%s configured=%s fallback=low",
+            model,
+            effort,
+        )
+        return "low"
+    return effort
+
 
 class _LLMQueue:
     """LLM 并发队列，追踪等待人数"""
@@ -225,6 +250,11 @@ class LLMManager:
         if temperature not in cls._instances:
             with cls._instance_lock:
                 if temperature not in cls._instances:
+                    model = os.getenv("LLM_MODEL", "glm-4.7")
+                    reasoning_effort = _normalize_reasoning_effort(
+                        model,
+                        os.getenv("LLM_REASONING_EFFORT", "low"),
+                    )
                     thinking_type = os.getenv(
                         "LLM_THINKING_TYPE", "enabled"
                     ).strip().casefold()
@@ -239,13 +269,11 @@ class LLMManager:
                             }
                         }
                     cls._instances[temperature] = GLMChatOpenAI(
-                        model=os.getenv("LLM_MODEL", "glm-4.7"),
+                        model=model,
                         api_key=os.getenv("OPENAI_API_KEY"),
                         base_url=os.getenv("OPENAI_API_BASE"),
                         temperature=temperature,
-                        reasoning_effort=os.getenv(
-                            "LLM_REASONING_EFFORT", "medium"
-                        ),
+                        reasoning_effort=reasoning_effort,
                         request_timeout=30,
                         max_retries=2,
                         extra_body=extra_body,

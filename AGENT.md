@@ -202,7 +202,8 @@ RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩�
 - `OPENAI_API_BASE`、`LLM_MODEL`、`LLM_REASONING_EFFORT`、`LLM_THINKING_TYPE`、
   `LLM_CLEAR_THINKING`、`EMBEDDING_MODEL`、`API_BASE_URL`：由 `config.yaml` 管理。
 - `glm-5.3-flash` 只支持开启思考；当前固定 `thinking.type=enabled`、
-  `reasoning_effort=medium`。不要为该模型配置 `disabled`。
+  `reasoning_effort=low`。该模型当前仅接受 `low`、`high` 或 `max`，不要配置
+  `medium` 或 `disabled`。
 
 ### 微信与 Web
 
