@@ -20,10 +20,10 @@ class TestLLMManager(unittest.TestCase):
         LLMManager.clear()
 
     @patch("app.llm_manager.GLMChatOpenAI")
-    def test_glm_thinking_is_enabled_with_low_reasoning(self, mock_chat_openai):
+    def test_glm_thinking_is_enabled_with_medium_reasoning(self, mock_chat_openai):
         with patch.dict(os.environ, {
             "LLM_MODEL": "glm-5.3-flash",
-            "LLM_REASONING_EFFORT": "low",
+            "LLM_REASONING_EFFORT": "medium",
             "LLM_THINKING_TYPE": "enabled",
             "LLM_CLEAR_THINKING": "false",
         }):
@@ -32,7 +32,7 @@ class TestLLMManager(unittest.TestCase):
 
         kwargs = mock_chat_openai.call_args.kwargs
         self.assertEqual(kwargs["model"], "glm-5.3-flash")
-        self.assertEqual(kwargs["reasoning_effort"], "low")
+        self.assertEqual(kwargs["reasoning_effort"], "medium")
         self.assertEqual(kwargs["extra_body"], {
             "thinking": {
                 "type": "enabled",

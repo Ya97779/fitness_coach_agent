@@ -73,7 +73,7 @@ DEFAULT_CHUNK_OVERLAP = 50
 # 智谱 Embedding 接口单次最多接收 64 条输入；超过该值会返回 400。
 DEFAULT_EMBEDDING_BATCH_SIZE = 64
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("food_estimate.rag")
 
 
 def _configured_int(value: Optional[int], env_name: str, default: int) -> int:

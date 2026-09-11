@@ -9,8 +9,7 @@ from contextvars import ContextVar
 from typing import Dict, Callable, Optional, Any
 from langchain_openai import ChatOpenAI
 
-logger = logging.getLogger("fitcoach.llm")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger("food_estimate.llm")
 
 
 def get_chunk_reasoning_content(chunk: Any) -> str:
@@ -245,7 +244,7 @@ class LLMManager:
                         base_url=os.getenv("OPENAI_API_BASE"),
                         temperature=temperature,
                         reasoning_effort=os.getenv(
-                            "LLM_REASONING_EFFORT", "low"
+                            "LLM_REASONING_EFFORT", "medium"
                         ),
                         request_timeout=30,
                         max_retries=2,

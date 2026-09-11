@@ -14,25 +14,27 @@
       <view class="msg-avatar" wx:elif="{{item.role === 'user'}}">我</view>
       <view class="msg-avatar" wx:else>AI</view>
       <view class="msg-body">
-        <view class="msg-bubble bubble-{{item.role}}">
-          <block wx:if="{{item.role !== 'user'}}">
-            <view class="reasoning-panel" wx:if="{{item.reasoningContent}}">
-              <view class="reasoning-header" bindtap="toggleReasoning" data-id="{{item.id}}">
-                <text>模型思考过程</text>
-                <text class="reasoning-toggle">{{item.reasoningExpanded ? '收起' : '展开'}}</text>
-              </view>
-              <text class="reasoning-text" wx:if="{{item.reasoningExpanded}}" user-select>{{item.reasoningContent}}</text>
+        <block wx:if="{{item.role !== 'user'}}">
+          <view class="reasoning-panel" wx:if="{{item.reasoningContent}}">
+            <view class="reasoning-header" bindtap="toggleReasoning" data-id="{{item.id}}">
+              <text>{{item.reasoningComplete ? '模型思考过程' : '模型正在思考'}}</text>
+              <text class="reasoning-toggle">{{item.reasoningExpanded ? '收起' : '展开'}}</text>
             </view>
+            <text class="reasoning-text" wx:if="{{item.reasoningExpanded}}" user-select>{{item.reasoningContent}}</text>
+          </view>
+          <view class="msg-bubble bubble-ai answer-panel" wx:if="{{item.content || item.statusText || (item.loading && !item.reasoningContent)}}">
             <rich-text wx:if="{{!item._streaming && item.html}}" nodes="{{item.html}}" selectable />
             <text wx:elif="{{item.content}}" class="msg-text" user-select>{{item.content}}</text>
             <text wx:elif="{{item.statusText}}" class="msg-text status-text" user-select>{{item.statusText}}</text>
-          </block>
-          <text wx:else class="msg-text" user-select>{{item.content}}</text>
-          <view class="msg-loading" wx:if="{{item.loading && !item.reasoningContent}}">
-            <view class="loading-dot"></view>
-            <view class="loading-dot"></view>
-            <view class="loading-dot"></view>
+            <view class="msg-loading" wx:if="{{item.loading && !item.reasoningContent && !item.content && !item.statusText}}">
+              <view class="loading-dot"></view>
+              <view class="loading-dot"></view>
+              <view class="loading-dot"></view>
+            </view>
           </view>
+        </block>
+        <view class="msg-bubble bubble-user" wx:else>
+          <text class="msg-text" user-select>{{item.content}}</text>
         </view>
         <text class="msg-time" wx:if="{{item.role === 'user' && item.timeStr}}">{{item.timeStr}}</text>
       </view>
