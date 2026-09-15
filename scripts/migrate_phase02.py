@@ -1,11 +1,14 @@
 """Apply the schema/index changes for roadmap phases 0-2.
 
-Run once before restarting the production systemd service.  It is deliberately
-separate from the web worker so four Gunicorn workers do not race to perform
-schema changes.  User logs are never merged automatically.  The old food cache
-is archived and replaced because its rows mix incompatible calorie bases.
+The migration ledger makes repeated invocations safe and allows the deployment
+script to skip this command when every known version has already been applied.
+It is deliberately separate from the web worker so four Gunicorn workers do not
+race to perform schema changes.  User logs are never merged automatically.  The
+old food cache is archived and replaced because its rows mix incompatible
+calorie bases.
 """
 
+import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -24,8 +27,33 @@ from app.food_cache import (  # noqa: E402
 )
 
 
+REQUIRED_MIGRATION_VERSIONS = (
+    "phase0_2_memory_and_idempotency",
+    "phase0_2_food_cache_basis_v2",
+    "food_estimation_status_and_volume_v3",
+)
+PENDING_MIGRATIONS_EXIT_CODE = 10
+
+
 def _duplicate_keys(connection, query):
     return connection.execute(text(query)).fetchall()
+
+
+def get_pending_migrations(engine=None) -> list[str]:
+    """Return known migration versions not recorded in the database ledger."""
+
+    target_engine = engine if engine is not None else database.engine
+    with target_engine.connect() as connection:
+        if not inspect(connection).has_table("fitcoach_schema_migrations"):
+            return list(REQUIRED_MIGRATION_VERSIONS)
+        applied = set(connection.execute(text(
+            "SELECT version FROM fitcoach_schema_migrations"
+        )).scalars())
+    return [
+        version
+        for version in REQUIRED_MIGRATION_VERSIONS
+        if version not in applied
+    ]
 
 
 def _next_backup_table_name(connection) -> str:
@@ -142,7 +170,19 @@ def _upgrade_food_cache_volume_basis(connection) -> None:
     ))
 
 
-def main() -> None:
+def main(*, check_only: bool = False) -> int:
+    pending_migrations = get_pending_migrations()
+    if check_only:
+        if pending_migrations:
+            print("pending database migrations: " + ", ".join(pending_migrations))
+            return PENDING_MIGRATIONS_EXIT_CODE
+        print("database schema is up to date")
+        return 0
+
+    if not pending_migrations:
+        print("database schema is up to date; migration skipped")
+        return 0
+
     # Validate version-controlled seed data before making schema changes.
     load_common_food_calorie_seeds()
 
@@ -200,29 +240,30 @@ def main() -> None:
             "CREATE INDEX IF NOT EXISTS ix_conversation_logs_user_session_time "
             "ON conversation_logs (user_id, session_id, created_at)"
         ))
-        connection.execute(text(
-            "INSERT INTO fitcoach_schema_migrations(version) VALUES "
-            "('phase0_2_memory_and_idempotency') "
-            "ON CONFLICT (version) DO NOTHING"
-        ))
-        connection.execute(text(
-            "INSERT INTO fitcoach_schema_migrations(version) VALUES "
-            "('phase0_2_food_cache_basis_v2') "
-            "ON CONFLICT (version) DO NOTHING"
-        ))
-        connection.execute(text(
-            "INSERT INTO fitcoach_schema_migrations(version) VALUES "
-            "('food_estimation_status_and_volume_v3') "
-            "ON CONFLICT (version) DO NOTHING"
-        ))
-
     seeded_count = seed_common_food_calorie_cache_database()
+
+    # Record versions only after schema work and the seed transaction succeed.
+    # If either step fails, the next deployment retries the idempotent migration.
+    with database.engine.begin() as connection:
+        for version in REQUIRED_MIGRATION_VERSIONS:
+            connection.execute(text(
+                "INSERT INTO fitcoach_schema_migrations(version) "
+                "VALUES (:version) ON CONFLICT (version) DO NOTHING"
+            ), {"version": version})
 
     if food_cache_backup:
         print(f"legacy food cache archived as {food_cache_backup}")
     print(f"common food calorie cache seeded: {seeded_count} rows")
     print("phase0_2_memory_and_idempotency migration applied")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="return 10 when a known migration has not been applied",
+    )
+    arguments = parser.parse_args()
+    raise SystemExit(main(check_only=arguments.check))

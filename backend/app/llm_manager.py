@@ -69,7 +69,7 @@ def _normalize_reasoning_effort(model: str, configured: Optional[str]) -> str:
     request with provider error 1210.
     """
 
-    effort = (configured or "low").strip().casefold() or "low"
+    effort = (configured or "high").strip().casefold() or "high"
     if (
         model.strip().casefold().startswith("glm-5.3-flash")
         and effort not in _GLM_53_FLASH_REASONING_EFFORTS
@@ -253,7 +253,7 @@ class LLMManager:
                     model = os.getenv("LLM_MODEL", "glm-4.7")
                     reasoning_effort = _normalize_reasoning_effort(
                         model,
-                        os.getenv("LLM_REASONING_EFFORT", "low"),
+                        os.getenv("LLM_REASONING_EFFORT", "high"),
                     )
                     thinking_type = os.getenv(
                         "LLM_THINKING_TYPE", "enabled"

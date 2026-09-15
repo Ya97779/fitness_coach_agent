@@ -17,7 +17,7 @@ echo "==> 安装依赖..."
 source "$VENV_DIR/bin/activate"
 pip install -r requirements.txt -q
 
-echo "==> 停止后端并执行数据库迁移..."
+echo "==> 检查数据库迁移..."
 service_stopped=0
 restart_if_stopped() {
     if [ "$service_stopped" -eq 1 ]; then
@@ -27,9 +27,20 @@ restart_if_stopped() {
 }
 trap restart_if_stopped EXIT
 
-sudo systemctl stop fitcoach
-service_stopped=1
-"$VENV_DIR/bin/python" scripts/migrate_phase02.py
+if "$VENV_DIR/bin/python" scripts/migrate_phase02.py --check; then
+    echo "==> 数据库已是最新，跳过迁移"
+else
+    migration_status=$?
+    if [ "$migration_status" -ne 10 ]; then
+        echo "==> 数据库迁移检查失败（退出码: $migration_status）"
+        exit "$migration_status"
+    fi
+
+    echo "==> 检测到待执行迁移，停止后端并迁移..."
+    sudo systemctl stop fitcoach
+    service_stopped=1
+    "$VENV_DIR/bin/python" scripts/migrate_phase02.py
+fi
 
 echo "==> 重启后端..."
 sudo systemctl restart fitcoach

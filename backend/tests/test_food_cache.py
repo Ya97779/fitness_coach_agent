@@ -25,8 +25,10 @@ from app.food_cache import (
     upsert_food_calorie_basis,
 )
 from scripts.migrate_phase02 import (
+    REQUIRED_MIGRATION_VERSIONS,
     _ensure_food_item_estimation_columns,
     _replace_legacy_food_cache,
+    get_pending_migrations,
 )
 
 
@@ -176,6 +178,48 @@ class TestFoodCalorieCache(unittest.TestCase):
 
 
 class TestFoodCacheMigration(unittest.TestCase):
+    def test_pending_migrations_are_read_from_database_ledger(self):
+        engine = create_engine("sqlite:///:memory:")
+        self.assertEqual(
+            get_pending_migrations(engine),
+            list(REQUIRED_MIGRATION_VERSIONS),
+        )
+
+        with engine.begin() as connection:
+            connection.execute(text(
+                """
+                CREATE TABLE fitcoach_schema_migrations (
+                    version VARCHAR(128) PRIMARY KEY,
+                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            ))
+            connection.execute(
+                text(
+                    "INSERT INTO fitcoach_schema_migrations(version) "
+                    "VALUES (:version)"
+                ),
+                {"version": REQUIRED_MIGRATION_VERSIONS[0]},
+            )
+
+        self.assertEqual(
+            get_pending_migrations(engine),
+            list(REQUIRED_MIGRATION_VERSIONS[1:]),
+        )
+
+        with engine.begin() as connection:
+            for version in REQUIRED_MIGRATION_VERSIONS[1:]:
+                connection.execute(
+                    text(
+                        "INSERT INTO fitcoach_schema_migrations(version) "
+                        "VALUES (:version)"
+                    ),
+                    {"version": version},
+                )
+
+        self.assertEqual(get_pending_migrations(engine), [])
+        engine.dispose()
+
     def test_adds_persistent_estimation_status_to_legacy_food_items(self):
         engine = create_engine("sqlite:///:memory:")
         with engine.begin() as connection:
