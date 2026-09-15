@@ -40,6 +40,21 @@ class TestLLMManager(unittest.TestCase):
             }
         })
 
+    @patch("app.llm_manager.GLMChatOpenAI")
+    def test_glm_supported_high_reasoning_is_preserved(self, mock_chat_openai):
+        with patch.dict(os.environ, {
+            "LLM_MODEL": "glm-5.3-flash",
+            "LLM_REASONING_EFFORT": "high",
+            "LLM_THINKING_TYPE": "enabled",
+        }):
+            LLMManager.clear()
+            LLMManager.get_llm(temperature=0.1)
+
+        self.assertEqual(
+            mock_chat_openai.call_args.kwargs["reasoning_effort"],
+            "high",
+        )
+
     def test_glm_stream_preserves_reasoning_content(self):
         model = GLMChatOpenAI.model_construct()
         converted = ChatGenerationChunk(

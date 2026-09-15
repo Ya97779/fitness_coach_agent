@@ -202,7 +202,7 @@ RAG 使用 Chroma 向量检索与 BM25，通过 RRF 融合；还包含查询扩�
 - `OPENAI_API_BASE`、`LLM_MODEL`、`LLM_REASONING_EFFORT`、`LLM_THINKING_TYPE`、
   `LLM_CLEAR_THINKING`、`EMBEDDING_MODEL`、`API_BASE_URL`：由 `config.yaml` 管理。
 - `glm-5.3-flash` 只支持开启思考；当前固定 `thinking.type=enabled`、
-  `reasoning_effort=low`。该模型当前仅接受 `low`、`high` 或 `max`，不要配置
+  `reasoning_effort=high`。该模型当前仅接受 `low`、`high` 或 `max`，不要配置
   `medium` 或 `disabled`。
 
 ### 微信与 Web
@@ -292,8 +292,9 @@ wx.removeStorageSync('DEV_API_BASE_URL')
 该覆盖只对微信 `develop` 环境生效，体验版和正式版始终使用生产地址。本地设置中还需勾选“不校验合法域名、TLS 版本及 HTTPS 证书”。切换本地后清除旧登录 Token，避免把生产 JWT 发给本地后端。
 
 后端启动仍会执行 `Base.metadata.create_all()`，它只负责兼容创建缺失表，不能替代
-生产迁移。阶段 0–2 的会话/语义记忆表及每日记录、食物缓存结构由
-`scripts/migrate_phase02.py` 单独执行。脚本发现重复每日记录时会停止；发现旧版
+生产迁移。`update.sh` 会先用 `scripts/migrate_phase02.py --check` 查询现有的
+`fitcoach_schema_migrations` 迁移账本；仅发现未应用版本时才停止服务并执行迁移，
+正常重复部署不会再次迁移。脚本发现重复每日记录时会停止；发现旧版
 食物缓存表时会将其完整复制到带时间戳的备份表，重建 v2 缓存表并导入常见食物
 参考数据。后续若增加非兼容字段，仍应引入正式迁移版本和回滚方案。
 
@@ -321,7 +322,7 @@ git diff --check
 ```
 
 当前本地基线：`python -m unittest discover -s backend/tests -p 'test_*.py' -q`
-共 185 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
+共 187 项通过。RAG 测试可能打印外部模型/提示词降级日志，但不影响该基线的
 退出状态；涉及真实模型的评估仍需单独配置测试 Key。
 
 RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；如果真实模型不可用，
@@ -357,7 +358,7 @@ RAG 路由器示例中的 JSON 花括号已按 LangChain 模板规则转义；�
 ## 8. 分支与部署
 
 - `main` 用于日常维护和新功能开发；建议从最新 `main` 创建 `codex/<topic>` 或团队约定的功能分支。
-- `deploy` 是服务器部署快照。`update.sh` 会在服务器上将工作区强制重置到 `origin/deploy` 并重启 `fitcoach` 服务。
+- `deploy` 是服务器部署快照。`update.sh` 会在服务器上将工作区强制重置到 `origin/deploy`，按迁移账本检查并仅执行待应用的数据库版本，然后重启 `fitcoach` 服务。
 - 不要在 `deploy` 上长期开发，也不要默认认为分支名较特殊就一定更新；比较提交拓扑和实际 diff 后再判断。
 - 合并到 `deploy` 前，确认数据库迁移、环境变量、静态资源、依赖安装和服务重启方式均已准备。
 - 未经明确要求，不执行强制推送、重置用户本地修改或覆盖部署环境数据。
