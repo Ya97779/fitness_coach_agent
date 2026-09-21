@@ -31,6 +31,7 @@ REQUIRED_MIGRATION_VERSIONS = (
     "phase0_2_memory_and_idempotency",
     "phase0_2_food_cache_basis_v2",
     "food_estimation_status_and_volume_v3",
+    "request_ledger_and_memory_status_v4",
 )
 PENDING_MIGRATIONS_EXIT_CODE = 10
 
@@ -170,6 +171,18 @@ def _upgrade_food_cache_volume_basis(connection) -> None:
     ))
 
 
+def _ensure_user_memory_status(connection) -> None:
+    columns = {column["name"] for column in inspect(connection).get_columns("user_memories")}
+    if "status" not in columns:
+        connection.execute(text(
+            "ALTER TABLE user_memories ADD COLUMN status VARCHAR(16) "
+            "NOT NULL DEFAULT 'candidate'"
+        ))
+        connection.execute(text(
+            "UPDATE user_memories SET status = 'active' WHERE confirmed = true"
+        ))
+
+
 def main(*, check_only: bool = False) -> int:
     pending_migrations = get_pending_migrations()
     if check_only:
@@ -217,6 +230,7 @@ def main(*, check_only: bool = False) -> int:
         food_cache_backup = _replace_legacy_food_cache(connection)
         _ensure_food_item_estimation_columns(connection)
         _upgrade_food_cache_volume_basis(connection)
+        _ensure_user_memory_status(connection)
 
         connection.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_log_user_date "

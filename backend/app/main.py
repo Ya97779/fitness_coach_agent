@@ -14,9 +14,12 @@ from .calorie_calculator import (
 )
 from .llm_manager import LLMManager
 from .food_cache import get_cached_total_calories, save_food_calorie_basis
+from .request_ledger import RequestNotExecutable
+from .intent_visibility import visible_assistant_text
+from .user_data import ActiveRequestError, clear_user_data_records
 import json as _json
 from .food_api import search_food_nutrient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Literal
 import asyncio
 import os
@@ -342,11 +345,10 @@ class SemanticMemoryItem(BaseModel):
 
 
 class SemanticMemoryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     memory_key: str = Field(..., min_length=1, max_length=128)
     memory_value: str = Field(..., min_length=1, max_length=1000)
-    source: Optional[str] = Field(default="user", max_length=64)
-    confidence: float = Field(default=0.9, ge=0.0, le=1.0)
-    confirmed: bool = True
     expires_at: Optional[datetime] = None
 
 # ========== 工具函数 ==========
@@ -924,27 +926,16 @@ def clear_user_data(
     db: Session = Depends(database.get_db),
 ):
     logger.info(f"[清除数据] user_id={current_user.id} 开始清除全部数据")
-    # 先查出该用户所有日志 ID，再按 log_id 删除子表
-    log_ids = [r.id for r in db.query(models.DailyLog.id).filter(
-        models.DailyLog.user_id == current_user.id
-    ).all()]
-    food_count = 0
-    exercise_count = 0
-    if log_ids:
-        food_count = db.query(models.FoodItem).filter(
-            models.FoodItem.log_id.in_(log_ids)
-        ).delete(synchronize_session=False)
-        exercise_count = db.query(models.ExerciseItem).filter(
-            models.ExerciseItem.log_id.in_(log_ids)
-        ).delete(synchronize_session=False)
-    log_count = db.query(models.DailyLog).filter(
-        models.DailyLog.user_id == current_user.id
-    ).delete(synchronize_session=False)
-    conv_count = db.query(models.ConversationLog).filter(
-        models.ConversationLog.user_id == current_user.id
-    ).delete(synchronize_session=False)
-    db.commit()
-    logger.info(f"[清除数据] user_id={current_user.id} 完成: 食物{food_count}条, 运动{exercise_count}条, 日志{log_count}条, 对话{conv_count}条")
+    try:
+        counts = clear_user_data_records(db, current_user.id)
+    except ActiveRequestError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    logger.info(
+        "[清除数据] user_id=%s 完成: 食物%s 运动%s 日志%s 对话%s 会话%s 语义记忆%s 请求%s",
+        current_user.id, counts["food"], counts["exercise"], counts["daily"],
+        counts["conversation"], counts["session"], counts["semantic"],
+        counts["request"],
+    )
 
 # ----- 对话 -----
 def _build_user_context(user: models.User, db: Session):
@@ -980,16 +971,19 @@ def chat(
 ):
     user_profile, daily_stats = _build_user_context(current_user, db)
     session_id = (request.session_id or f"default_{current_user.id}").strip()[:128]
-    request_id = (request.request_id or uuid.uuid4().hex).strip()[:128]
+    request_id = (request.request_id or "").strip()[:128] or uuid.uuid4().hex
 
-    result = process_user_message(
-        user_message=request.message,
-        user_id=current_user.id,
-        user_profile=user_profile,
-        daily_stats=daily_stats,
-        session_id=session_id,
-        request_id=request_id,
-    )
+    try:
+        result = process_user_message(
+            user_message=request.message,
+            user_id=current_user.id,
+            user_profile=user_profile,
+            daily_stats=daily_stats,
+            session_id=session_id,
+            request_id=request_id,
+        )
+    except RequestNotExecutable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return ChatResponse(
         response=result["response"],
@@ -1024,8 +1018,8 @@ async def chat_stream(
     request_id = (
         body.request_id
         or request.headers.get("X-Request-ID")
-        or uuid.uuid4().hex
-    ).strip()[:128]
+        or ""
+    ).strip()[:128] or uuid.uuid4().hex
     import time as _time
     logger.info(
         "auth_completed request_id=%s user_id=%s elapsed=%.3fs",
@@ -1134,6 +1128,8 @@ async def chat_stream(
                         yield f"event: intent\ndata: {_json.dumps(content, ensure_ascii=False)}\n\n"
                     elif event_type == "queue":
                         yield f"event: queue\ndata: {content}\n\n"
+                    elif event_type == "error":
+                        yield f"data: Error: {content}\n\n"
                     else:
                         # LLM 输出可能包含字面量转义序列（如 \n 两个字符），
                         # 先解码为真正的控制字符，再对 SSE 做转义
@@ -1208,7 +1204,7 @@ def get_chat_history(
         result.append(ChatHistoryItem(
             id=log.id,
             role="assistant",
-            content=log.agent_response,
+            content=visible_assistant_text(log.agent_response),
             agent_type=log.agent_type,
             timestamp=log.created_at.isoformat() if log.created_at else None,
         ))
@@ -1274,9 +1270,9 @@ def update_memory(
     saved = memory.save_semantic_memory(
         memory_key=data.memory_key,
         memory_value=data.memory_value,
-        source=data.source or "user",
-        confidence=data.confidence,
-        confirmed=data.confirmed,
+        source="user",
+        confidence=1.0,
+        confirmed=True,
         expires_at=data.expires_at,
     )
     if not saved:

@@ -455,6 +455,8 @@ Page({
       this.saveMessagesToCache()
       return true
     }
+    // Tab 页面实例可能仍持有清空前的消息；缓存为空时同步清空页面状态。
+    this.setData({ messages: [], pendingIntent: null, intentButtonText: '', sending: false })
     return false
   },
 
@@ -470,7 +472,7 @@ Page({
     }).then(serverMessages => {
       if (!serverMessages || serverMessages.length === 0) return
       // 再次检查，因为异步返回时状态可能已变
-      if (app.globalData.chatStream.active) return
+      if (app.globalData.chatStream.active || getChatSessionId() !== sessionId) return
       const cached = this.data.messages.filter(message => !message._streaming)
       const formatted = ensureUniqueMessageIds(serverMessages.map((m, i) => {
           const role = m.role === 'assistant' ? 'ai' : m.role
