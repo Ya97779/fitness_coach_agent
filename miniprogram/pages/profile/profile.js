@@ -149,14 +149,23 @@ Page({
   clearAllData() {
     wx.showModal({
       title: '清除全部数据',
-      content: '将清除以下数据：\n- 所有饮食记录\n- 所有运动记录\n- 对话历史\n- 本地缓存\n\n个人资料（身高体重等）将保留，此操作不可恢复。',
+      content: '将清除饮食、运动、对话、会话状态、用户记忆和本地缓存。个人资料（身高体重等）将保留，此操作不可恢复。',
       confirmText: '确认清除',
       confirmColor: '#e74c3c',
       success: (res) => {
         if (res.confirm) {
+          if (getApp().globalData.chatStream.active) {
+            wx.showToast({ title: '请等待当前对话结束后再清除', icon: 'none' })
+            return
+          }
           wx.showLoading({ title: '清除中...' })
           request({ url: '/api/v1/user/me/data', method: 'DELETE' }).then(() => {
             wx.removeStorageSync('chat_messages')
+            wx.removeStorageSync('chat_session_id')
+            Object.assign(getApp().globalData.chatStream, {
+              messages: [], requestId: '', aiMsgId: '',
+              pendingContent: '', pendingReasoning: ''
+            })
             wx.hideLoading()
             wx.showToast({ title: '已清除', icon: 'success' })
             setTimeout(() => {

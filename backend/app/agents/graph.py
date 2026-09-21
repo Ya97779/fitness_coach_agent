@@ -475,15 +475,30 @@ def process_user_message(
 ) -> dict:
     """Run the existing graph with server-bound request identity."""
 
+    from ..request_ledger import (
+        RequestNotExecutable, begin_request, complete_request, fail_request,
+    )
+
     with request_context(user_id, session_id=session_id, request_id=request_id):
-        return _process_user_message(
-            user_message=user_message,
-            user_id=user_id,
-            user_profile=user_profile,
-            daily_stats=daily_stats,
-            session_id=session_id,
-            request_id=request_id,
-        )
+        status, previous = begin_request(user_id, request_id, session_id, user_message)
+        if status == "completed":
+            return previous
+        if status != "claimed":
+            raise RequestNotExecutable(status)
+        try:
+            result = _process_user_message(
+                user_message=user_message,
+                user_id=user_id,
+                user_profile=user_profile,
+                daily_stats=daily_stats,
+                session_id=session_id,
+                request_id=request_id,
+            )
+            complete_request(user_id, request_id, result)
+            return result
+        except Exception:
+            fail_request(user_id, request_id)
+            raise
 
 
 def _process_user_message(
@@ -565,13 +580,14 @@ def _process_user_message(
     if current_agent == "chat":
         response, intent = parse_intent(response)
 
-    memory_manager.save_conversation(
+    if not memory_manager.save_conversation(
         user_message=user_message,
         agent_response=response,
         agent_type=current_agent,
         session_id=session_id,
         request_id=request_id,
-    )
+    ):
+        raise RuntimeError("对话结果保存失败")
     route_decision = final_state.get("route_decision")
     if route_decision:
         memory_manager.save_route_state(
@@ -757,7 +773,23 @@ def stream_user_message(
 ):
     """Run the existing streaming workflow with an isolated request context."""
 
+    from ..request_ledger import (
+        begin_request, complete_request, fail_request, request_status_message,
+    )
+
     with request_context(user_id, session_id=session_id, request_id=request_id):
+        status, previous = begin_request(user_id, request_id, session_id, user_message)
+        if status == "completed":
+            yield ("status", "该请求已完成，正在返回原结果...")
+            for intent in previous.get("intents", []):
+                yield ("intent", intent)
+            if previous.get("response"):
+                yield ("data", previous["response"])
+            return
+        if status != "claimed":
+            yield ("error", request_status_message(status))
+            return
+
         queue_events = []
 
         def _on_queue(position):
@@ -766,8 +798,11 @@ def stream_user_message(
 
         from ..llm_manager import LLMManager
         queue_callback_token = LLMManager.set_queue_callback(_on_queue)
+        visible_parts = []
+        intents = []
+        completed = False
         try:
-            yield from _stream_user_message_impl(
+            for item in _stream_user_message_impl(
                 user_message=user_message,
                 user_id=user_id,
                 user_profile=user_profile,
@@ -775,8 +810,30 @@ def stream_user_message(
                 session_id=session_id,
                 request_id=request_id,
                 queue_events=queue_events,
-            )
+            ):
+                if item[0] == "data":
+                    visible_parts.append(item[1])
+                elif item[0] == "intent":
+                    intents.append(item[1])
+                elif item[0] == "error":
+                    break
+                yield item
+            else:
+                if not "".join(visible_parts).strip():
+                    yield ("error", "未能生成有效回复，请重试。")
+                    return
+                complete_request(user_id, request_id, {
+                    "response": "".join(visible_parts),
+                    "intents": intents,
+                })
+                completed = True
+            if not completed:
+                yield ("error", "请求执行失败；请先核对记录，再发起新请求。")
+        except Exception:
+            raise
         finally:
+            if not completed:
+                fail_request(user_id, request_id)
             LLMManager.reset_queue_callback(queue_callback_token)
 
 
@@ -826,17 +883,6 @@ def _stream_user_message_impl(
     )
     print(f"[stream] 记忆加载完成", flush=True)
 
-    # 客户端超时重试时，已完成的同一 request_id 直接回放上一轮结果，
-    # 避免再次执行记录工具或重复写入业务日志。
-    if request_id and memory_summary.get("last_request_id") == request_id:
-        cached_response = (memory_summary.get("working_memory") or {}).get(
-            "last_agent_response"
-        )
-        if cached_response:
-            yield ("status", "该请求已完成，正在返回原结果...")
-            yield ("data", cached_response)
-            return
-
     print(f"[stream] 路由分析中...", flush=True)
     result = hybrid_route(
         user_message_clean,
@@ -859,13 +905,14 @@ def _stream_user_message_impl(
         try:
             response = _record_multi_domain_message(user_message, user_id)
             yield ("data", response)
-            memory_manager.save_conversation(
+            if not memory_manager.save_conversation(
                 user_message=user_message,
                 agent_response=response,
                 agent_type="chat",
                 session_id=session_id,
                 request_id=request_id,
-            )
+            ):
+                raise RuntimeError("对话结果保存失败")
             memory_manager.save_route_state(
                 result,
                 working_memory={"active_agent": "chat", "intent": "record", "completed": True},
@@ -874,7 +921,7 @@ def _stream_user_message_impl(
             )
         except Exception as e:
             print(f"[stream] 多意图记录失败: {e}", flush=True)
-            yield ("data", "我识别到了饮食和运动，但记录时遇到问题，请稍后重试。")
+            yield ("error", "记录时遇到问题，请先核对记录，再发起新请求。")
         return
 
     enhanced_prompt = memory_manager.enhance_system_prompt(
@@ -932,32 +979,37 @@ def _stream_user_message_impl(
                     yield (event_type, event_value)
                 continue
 
-            full_response += chunk
             # 过滤意图标记，不发给前端
             if '[INTENT_JSON]' in chunk or '[INTENT:' in chunk:
                 clean_chunk = re.sub(r'\[INTENT_JSON\].*?\[/INTENT_JSON\]', '', chunk)
                 clean_chunk = re.sub(r'\n?\[INTENT:(?:food|exercise)\].*?(?:\n|$)', '', clean_chunk)
                 clean_chunk = clean_chunk.strip()
                 if clean_chunk:
+                    full_response += clean_chunk
                     yield ("data", clean_chunk)
             else:
+                full_response += chunk
                 yield ("data", chunk)
     except Exception as e:
         completed = False
         error_msg = f"抱歉，处理时出现问题: {str(e)[:200]}"
         print(f"[stream] 迭代异常: {e}")
-        full_response += error_msg
-        yield ("data", error_msg)
+        yield ("error", error_msg)
+
+    if completed and not full_response:
+        yield ("error", "未能生成有效回复，请重试。")
+        return
 
     # 只有完整成功的回复才进入长期历史，避免错误信息自我强化。
     if completed and full_response:
-        memory_manager.save_conversation(
+        if not memory_manager.save_conversation(
             user_message=user_message,
             agent_response=full_response,
             agent_type=agent,
             session_id=session_id,
             request_id=request_id,
-        )
+        ):
+            raise RuntimeError("对话结果保存失败")
         memory_manager.save_route_state(
             result,
             working_memory={

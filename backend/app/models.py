@@ -137,6 +137,21 @@ class ConversationSession(Base):
     user = relationship("User")
 
 
+class RequestLedger(Base):
+    """One durable execution slot per user request, shared by all workers."""
+    __tablename__ = 'request_ledger'
+    __table_args__ = (UniqueConstraint('user_id', 'request_id', name='uq_request_ledger_user_request'),)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    request_id = Column(String(128), nullable=False)
+    session_id = Column(String(128), nullable=False)
+    message_hash = Column(String(64), nullable=False)
+    status = Column(String(16), nullable=False, default='processing')
+    result_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class UserMemory(Base):
     """用户确认或高可信的语义记忆，不重复存储业务日志事实。"""
 
@@ -153,6 +168,7 @@ class UserMemory(Base):
     source = Column(String, nullable=True)
     confidence = Column(Float, nullable=False, default=0.5)
     confirmed = Column(Boolean, nullable=False, default=False)
+    status = Column(String(16), nullable=False, default='candidate')
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
