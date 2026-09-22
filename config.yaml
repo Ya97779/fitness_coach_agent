@@ -47,7 +47,7 @@ profiles:
       cot: false
       self_rag: false
       # 仅透传模型 API 实际返回的 reasoning_content；不会写入对话历史或长期记忆。
-      show_model_reasoning: true
+      show_model_reasoning: false
 
   prod:
     env_file: .env
@@ -93,4 +93,4 @@ profiles:
       cot: false
       self_rag: false
       # 可随时关闭，以退回普通状态提示。
-      show_model_reasoning: true
+      show_model_reasoning: false

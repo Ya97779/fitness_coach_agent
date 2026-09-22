@@ -62,7 +62,7 @@
   align-items: flex-end;
 }
 
-/* AI 头像 */
+/* 消息头像 */
 .msg-avatar {
   width: 48rpx;
   height: 48rpx;
@@ -77,6 +77,15 @@
   background: var(--accent-dim);
   color: var(--accent);
   letter-spacing: 1rpx;
+}
+
+.msg-avatar-assistant {
+  width: 92rpx;
+  white-space: nowrap;
+}
+
+.msg-item.ai .msg-body {
+  max-width: calc(100% - 122rpx);
 }
 
 .msg-item.user .msg-avatar {
@@ -125,7 +134,7 @@
   display: block;
 }
 
-/* mp-html markdown 样式 */
+/* 原生 rich-text 的 markdown 样式 */
 .bubble-ai rich-text {
   font-size: 22rpx;
   line-height: 1.8;
