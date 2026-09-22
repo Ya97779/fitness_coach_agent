@@ -284,7 +284,7 @@ Page({
   },
 
   updateAiMessage(msgId, content, isStatus) {
-    // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 导致 mp-html 不刷新）
+    // 流式过程中只更新纯文本，不解析 markdown（避免高频 setData 影响原生 rich-text 渲染）
     // isStatus=true 表示状态消息（如"Agent正在思考..."），不是最终内容
     const index = this.data.messages.findIndex(message => message.id === msgId)
     if (index < 0) return

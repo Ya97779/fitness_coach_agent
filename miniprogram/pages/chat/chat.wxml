@@ -12,7 +12,7 @@
     <view class="msg-item {{item.role}}" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
       <image class="msg-avatar-img" wx:if="{{item.role === 'user' && userAvatar}}" src="{{userAvatar}}" mode="aspectFill" />
       <view class="msg-avatar" wx:elif="{{item.role === 'user'}}">我</view>
-      <view class="msg-avatar" wx:else>AI</view>
+      <view class="msg-avatar msg-avatar-assistant" wx:else>私人助手</view>
       <view class="msg-body">
         <block wx:if="{{item.role !== 'user'}}">
           <view class="reasoning-panel" wx:if="{{item.reasoningContent}}">
